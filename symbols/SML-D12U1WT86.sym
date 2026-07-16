@@ -1,0 +1,26 @@
+<Symbol name="SML-D12U1WT86">
+  <graphic unit="0" style="0">
+    <pin name="~" number="A" PIN_ELECTRICAL_TYPE="passive" PIN_GRAPHIC_STYLE="line" x1="-7.62" y1="0.0" x2="-5.08" y2="0.0"/>
+    <pin name="~" number="C" PIN_ELECTRICAL_TYPE="passive" PIN_GRAPHIC_STYLE="line" x1="5.08" y1="0.0" x2="0.0" y2="6.221205739668554e-16"/>
+    <polyline points="-2.54,1.524 -2.54,0.0"/>
+    <polyline points="-2.54,0.0 -2.54,-1.524"/>
+    <polyline points="-2.54,-1.524 0.0,0.0"/>
+    <polyline points="0.0,0.0 -2.54,1.524"/>
+    <polyline points="0.0,1.524 0.0,-1.524"/>
+    <polyline points="-2.54,0.0 -5.08,0.0"/>
+    <polyline points="1.016,4.064 -0.762,2.032"/>
+    <polyline points="0.6858,3.0988 0.127,3.5814"/>
+    <polyline points="0.127,3.5814 1.016,4.064"/>
+    <polyline points="1.016,4.064 0.6858,3.0988"/>
+    <polyline points="0.6858,3.0988 0.7112,3.8354"/>
+    <polyline points="0.7112,3.8354 0.5842,3.8354"/>
+    <polyline points="0.3048,3.5052 0.5334,3.6576"/>
+    <polyline points="-0.2286,4.1656 -2.0066,2.1336"/>
+    <polyline points="-0.5588,3.2004 -1.1176,3.683"/>
+    <polyline points="-1.1176,3.683 -0.2286,4.1656"/>
+    <polyline points="-0.2286,4.1656 -0.5588,3.2004"/>
+    <polyline points="-0.5588,3.2004 -0.5334,3.937"/>
+    <polyline points="-0.5334,3.937 -0.6604,3.937"/>
+    <polyline points="-0.9398,3.6068 -0.7112,3.7592"/>
+  </graphic>
+</Symbol>

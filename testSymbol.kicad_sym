@@ -1,0 +1,38 @@
+(kicad_symbol_lib (version 20220914) (generator kicad_symbol_editor)
+  (symbol "4.7uF_6.3V_1608m" (in_bom yes) (on_board yes)
+    (property "MPN" "CL10B475KQ8NQNC" (at 0 6 0)  (effects (font (size 1.27 1.27)) hide))
+    (property "symbol_name" "47uF_63V_1608m" (at 0 8 0)  (effects (font (size 1.27 1.27)) ))
+    (property "Category" "Capacitors" (at 0 10 0)  (effects (font (size 1.27 1.27)) hide))
+    (property "Package / Case" "0603 [1608 Metric]" (at 0 12 0)  (effects (font (size 1.27 1.27)) hide))
+    (property "Capacitance" "4.7uF" (at 0 14 0)  (effects (font (size 1.27 1.27)) hide))
+   
+   (symbol "4.7uF_6.3V_1608m_0_1"		
+      (polyline
+        (pts
+          (xy -1.524 -0.508)
+          (xy 1.524 -0.508)
+        )
+        (stroke (width 0.3302) (type default))
+        (fill (type none))
+      )
+      (polyline
+        (pts
+          (xy -1.524 0.508)
+          (xy 1.524 0.508)
+        )
+        (stroke (width 0.3048) (type default))
+        (fill (type none))
+      )
+    )
+    (symbol "4.7uF_6.3V_1608m_1_1"				
+      (pin passive line (at 0 -2.54 90) (length 2.032)
+        (name "~" (effects (font (size 1.27 1.27))))
+        (number "" (effects (font (size 1.27 1.27))hide))
+      )
+      (pin passive line (at 0 2.54 270) (length 2.032)
+        (name "~" (effects (font (size 1.27 1.27))))
+        (number "" (effects (font (size 1.27 1.27))))
+      )
+    )
+  )
+)

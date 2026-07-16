@@ -1,0 +1,1251 @@
+from utils import * 
+
+from PySide6.QtCore import QModelIndex
+from SchematicScene import SchematicScene
+from Schematic import Schematic
+from Board import Board
+from PySide6.QtWidgets import QFileDialog
+from Spreadsheet import Spreadsheet
+from MyCreatePartDialog import CreatePartDialog
+from DigikeyParser import DigikeyParser
+from DigikeyAPI import DigikeyAPI
+from CentralWidget import CentralWidget
+from MyCreateDialog import MyCreateDialog
+from ComponentSymbol import ComponentSymbol
+from FootprintItem import FootprintItem
+from Database import database 
+from MyGraphicAssign import MyGraphicAssign
+from MyGraphicAssign import MyGraphicsAssign
+from PySide6.QtWidgets import *
+from SchematicSymbolItem import SchematicSymbolItem 
+from SchematicLabelItem import SchematicLabelItem
+from SchematicLabelItem import LocalLabelItem
+from SchematicLabelItem import HierarchyLabelItem
+from SchematicLabelItem import GlobalLabelItem
+from SchematicItem import SchematicItem
+# from 
+
+from WireItem import WireItem
+from utils import Utils
+# from Label import Label 
+from NetSymbol import NetSymbol
+from Component import Component
+
+import numpy as np
+from scipy.sparse import coo_matrix
+from scipy.spatial.distance import squareform, pdist
+import matplotlib.pyplot as plt
+        
+
+class MainWindow(QMainWindow):
+    # wiring_action_signal = Signal(int) # This signal emits when the wiring action is triggered ( user presses 'wiring mode' button) ( Signals aren't designed to be reimplemented-- so don't reimplement builtin signals. Instead, create your own Signals)
+    on_graphic_assign_all_done = Signal()
+
+    def __init__(self):
+        super().__init__()        
+        self.veins = {0:None}                   # 'veins' after veins of ore, 
+        self.nets = defaultdict(dict)                          # 
+        self.connectedVeins = []               # Track any veins connected to the vein currently being drawn
+        self.ratsnests = defaultdict(list)                     # {'3V3': [QGraphicsLineItem1, ...], 'GND':[...], ... }
+        # self.ratsnestGraphs = defaultdict(list)
+        G = []
+        self.mst = None
+
+        self.components = defaultdict(dict) # {"R": {1:<Component>, '5':<Component> } , "U": {4:<Component>} } # Note netSymbols go in schematic.scene.netSymbols 
+
+        self.setAcceptDrops(True)
+        self.schematic= Schematic() #Shown on start. part of stacked_widget
+        self.board = Board() # hidden on start. part of stacked widget 
+        self.spreadsheet = Spreadsheet() # MySchematic has self.spreadsheet and its visible while editing .brd and .sch
+        
+        self.spreadsheet.table.clicked.connect(self.onTableClicked)
+        self.create_actions()
+        self.create_menus()
+        self.create_schematic_toolbar()
+        self.create_board_toolbar()
+        
+        
+        database.changed.connect(self.reload_part) # When the database changes, reload all parts on all scenes
+        
+### Had many issues adding part to both brdScene & schScene @same time-- I ended up creating a signal, to .emit on a sceneDropEvent, .connecting that symbol at the MainWindow level, below: ### I THINK it'd be better to have a BoardScene & symbolScene subclass...
+        
+        self.schematic.scene().droppedPart.connect(self.placePart)
+        self.board.scene().dropped_part.connect(self.placePart)
+        
+        
+        self.schematic.scene().deletePart.connect(self.deletePart)
+        self.board.scene().deletePart.connect(self.deletePart)
+        
+        self.board.scene().tracingLaid.connect(self.onTracingLaid)
+        self.schematic.scene().wiringLaid.connect(self.onWiringLaid)
+        
+        self.board.scene().footprintMoved.connect(self.onFootprintMoved)
+        # self.parts = {}# A dict representing all parts placed on our sch & brd.  keys are reference_value. values are the symbol and  {C1:}
+        
+        self.setCentralWidget(CentralWidget(self.schematic, self.board)) # Bc QMainWindow deletes old central widgets upon assignment of create central widgets, protect schematic&board from deletion inside a stackedwidget.
+        # self._addWireAction.trigger()# The triggered signal is emitted when an action is activated, such as when the user clicks a menu button, or when .trigger() was called
+        self.dock_spreadsheet = QDockWidget()
+        self.dock_spreadsheet.setWidget(self.spreadsheet)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea , self.dock_spreadsheet)
+        self.dock_spreadsheet.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+# I need to be able to talk to the database 
+        # database.changed.connect(self.spreadsheet.table.setTableName) TYPING MISMATCH: .changed emits DICT but .setTableName accepts STR # Now every time the database gets an update or insert, the table will refresh, w/ changes 
+        # database.changed.connect(self.spreadsheet.reload_part)  #Every time the database gets an update or insert, the table will refresh, based on part.get('table_name')
+        # database.changed.connect(self.schematic.scene().reload_part) #This belongs in scene() constructor # Refresh all the symbols belonging to 'table_name' when we update the db (Bc the symbols hold their own part record) This may not make any visiblie changes, unless you change the 'symbol' attribute 
+        # database.changed.connect(self.board.scene().reload_part)  # This belongs in scene()'s constructor # Refresh all the footprints belonging to 'table_name' when we update the db( Bc the footprints also hold heir own part record) This may not make any visible changes, unless you change the 'footprint' attribute...
+        
+    def onFootprintMoved(self, footprint):
+        footprint.setNets()
+
+        print('FOOTPRINT:', footprint)
+        print('FOOTPRINT.NETS():', footprint.nets())
+        for net in footprint.nets():
+            self.updateRatsnest(net)
+
+    def setVeinNet(self, vein): # TODO more robust drc
+
+        net = None
+        
+        highestPriority = max(vein)# ValueError: max() iterable argument is empty
+        print('HIGHESTPRIORITY:', highestPriority)
+        if highestPriority == Utils.SchematicItemKinds.Wire.value: # .value!!
+            print()
+            print('DRC NOTIFICATION: WIRES FLOATING IN SPACE') 
+            
+        elif highestPriority == Utils.SchematicItemKinds.Pin.value: 
+            
+            pins = vein[Utils.SchematicItemKinds.Pin.value]
+            if len(pins) == 1: 
+                print()
+                print('DRC NOTIFICATION: PIN IS NOT CONNECTED') 
+            
+            pins = sorted(pins, key = lambda pin: pin.name()+str(pin.number())) # pin.id is unique integer assigned during brdScene.addItem. TODO: confirm pin.id is deterministic way for sorting pins. Could also sort by pin name ('C3-1') since we need it for the net anyway
+            pin = pins[0]
+            if pin.name():
+                net = pin.parentItem().reference() + '_' + pin.name()    
+            else: 
+                net = pin.parentItem().reference() + '_' + pin.number()
+            
+        elif highestPriority == Utils.SchematicItemKinds.LocalLabel.value: 
+            print()
+            print('NET ASSIGNMENTS VIA LABELS NOT YET IMPLEMENTED')
+            
+        elif highestPriority == Utils.SchematicItemKinds.NetSymbol.value: 
+            net_symbols = vein[Utils.SchematicItemKinds.NetSymbol.value]
+            print()
+            print('NET ASSIGMENT VIA NET SYMBOLS NOT YET IMPLEMENTED')
+            
+        else: 
+            print()
+            print('NET ASSIGMENT VIA HIGHEST PRIORITY SCHEMATICITEM NOT YET IMPLEMENTED')
+            
+        vein['net'] = net # Actually set the net 
+        return net
+        # UNFINISHED Note that if HP is Global label, most prios below must also be checked for conflicts 
+        
+    def onWiringLaid(self, pos): # This slot runs when schematic.scene emits wiring_laid. pos: the position of any terminal of laid wiring. If user added wire, pos equals mouseDoubleClickEvent.event.scenePos(). 
+        # We need to:
+            # update MW.veins
+            # update MW.nets
+            # update the ratsnest for this net
+            # All of which updateVeins does
+        print()
+        print('WIRING LAID', pos.toPoint())
+        self.updateVeins(pos)
+
+    def onTracingLaid(self, net): # Slot runs when board.scene emits tracing_laid
+        #We need to 
+        # update ( nets@BIs, ratsnest )
+        # First, update nets@BI's, because, ratsnest will use padTerminals=nets[BI.Pad]  
+        self.updateRatsnest(net)
+    
+    def propagations(self, pos, net):  # pos(x,y,layer) # -> list of positions which pos propagates to, incl. pos. Propagations will find all connected BoardItems on board scene. Used in ratsnest creation. See ratsnest tutorial. Ratsnest is a minimum spanning tree; a modified Kruskal algo, of terminals of all items in a net... which remain unconnected to other items in that net. Say pad connects to nothing: ratsnest travels to terminal of nearest item in net. Say pad is wired to a wire which in turn connects to nothing: ratsnest travels from unconnected terminal of wire to terminal of nearest item in net: This latter case calls for checking 'propagations' of each pad.  If pad propagates its way onto another pad, then, ratsnest no longer needed between these pads. Any copper, incl pads vias zones wires, all propogate a net. 
+        startPos = pos 
+        positionQueue = [pos]
+        visitedItems = set()
+        visitedPositions = set()
+        while positionQueue: 
+            pos = positionQueue.pop(0)
+            visitedPositions.add(pos)
+            for hitItem in self.queryRtrees(pos):
+                if hitItem in visitedItems: continue 
+                visitedItems.add(hitItem)
+                for hitItem2 in self.queryRtrees(item = hitItem):
+                    if hitItem2 in visitedItems: continue 
+                    elif hitItem2 == hitItem: continue 
+                    if hitItem2.connectsTo(hitItem):
+                        positionQueue.extend(hitItem2.sceneTerminals())
+                # if not isinstance(hitItem ,FootprintItem):
+                #     if hitItem.net() != None and  hitItem.net() != net: 
+                #         raise ValueError(f'HITITEM.NET(): {hitItem.net()} AND TRACE NET: {net} DO NOT MATCH')
+                #     hitItem.setNet(net) # Set net on every BoardItem, (but not here-- done before) so that brdScene knows net info w/o relying on MW.nets, which it cannot ez access.  
+        print(f'POS {startPos} PROPAGATED TO { len(visitedPositions) } POINTS:', list(visitedPositions)) 
+        return list(visitedPositions) 
+        
+    def queryRtrees(self, pos=None , item = None ): 
+        """Query rtree for either pos, a 3-tuple (x,y,layer) or item, a QGraphicsItem """
+        if pos: 
+            x, y, layer = pos
+            bounds = ( x, y , x , y )
+        elif item: 
+            bounds = item.sceneBounds()
+            layer = item.layer()
+            
+        hitIds = self.board.scene().rtrees[layer].intersection(bounds)
+        hitItems = [self.board.scene().ids[id] for id in hitIds]
+        return hitItems 
+        
+    def updateRatsnest(self, net): # Modified Kruskal Minimum Spanning Tree https://en.wikipedia.org/wiki/Kruskal's_algorithm#Pseudocode. Note uses indices of vertices as ordered in G, rather than vertices.
+        G = [ [ [2,0,'F.Cu'] , [0,0,'F.Cu'],  [1,1,'F.Cu' ] , [1,3,'F.Cu'] ] , [ [3,2,'F.Cu'], [4,2,'F.Cu'] ] ]
+        G = self.ratsnestGraph(net) 
+        print('G:', G) # G: [[(55.0, 55.0, 'F.Cu')], (55.0, 55.0, 'F.Cu')]
+        if not G: 
+            print('NO GRAPH WITH WHICH TO UPDATE RATSNEST')
+            return
+
+        flat = [] 
+
+        for subgraph in G: 
+            for pos in subgraph: 
+                flat.append(pos[0:2]) # Flat doesn't have layer part
+
+        print('FLAT:', flat)
+        self.addRatsnestToScene(G , flat, net)
+        
+    def ratsnestGraph(self, net):
+        G = [] # ratsnest lines arent wanted between connected items. Collect vertices of connected items in G
+        # self.subgraphs = [] # ratsnest lines arent wanted between connected items. Collect vertices of connected items in self.subgraphs  
+        print()
+        print('NET:', net)
+        print('MW.NETS:', self.nets)
+        print(f'MW.NETS[{net}]:', self.nets[net])
+
+        pads =  self.nets[net].get(Utils.BoardItemKinds.Pad.value, [])
+        print('PADS:', len(pads), pads)
+        if not pads: 
+            return
+        # padTerminals = {pad.sceneTerminals(net) for pad in pads}         # padTerminals = [ [0,0, 'F.Cu'] , [2,0,'] , [3,0] , [0,2] ] 
+        padTerminals = []
+        for pad in pads :
+            pad.setSceneTerminal()
+            for layer in pad.layers(): 
+                if layer in Utils.CuLayers: 
+                    padTerminals.append( (*pad.sceneTerminal().toTuple() , layer) ) # xyLayer form
+
+        print('PADTERMINALS:', len(padTerminals), padTerminals) 
+        # padTerminals: 2 [[(-0.9271, 0.0, 'F.Cu'), (-0.9271, 0.0, 'F.Paste'), (-0.9271, 0.0, 'F.Mask')], [(0.9271, 0.0, 'F.Cu'), (0.9271, 0.0, 'F.Paste'), (0.9271, 0.0, 'F.Mask')]]
+
+        # G = set(padTerminals) NO SETS bc cannot iterate over sets 
+         # padTerminals is a precursor G, includes pad terminals, but G requires terminals of any connected pads/traces/zones as well # copy padTerminals with set() as they belong in G
+        # for pos in padTerminals :
+        
+        while padTerminals: 
+            pos = padTerminals.pop(0)
+            
+            if any(pos in subgraph for subgraph in G):
+                continue
+            propagations = self.propagations(pos, net)
+            G.append(propagations) #  Accumulate all pad, trace, via, and zone terminals connected to pads. L8r, G used to disallow ratsnest lines intra-subgraph. Bc connected items dont get a ratsnest line.
+
+        return G
+ 
+    def ratsnestMST(self, G, flat ): 
+        # Graph Theory: 
+            # Tree: a graph. Vertices connected by 1 path. Undirected, acyclic.
+            # Forest: a graph. Vertices connected by 0 or 1 path. Undirected, acyclic,  ( so named because a 'forest' can contain many 'trees') 
+            # Minimum Spanning Tree MST: A Tree, connecting all nodes in the graph, with minimum weight
+            # Kruskal: The most common MST algo. Orders edges by increasing weight, then adds them as long as no cycle is formed. Uses set data structures to detect cycles.
+            # graphComponent : as subgraphs is used elsewhere, decided to call mst subgraph graphComponent
+        # Modifications: 
+            # Kruskal algo insufficient for my use case as-written. The board may have wires, vias, zones, connected to each other. Since we want ratsnest wires to span between unconnected items, we collect connected vertices in self.subgraphs. intra-subgraph connections are not allowed. Inter-subgraph connections only. To this end we have .propagations() method to collect subgraphs; connected vertices. Propagations considers not just pad terminals, but also terminals of connected vias and wires and zones-- these are all viable vertices for the ratsnest to connect to 
+            # .propagations method detects vertices connected to a given point; self.subgraphs. Used to prevent intra-subgraph connections
+        # G started with padTerminals, then we added all points of propagation. Now, G is a list of points representing possible ratsnest vertices for this net. But that's not enough for a ratsnest-- we need to not draw wires between connected items -- so we also have self.subgraphs, containing sets representing connected items. 
+                
+        def findSubgraph(pos, G): 
+            for subgraph in G: 
+                for XYLayer in subgraph: 
+                    XY = XYLayer[0:2]  # Look at XY not XYLayer
+                    if XY == pos:
+                        return subgraph
+            
+        def findSet(index, subsets):
+            for subset in subsets: 
+                if index in subset: 
+                    return subset 
+            
+        forest = set()
+
+        
+        # kruskal starts w/ each vertex index its own set 
+        
+        # sets = [ set([index]) for index in range(len(flat))]
+        
+
+        subsets = [] 
+        count = 0
+        for subgraph in G: 
+            subset = set() 
+            for _ in subgraph: 
+                subset.add(count)
+                count +=1 
+            subsets.append(subset)
+        print('SUBSETS:', subsets)
+
+        # Generate edges 
+        coo = coo_matrix(squareform(pdist(flat)))
+        # print(coo)
+        edges = list(zip(coo.row, coo.col, coo.data)) 
+        for edge in edges:  # Remove redundant edges 
+            u, v, dist = edge 
+            if (v,u,dist) in edges: 
+                edges.remove((v,u,dist))
+        edges = sorted(edges, key= lambda x: x[2])
+        print('EDGES:', edges)
+        
+        for edge in edges[:]: # Remove intra-subgraph edges. Unlike kruskalMST, ratsnestMST disallows intra-subgraph connections, implemented by removing intra-subgraph edges. 
+            u,v,dist = edge
+            uPos, vPos  = flat[u] , flat[v]
+            print('uPos:', uPos) 
+            print('vPos:', vPos)
+            subgraphU, subgraphV = findSubgraph(uPos, G), findSubgraph(vPos, G)
+            #Modify findSubgraph to find XY and not XYLayer
+            print('subgraphU:', subgraphU)
+            print('subgraphV:', subgraphV)
+            # print('SUBGRAPHU:', subgraphU)
+            # print('SUBGRAPHV:', subgraphV)
+            if subgraphU == subgraphV: 
+                edges.remove(edge)
+        print('EDGES:', edges)
+
+        for edge in edges: 
+            print()
+            print('EDGE:', edge)
+            u,v,dist = edge
+            
+            setU, setV = findSet(u, subsets), findSet(v, subsets)
+            print('SETU:', setU)
+            print('SETV:', setV)
+            if setU != setV: 
+                forest = forest.union({ frozenset([u,v]) })
+                subsets.append(setU.union(setV))
+                subsets.remove(setU)
+                subsets.remove(setV)
+            
+        print('FOREST:', forest)# MST: {frozenset({3, 4}), frozenset({1, 2}), frozenset({2, 6})}
+        return forest
+    
+    # Pretty sure this makes a correct ratsnestMST.
+    # def ratsnestMinimumSpanningTree(self, G):
+
+    #     def findSubgraph(index): # index: 
+    #         for subgraph in self.subgraphs: 
+    #             if index in subgraph: 
+    #                 return subgraph
+    #     removedLayerCoordinate = list(set([i[0:2] for i in G ])) # Remember in slice [0:2] that 2 is exclusive 
+    #     print('REMOVED LAYER COORDINATE:', removedLayerCoordinate) # [(0.9271,)]
+    #     pairwiseDistance = pdist( removedLayerCoordinate )
+    #     print('PAIRWISEDISTANCE:', pairwiseDistance) 
+    #     adjacencyMatrix = squareform( pairwiseDistance ) # pdist as in pairwise distance. Use scipy to form weighted adjacency matrix, a precursor to the minimum spanning tree. See sparse matrices, compressed sparse matrices,  scipy.pdist, scipy.squareform, adjacency matrices, minimum spanning tree(everyone uses KruskalMST including me here). adj matrix aka 'graph' in compSci 
+    #     # adjacencyMatrix = squareform( pdist( G )) 
+    #     print('ADJACENCYMATRIX:', adjacencyMatrix)
+        
+    #     coo = coo_matrix(adjacencyMatrix) # Create a sparse matrix, COOrdinate flavor, so that we can use coo.row & coo.col to make our graph edges-- Note these edges are made of indices of points, corresponding to how they were ordered in 'points'. So edge(0,2) corresponds to points[0] to points[2]
+    #     edges = list(zip(coo.row , coo.col, coo.data))      
+    #     edges = sorted(edges, key = lambda coo : coo[2] ) # order G edges by weight; Kruskal algo
+    #     for edge in edges: # Example: edge:(0,3,3.0) where 0&3 code for indices in G. 3.0 would code for the distance from G[0] to G[3]; edge weight. Thus edge 0-3 is a line from (0,0) to (3,0)            
+    #         u = edge[0]
+    #         v = edge[1]
+    #         setU = findSubgraph(u)
+    #         setV = findSubgraph(v)
+        
+    #         # for subgraph in self.subgraphs: 
+    #         #     if (u in subgraph) and (v in subgraph):
+    #         #         continue 
+                
+    #         if setU != setV:
+    #             self.mst = self.mst.union( { frozenset(u,v) } ) # {}.union( { (0,3) } ) -> { (0,3) } # Store 2-sets, which preserves the data needed to draw lines. note in python, sets are mutable; unhashable. Unhashable types can't be part of a set. Use tuples or frozenset(which creates an immutable set) instead
+    #             setU.union(setV)
+                
+    #     print()
+    #     print('SELF.MST:', type(self.mst))
+    #     print(self.mst)
+    
+    def addRatsnestToScene(self, G, flat, net):
+        
+        ratsnest = self.ratsnests[net]
+        for line in ratsnest: # Remove from scene each existing line in ratsnest, then, clear ratsnest
+            self.board.scene().removeItem(line)
+        self.ratsnests[net] = []
+        
+        for edge in self.ratsnestMST(G, flat): 
+            u,v = list(edge)
+            print('FLAT[u]:', flat[u])
+            line = QLineF(*flat[u], *flat[v])
+            line = QGraphicsLineItem(line)
+            line.setPen(QPen(Qt.blue, 0 ))
+            self.board.scene().addItem(line)
+            self.ratsnests[net].append(line) # Track ratsnest lines for later removal from scene
+
+    def updateVeins(self, pos): 
+        print()
+        print('UPDATEVEINS:')
+        
+        def wire1SplitBySymbolOrLabel(): # dont split if terminal is on a wire terminal
+            symbolsAndLabels    = [ item for item in self.schematic.scene().collidingItems(wire1) if isinstance(item, (ComponentSymbol, NetSymbol, SchematicLabelItem) ) ]  # All symbols and labels intersecting wire1
+            print('SYMBOLSANDLABELS:', symbolsAndLabels)
+            # print('P1:', p1.toPoint()) 
+            # print('P2:', p2.toPoint())
+            for symbolOrLabel in symbolsAndLabels: # If symbolOrLabel terminal is ON wire1, then, split wire @ terminal, ignore cases where terminals exactly match; adjacency needs no split
+                
+                for otherTerminalPos in symbolOrLabel.sceneTerminals():
+                    otherTerminalPos = QPointF(*otherTerminalPos)
+                    if wire1.contains(otherTerminalPos): #Just bc schematicItem intersects wire, dont mean its terminals do. Check which schematicItem terminals intersect, ignoring terminals coincident with wire terminals #TODO change this to inbound collinear test? in-segment intersection test?
+
+                        if otherTerminalPos == p1 or otherTerminalPos == p2: 
+                            continue # if symbol or label terminates on wire terminal, no need to split
+                        print('OTHERTERMINAL:', otherTerminalPos.toPoint()) # OTHERTERMINAL: (PySide6.QtCore.QPointF(232.186047, 482.232558), <SchematicSymbolItem.PinItem(0x171a1651980, parent=0x171a16513c0, pos=0,0) at 0x00000171A07C0080>)
+
+                        orient = Utils.threePointOrientation(p1, p2, otherTerminalPos)        
+                        if orient == 0: # Then pos collinear with p1p2 . Check if otherTerminalPos within segment p1p2
+                            xOverlap = (p1.x(), p2.x(), otherTerminalPos.x(), otherTerminalPos.x())
+                            yOverlap = (p1.y() , p2.y(), otherTerminalPos.y(), otherTerminalPos.y()) 
+                            if xOverlap and yOverlap: # then split this wire 
+                                split1 = WireItem(QLineF(p1, otherTerminalPos))
+                                split2 = WireItem(QLineF(otherTerminalPos, p2))
+                                self.schematic.scene().removeItem(wire1)
+                                self.schematic.scene().addItem(split1)
+                                self.schematic.scene().addItem(split2)
+                                wires.append(split1)
+                                # wires.append(split2) Note we do NOT add split2 to wires when splitting by symbolOrLabel otherTerminalPos, bc split2 does not touch pos. split2 is on the scene, so it will be visited, but not 
+                                print('WIRE1 SPLIT BY SYMBOL OR LABEL')
+
+                                return True
+            return False   
+        
+        def normalizeWires(): 
+    
+            def rangesOverlap(a1,a2 , b1,b2) : 
+                # First, make sure that ranges are 'well ordered':  n1 < n2 
+                if a1 > a2: 
+                    a1, a2 = a2, a1 # Switch 1&2
+                if b1 > b2: 
+                    b1, b2 = b2, b1
+                # Its a mindfuck, but ranges overlap if the start of one range is <= end of the other AND vice versa
+                return a1 <= b2 and b1 <= a2
+            
+            def junction(wire1, wire2): 
+                """Returns a tuple which differs depending on junction type between wire1 and wire2. 
+                Zeroeth index is junctionType, a Utils.JunctionType. 
+                If junctionType is Utils.JunctionType.Tee, this function will return a 2-tuple (junctionType, zero) where zero is orient1, orient2, orient3, or orient4, whichever one was zero. See three point orientation tutorial.
+                If junctionType is any other Utils.JunctionType, this function will return a 1-tuple (junctionType)
+                Note (5) is an int while (5,) is a tuple. This used in this functions return statements """
+                
+                orient1 = Utils.threePointOrientation(p1,p2,p3) 
+                orient2 = Utils.threePointOrientation(p1,p2,p4)
+                orient3 = Utils.threePointOrientation(p3,p4,p1)
+                orient4 = Utils.threePointOrientation(p3,p4,p2)
+                
+                numZeroes = [orient1, orient2, orient3, orient4].count(0)
+                
+                if numZeroes == 1: # Then this is a Tee intersection. Will split, if no 'L' @ split point 
+                    zero = [orient1, orient2, orient3, orient4].index(0) # Find the idx of the single zero. We can tell how we should split based on which orient is 0.
+                    return ( Utils.JunctionType.Tee , zero )
+                
+                elif numZeroes == 2: # Then this is a L intersection. No action.
+                    return ( Utils.JunctionType.L , ) 
+                
+                elif numZeroes == 4: #Then these lines are collinear. Check if they are adjacent collinear, or overlapping collinear, or nonintersecting
+                    if p1 == p3 or p1 == p4 or p2 == p3 or p2 == p4: # Then these are adjacent collinear. 
+                        return ( Utils.JunctionType.CollinearAdjacent , )
+                    else: 
+                        x1, y1 = p1.toTuple() 
+                        x2, y2 = p2.toTuple()
+                        x3, y3 = p3.toTuple()
+                        x4, y4 = p4.toTuple()
+                
+                        # Test if X range overlaps: 
+                        xOverlap = rangesOverlap(x1, x2 , x3 , x4)
+                        yOverlap =  rangesOverlap(y1,y2 , y3, y4) 
+                        if xOverlap or yOverlap: # If x-rangesoverlap OR y-ranges overlap, these lines overlap
+                            return ( Utils.JunctionType.CollinearOverlap ,)
+                        
+                elif orient1 != orient2 and orient3 != orient4: # Then these lines are intersecting. Note no action needed here(no split. intersecting lines in EDA SW are supposed to not connect
+                    return ( Utils.JunctionType.Intersecting , )
+                
+                return ( Utils.JunctionType.NonIntersecting , )
+            
+            def merge(): # merge does not take self as merge is a local function within normalizeWires
+                print('MERGE')
+                self.schematic.scene().removeItem(wire1)
+                self.schematic.scene().removeItem(wire2)
+                
+                x1, y1 = p1.toTuple() 
+                x2, y2 = p2.toTuple()
+                x3, y3 = p3.toTuple()
+                x4, y4 = p4.toTuple()
+                
+                xMax = max(x1, x2 , x3 , x4) 
+                yMax = max(y1, y2, y3, y4)
+                xMin = min(x1, x2 , x3 , x4) 
+                yMin = min(y1, y2, y3, y4)
+                
+                merged = WireItem(xMin, yMin, xMax, yMax) # Note this works bc previous checks ensure we're working with collinear lines & scene only allows hor/vert lines\
+                merged.setPen(QPen(Qt.darkCyan, 1 ))
+                
+                self.schematic.scene().addItem(merged)
+                wires.append(merged)
+                # There are already no mentions of wire1/2 anywhere, either already popped or not yet added(?)
+                if not merged.line().p1()  in visitedPositions:
+                    positionQueue.append(merged.line().p1())
+                if not merged.line().p2()  in visitedPositions:
+                    positionQueue.append(merged.line().p2())
+
+            def split(junction):
+                print('SPLIT')
+                # pass # Know how to split wire by which orient1234 is 0. 
+                junctionId = junction[1]
+                if junctionId == 0: # Split line(p1,p2) @ p3. Remove wire1 from scene
+                    split1 = (p1, p3) 
+                    split2 = (p3, p2)
+                    self.schematic.scene().removeItem(wire1)
+                    
+                elif junctionId == 1: # Split line(p1,p2) @ p4 
+                    split1= (p1, p4) 
+                    split2 = (p4, p2) 
+                    self.schematic.scene().removeItem(wire1)
+                elif junctionId == 2: # Split line(p3, p4) @ p1 
+                    split1 = (p3, p1) 
+                    split2 = (p1, p4) 
+                    self.schematic.scene().removeItem(wire2)
+                elif junctionId == 3: # Split line(p3, p4) @ p2
+                    split1 = (p3, p2) 
+                    split2 = (p2, p4)
+                    self.schematic.scene().removeItem(wire2)
+
+                split1 = QLineF(*split1)
+                split2 = QLineF(*split2)
+                
+                # if not split1.p1() in visitedPositions: # Dont think this good
+                #     visitedPositions.append(split1.p1())
+                    
+                # if not split2.p2() in visitedPositions: 
+                #     visitedPositions.append(split2.p2())
+                    
+                split1 = WireItem(split1)
+                split2 = WireItem(split2)
+                
+                # Colors for debugging
+                split1.setPen(QPen(Qt.magenta, 1))
+                split2.setPen(QPen(Qt.darkMagenta, 1))
+
+                # self.schematic.scene().removeItem(wire1) 
+                self.schematic.scene().addItem(split1)
+                self.schematic.scene().addItem(split2)
+                
+
+            
+            # def checkLs(pos): # Deprecated for checkOtherTerminals
+            #     hitWires = [ hitWire for hitWire in self.schematic.scene().items(pos) if isinstance(hitWire, WireItem) ] 
+                
+            #     for hitWire in hitWires: 
+            #         if hitWire == wire1 or hitWire == wire2: 
+            #             continue 
+            #         if junction(wire1, hitWire)[0] == Utils.JunctionType.L:
+            #             return True
+            #     return False 
+            
+            def checkOtherTerminals(pos): # Check if there is either an L-junction or a non-Wire terminal, like a label or ComponentSymbol terminal, at pos. If there is, then we would not want to merge collinear adjacent wires at pos. 
+                hitItems = [item for item in self.schematic.scene().items(pos) if isinstance(item, (WireItem, SchematicItem))]
+                for hitItem in hitItems: 
+                    if hitItem == wire1 or hitItem == wire2: 
+                        continue 
+                    if isinstance(hitItem, WireItem):
+                        if junction(wire1, hitItem)[0] == Utils.JunctionType.L:
+                            return True 
+                    for otherTerminalPos in hitItem.sceneTerminals(): 
+                        if otherTerminalPos == pos:
+                            return True
+                            
+                # hitWires = [ hitItem for hitItem in hitItems if isinstance(hitItem, WireItem) ]
+                # hitSymbolsAndLabels = [ hitItem for hitItem in hitItems if isinstance(hitItem, )]
+            
+            def processJunction(junction):
+                wire1Normal = True
+                
+                junctionType = junction[0] 
+                
+                if  junctionType == Utils.JunctionType.Tee: 
+                    split(junction)
+                    wire1Normal = False
+                elif junctionType == Utils.JunctionType.CollinearOverlap: 
+                    merge()
+                    wire1Normal = False 
+                elif junctionType == Utils.JunctionType.CollinearAdjacent:# Check for L intersections @adjacent point. if None, merge 
+                    if p1 == p3 or p1 == p4:
+                        adjacentPoint = p1
+                    if p2==p3 or p2==p4: 
+                        adjacentPoint = p2 
+                
+                    # if not checkLs(adjacentPoint) and not checkTerminals(adjacentPoint):
+                    if not checkOtherTerminals(adjacentPoint):
+                        merge()
+                        wire1Normal = False 
+                return wire1Normal   
+                
+            print('NORMALIZEWIRES')
+            junc = Utils.junction(wire1.line() , wire2.line())
+            print('JUNC:', junc)
+            wire1Normal = processJunction(junc)
+            return wire1Normal
+
+        # def wirePropagations(pos): 
+        visitedPositions = [] 
+        visitedWires = []     
+        visitedSymbolsAndLabels = []
+        positionQueue = [pos] # To start, we know we want to look at pos. As we go, we'll add the distal coordinate of connected wires, expanding the vein
+        self.connectedVeins = {}       
+        vein = defaultdict(list)              
+
+        while positionQueue: 
+            pos = positionQueue.pop(0)
+            if pos in visitedPositions: continue
+            visitedPositions.append(pos) 
+            print()
+            print('POS:', pos.toPoint())
+            # items = self.queryRtrees(pos)
+            wires = [ item for item in self.schematic.scene().items(pos) if isinstance(item,  WireItem                 ) ]  # All wires intersecting pos
+            print('WIRES:', wires)
+            while wires:
+                wire1 = wires.pop(0) 
+                wire1Normal = True 
+                if wire1 in visitedWires: 
+                    continue
+                p1 = wire1.p1()
+                p2 = wire1.p2()
+                if pos == p1: 
+                    distal = p2 
+                elif pos == p2: 
+                    distal = p1 
+                print('DISTAL:', distal.toPoint())
+                # wire1: may be split by a connecting symbol or label
+                if wire1SplitBySymbolOrLabel(): 
+                    continue # wire was split, no longer exists, move on
+                hitWires = [item for item in self.schematic.scene().collidingItems(wire1) if isinstance(item, WireItem)]
+
+                print('HITWIRES:', len(hitWires), hitWires)
+                
+                while hitWires: 
+                    wire2 = hitWires.pop(0)
+                    if wire2 in visitedWires : 
+                        continue
+                    if wire2 == wire1:
+                        continue 
+
+                    p3 = wire2.p1()
+                    p4 = wire2.p2()   
+                    
+                    wire1Normal = normalizeWires() # 'Normalize' wire1 and wire2: merge or split, if needed. If wire1 was abnormal -> False. If wire1 was normal -> True
+                    
+                    if not wire1Normal: 
+                        
+                        break # If wire1 was split or merged; abnormal, wire1 was no good for thevein, ditch all hitWires w/ break, and move to the next wire1 w/ continue
+        
+                if not wire1Normal: 
+                    print('ONTOTHENEXTWIRE1')
+                    continue # IF wire1 is abnormal, then it no longer exists, so stop processing it
+                
+                if wire1Normal:
+                    
+                    vein[Utils.SchematicItemKinds.Wire.value].append(wire1) # wire was checked and was neither splittable nor mergeable; normal. Lets add it to the vein
+                    positionQueue.append(distal)
+                    visitedWires.append(wire1) 
+
+                    # print('POSQ:', positionQueue)
+                    if wire1.veinId is not None:
+                        self.connectedVeins.add(wire1.veinId)
+# collect pins/labels of normalized wires(?) (Yes but do so AFTER veinNet is assigned (?)
+                    symbolsAndLabels    = [ item for item in self.schematic.scene().collidingItems(wire1) if isinstance(item, (ComponentSymbol, NetSymbol, SchematicLabelItem) ) ]  # All symbols and labels intersecting wire1
+                    print('SYMBOLSANDLABELS:', symbolsAndLabels)
+                    for symbolOrLabel in symbolsAndLabels: 
+                        for otherTerminalPos, pin in symbolOrLabel.sceneTerminals().items():
+                            otherTerminalPos = QPointF(*otherTerminalPos) # QPoint is unhashable; cannot be dict keys, so I have to manually convert back to QPoint. Which I hate. TODO: change everything to tuple points? idk
+                            if wire1.contains(otherTerminalPos): #Just bc schematicItem intersects wire, dont mean its terminals do. Check which terminals are contained by wire1,before checking which exactly match up #TODO change this to inbound collinear test? in-segment intersection test?
+
+                                if otherTerminalPos == p1 or otherTerminalPos == p2: 
+                                    if isinstance(symbolOrLabel, LocalLabelItem):
+                                        vein[Utils.SchematicItemKinds.LocalLabel.value].append(symbolOrLabel)
+                                    elif isinstance(symbolOrLabel, HierarchyLabelItem):
+                                        vein[Utils.SchematicItemKinds.HierarchyLabel.value].append(symbolOrLabel)
+                                    elif isinstance(symbolOrLabel , GlobalLabelItem):
+                                        vein[Utils.SchematicItemKinds.GlobalLabel.value].append(symbolOrLabel)
+                                    elif isinstance(symbolOrLabel, (ComponentSymbol, NetSymbol)):
+                                        print('ADDING PINS')
+                                        vein[Utils.SchematicItemKinds.Pin.value].append(pin)
+                                        # if isinstance(symbolOrLabel, ComponentSymbol):
+                                        #     pinPads = self.components[symbolOrLabel.referenceDesignator()][symbolOrLabel.referenceNumber()].footprintItem().pads()
+                                        #     for pad in pinPads: 
+                                        #         if pad.name() == pin.number(): 
+                                        #             pad.setNet(vein['net']) # set pad net 
+                                        #     fp = self.components[symbolOrLabel.referenceDesignator()][symbolOrLabel.referenceNumber()].footprintItem()
+                                        #     fp.setNets() # Every time wiring is laid, must FP.setNets() on affected footprints
+                                        #     print('SET FOOTPRINT NETS:', fp.nets()) # {None}
+                                        # elif isinstance(symbolOrLabel, NetSymbol):
+                                        #     vein[Utils.SchematicItemKinds.NetSymbol.value].append()
+                                        
+
+                
+        print()
+        print('PROPAGATEWIRESDONE')
+        print('VEIN:', vein)
+        if self.connectedVeins: # Kill any veins which were connected to. Remove that vein from vein, nets, & ratsnest. Connected-to veins will become absorbed into the vein we're currently laying
+            for id in self.connectedVeins: 
+                net2Rm = self.veins.pop(id)['net']
+                
+                self.nets[net2Rm]['veinIds'].remove(id)
+                
+                ratsnest = self.ratsnests[net2Rm]
+                for line in ratsnest:  # Remove from scene each existing line in ratsnest, then, clear ratsnest
+                    self.board.scene().removeItem(line)
+                self.ratsnests[net2Rm] = [] 
+
+
+        net = self.setVeinNet(vein) 
+        print('NET', net)
+        
+        veinId = max(self.veins) + 1 
+        print('VEINID:', veinId)
+        # Put vein in veins, nets, and ratsnest
+        self.veins[veinId] = vein 
+        
+        if not self.nets[net]: 
+            self.nets[net] = defaultdict(list) 
+            
+        self.nets[net]['veinIds'].append(veinId)
+        
+        pins =vein[Utils.SchematicItemKinds.Pin.value]
+        if not pins: 
+            print('NO PINS')
+            print('VEIN:', vein)
+            for key, value in vein.items(): 
+                print('KEY:',key)
+                print('VALUE:', value)
+            return 
+        
+        for pin in pins :
+            pads = self.components[pin.parentItem().referenceDesignator()][pin.parentItem().referenceNumber()].footprintItem().pads()
+            print('PADS:', pads)
+            # set net on every pad. So that brdScene knows net info of its own pads, w/o needing MW.nets, which brdScene cannot ez access. 
+            for pad in pads: 
+                if pad.name() == pin.number(): 
+                    print('PADNAME MATCHES PINNUMBER', pad, pin)
+                    pad.setNet(net) #Set pad net
+                    self.nets[net][Utils.BoardItemKinds.Pad.value].append(pad)# update nets with pads whose pad.name() matches the pin.number(). 
+                    # pad.setNet(vein['net]) ???
+                    # pins/pads are linked via their padName matching their pinNumber. Based on looking at 2 kicad files.
+            # self.nets[vein['net']][Utils.BoardItemKinds.Pad.value].extend(pinPads) NO BAD fetches all pads 
+
+                    vein['pads'].append(pad) 
+        
+        print('VEIN:', vein)
+        for key, value in vein.items(): 
+            print('KEY:',key)
+            print('VALUE:', value)
+            
+
+
+        self.updateRatsnest(net)
+                # elif isinstance(item, Label):
+                #     if item.pins[0].pos() == item.mapFromScene(pos): 
+                #         vein[Utils.SchematicItemKinds.Label.value()].append(item)
+
+# for pin in item.pins():
+#     print('PIN.SCENEPOS():', pin.scenePos())
+#     print('PIN.POS():', pin.pos())
+#     print('PIN.LINEITEM.POS()', pin.lineItem.pos())
+#     print('PIN.LINEITEM.SCENEPOS():', pin.lineItem.scenePos())
+#     print('PIN.LINEITEM.LINE().P1():', pin.lineItem.line().p1())
+#     print('PIN.LINEITEM.LINE().P2():', pin.lineItem.line().p2())
+#     print('ITEM.MAPTOSCENE(PIN.LINEITEM.LINE().P1()):', item.mapToScene(pin.lineItem.line().p1()))
+#     print('ITEM.MAPTOSCENE(PIN.LINEITEM.LINE().P2()):', item.mapToScene(pin.lineItem.line().p2()))
+    # COMPONENTSYMBOL.PINS(): [<SchematicSymbolItem.Pin(0x27f808c31c0, pos=0,0) at 0x0000027F81187500>, <SchematicSymbolItem.Pin(0x27f808c3380, pos=0,0) at 0x0000027F7F7FE840>]
+    # PIN.SCENEPOS()                                    PySide6.QtCore.QPointF(0.000000, 0.000000)
+    # PIN.POS()                                         PySide6.QtCore.QPointF(0.000000, 0.000000)
+    # PIN.LINEITEM.POS()                                PySide6.QtCore.QPointF(0.000000, 0.000000)
+    # PIN.LINEITEM.SCENEPOS():                          PySide6.QtCore.QPointF(482.232558, 482.232558)
+    # PIN.LINEITEM.LINE().P1():                         PySide6.QtCore.QPointF(0.000000, 0.000000)
+    # PIN.LINEITEM.LINE().P2():                         PySide6.QtCore.QPointF(2.540000, 0.000000)
+    # PIN.MAPTOSCENE(PIN.LINEITEM.LINE().P1()):         PySide6.QtCore.QPointF(0.000000, 0.000000)
+    # PIN.MAPTOSCENE(PIN.LINEITEM.LINE().P2()):         PySide6.QtCore.QPointF(2.540000, 0.000000)
+    # ITEM.MAPTOSCENE(PIN.LINEITEM.LINE().P1()):        PySide6.QtCore.QPointF(428.651163, 517.953488)
+    # ITEM.MAPTOSCENE(PIN.LINEITEM.LINE().P2()):        PySide6.QtCore.QPointF(464.372093, 517.953488)
+    
+    # PIN.SCENEPOS():                                   PySide6.QtCore.QPointF(0.000000, 0.000000)
+    # PIN.POS():                                        PySide6.QtCore.QPointF(0.000000, 0.000000)
+    # PIN.LINEITEM.POS()                                PySide6.QtCore.QPointF(0.000000, 0.000000)
+    # PIN.LINEITEM.SCENEPOS():                          PySide6.QtCore.QPointF(482.232558, 482.232558)
+    # PIN.LINEITEM.LINE().P1():                         PySide6.QtCore.QPointF(7.620000, 0.000000)
+    # PIN.LINEITEM.LINE().P2():                         PySide6.QtCore.QPointF(5.080000, 0.000000)
+    # PIN.MAPTOSCENE(PIN.LINEITEM.LINE().P1()):         PySide6.QtCore.QPointF(7.620000, 0.000000)
+    # PIN.MAPTOSCENE(PIN.LINEITEM.LINE().P2()):         PySide6.QtCore.QPointF(5.080000, 0.000000)
+    # ITEM.MAPTOSCENE(PIN.LINEITEM.LINE().P1()):        PySide6.QtCore.QPointF(535.813953, 517.953488)
+    # ITEM.MAPTOSCENE(PIN.LINEITEM.LINE().P2()):        PySide6.QtCore.QPointF(500.093023, 517.953488)
+    # if pin.scenePos() == pos: 
+        # print('PIN IS AT POS')
+   
+    # def threePointOrientation(self, p1,p2,p3 , verbose=False): # "https://www.scribd.com/document/521718353/2017-04-28-Continuous-Space-Pathfinding" "Continuous Space Pathfinding Daniel Wisdom 28 April 2017"
+    #     x1,y1 = p1.toTuple()
+    #     x2,y2 = p2.toTuple()
+    #     x3,y3 = p3.toTuple()
+        
+    #     cross_product = (y2-y1)*(x3-x2) - (x2-x1)*(y3-y2)
+    #     cross_product = round(cross_product, 12) # Round the cross product  to 12 decimal places. Floats (usually, always) have 16 decimal places. But floats are bad/wrong: .3 * 3 = .9 but python will tell you .3 * 3 = .8999999999999999. So we round.
+    #     if verbose: 
+    #         print('Cross_product:', cross_product)
+    #     if cross_product > 0: # Then cw 
+    #         return 1 
+    #     elif cross_product < 0: # Then ccw
+    #         return 2
+    #     else: # if cp == 0, p1p2p3 collinear 
+    #         return 0 
+
+            
+                
+
+
+                
+
+        
+        
+    # @Slot(str , int ) # reference , referenceNumber 
+    # def reload_reference_value(self, part, reference, referenceNumber): # Reload specified reference_value with part. Make a new item w/ part, which was just updated. Get position of old item, then delete old item.
+    #     print()
+    #     print('MyMainWindow.RELOAD_ITEM')
+    #     for item in self.schematic.scene().items():s
+    #         if isinstance(item, MySymbolObject):
+    #             if item.referenceDesignator == reference and item.referenceNumber == referenceNumber: 
+    #                 newItem = MySymbolObject(part , referenceNumber) # Create new item to replace old item
+    #                 newItem.setPos(item.scenePos())
+    #                 self.schematic.scene().removeItem(item)
+    #                 self.schematic.scene().addItem(newItem)
+
+    #     for item in self.board.scene().items():
+    #         if isinstance(item, MyFootprintItem):
+    #             if item.referenceDesignator() == reference and item.referenceNumber == referenceNumber(): # If its a footprint item w/ matching reference & referenceNumber: 
+    #                 newItem = MyFootprintItem(item.part() , referenceNumber) # Create new item to replace old item
+    #                 newItem.setPos(item.scenePos())
+    #                 self.board.scene().removeItem(item) # remove old item 
+    #                 self.board.scene().addItem(newItem) # add new item        
+                    
+                # item.setPart(part) # Not enough-- This does not update symbol
+                # Only the symbol, footprint, spice_model, cad model, associated w/ parts can change, as allowed by writeable_columns.
+                
+    # @Slot(Uhh oh what item is it gonna be, we cannot know...) # We have to use most basic types, with Signals/Slots(? workarounds?)
+    # @Slot(str, int) # reference , referenceNumber, of the footprint to be deleted
+    # def delete_part(self, reference, referenceNumber): #Remove footprint(which is on board) and symbol(which is on schematic) corresponding with reference, referenceNumber. Be sure to remove from: the scene, scene.ids, scene.idx, scene.layer_items, and subtract one from components
+
+    #     for item in self.schematic.scene().items(): # Dig through schScene.items() for our reference referenceNumber & rm from scene 
+    #         if isinstance(item, Symbol):
+    #             if (item.referenceDesignator() , item.referenceNumber) == ( reference , referenceNumber ):
+    #                 self.schematic.scene().removeItem(item)
+    #                 print('REMOVED SYMBOL FROM SCENE')
+                    
+    #     for item in self.board.scene().items(): # 
+    #         if isinstance(item, FootprintItem):
+    #             if (item.referenceDesignator() , item.referenceNumber) == ( reference , referenceNumber ):
+    #                 self.board.scene().removeItem(item)
+    #                 print('REMOVED FOOTPRINT FROM SCENE')
+                    
+    def onAddNetSymbolActionTriggered(self):
+
+        path = os.path.join(Utils.SauraPath, Utils.SymbolDirectoryName, Utils.NetSymbolDirectoryName)
+        print(path)
+
+        filePath, fileFilters = QFileDialog.getOpenFileName(self, 'Select Net Symbol', path)
+
+        head, tail = os.path.split(filePath)
+        netSymbolFile = tail 
+        root, ext = os.path.splitext(tail)
+        referenceDesignator = root 
+
+        print(netSymbolFile)
+        print(referenceDesignator)
+
+        if self.components[referenceDesignator]: # Give netSymbol a referenceNumber
+            referenceNumber = self.components[referenceDesignator] + 1 
+        else: 
+            referenceNumber = 1 
+        netSymbol = NetSymbol(referenceDesignator, referenceNumber, filePath)
+        
+        self.schematic.scene().addItem(netSymbol)
+        netSymbol.setPos(self.schematic.scene().seeker.scenePos())
+        self.components[referenceDesignator][referenceNumber] = netSymbol 
+        
+        
+    @Slot(dict) # part . The part which was changed.
+    def reload_part(self, part): # part was just updated in db. I need to propogate fresh part to all symbols/footprints. 
+        print()
+        print('MySCENE.RELOAD_PART')
+        for item in self.schematic.scene().items():
+            if isinstance(item, ComponentSymbol):
+                if item.part.get('mpn') == part.get('mpn'):
+                    print('MPNS MATCH ! RELOADING PART:')
+                    newItem = ComponentSymbol.fromPart(part, item.referenceNumber() ) # referenceNumber didn't change; Grab item.referenceNumber() for new_item
+                    newItem.setPos(item.scenePos())
+                    self.schematic.scene().removeItem(item)
+                    self.schematic.scene().addItem(newItem)
+                # item.setPart(part) # Not enough-- if we changed part's symbol, must update that, as well... 
+                # There actually is no reloading of parts-- 
+
+        for item in self.board.scene().items():
+            if isinstance(item, FootprintItem):
+                newItem = FootprintItem.from_part(part, item.referenceNumber()) # Will be same graphic as old item if we didn't update 'footprint' field
+                newItem.setPos(item.scenePos())
+                self.board.scene().removeItem(item)
+                self.board.scene().addItem(newItem)
+
+
+        
+    # @Slot(str , int)
+    # def delete_footprint(self, reference , referenceNumber):
+    #     print(f'Deleting Footprint & Symbol: {reference}{referenceNumber}')
+        
+    #     deleted_symbol = False 
+    #     deleted_footprint = False 
+    #     for item in self.schematic.scene().items():
+    #         if isinstance(item, MySymbolObject):
+    #             if (item.reference , item.referenceNumber()) == ( reference , referenceNumber ):
+    #                 self.schematic.scene().removeItem(item)
+    #                 deleted_symbol = True
+    #                 print('DELETED SYMBOL')
+    #     for item in self.board.scene().items():
+    #         if isinstance(item, FootprintItem):
+    #             if (item.reference , item.referenceNumber()) == ( reference , referenceNumber ):
+    #                 self.board.scene().removeItem(item)
+    #                 deleted_footprint = True
+    #                 print('DELETED FOOTPRINT')
+    #     if (not deleted_footprint) or(not deleted_symbol): 
+    #         print(f'SOMETHING WRONG, COULD NOT DELETE reference_value: {reference}{referenceNumber}')
+            
+        
+    @Slot( dict , QGraphicsSceneDragDropEvent, int) # event fresh from QGraphicsScene.dropEvent(self, event). part is dict, contained in drop's mimeData. sourceWidget is the widget where event happened, either Widgets.Schematic or Widgets.Board
+    def deletePart(self, reference , referenceNumber): 
+        print("MW DELETING PART")
+
+        # print(self.board.scene().footprints)
+        # print(self.schematic.scene().symbols)
+        footprint = self.board.scene().footprints[reference].pop(referenceNumber)
+        symbol = self.schematic.scene().symbols[reference].pop(referenceNumber)
+        print('FOOTPRINT:', footprint)
+        # # self.board.scene().ids[footprint.id] = None # set value in ids to 'None' 
+        # self.board.scene().ids.pop(footprint.id) # Remove from ids 
+        # self.board.scene().idx.delete(footprint.id, footprint.buffered_bounds()) # Remove from idx. Index().delete(id, bounds) : Deletes an item from the index by id and coordinates. Note Index id uniqueness is up to the user to implement
+
+        self.board.scene().removeItem(footprint)
+        self.schematic.scene().removeItem(symbol) # Remove reference_value from symbols
+        
+    def onTableClicked(self, part):
+        self.schematic.scene().setMode(self.schematic.scene().AddSymbolMode)
+        
+        referenceDesignator = part.get('referenceDesignator', '?')
+        if self.components[referenceDesignator]:
+            referenceNumber = max(self.components[referenceDesignator]) + 1
+        else: 
+            referenceNumber = 1 # initialize to 1. Don't want 0indexed referenceNumbers
+            
+        component = Component.fromPart(part, referenceNumber)
+        self.schematic.scene()._currentlyAddingSymbolItem = component.symbolItem()
+
+        self.schematic.scene().addItem(component.symbolItem())
+        self.board.scene().addItem(component.footprintItem())
+        
+        self.components[referenceDesignator][referenceNumber] = component # Track the component
+        
+    def placePart(self, part, event , sourceWidget): # Drop a part onto the board's & schematic's respective scenes ( the board gets a footprint, the schematic gets a symbol ) # Source_widget: a number, representing where this signal came in from
+
+        # print('SOURCE_WIDGET:', sourceWidget)
+        # print()
+        
+        referenceDesignator = part.get('referenceDesignator', '?')
+        if self.components[referenceDesignator]:
+            referenceNumber = max(self.components[referenceDesignator]) + 1
+        else: 
+            referenceNumber = 1 # initialize to 1. Don't want 0indexed referenceNumbers
+            
+        component = Component.fromPart(part, referenceNumber)
+        
+        self.components[referenceDesignator][referenceNumber] = component # Track the component
+        
+        if sourceWidget == MyWidgets.Schematic.value:
+            component.symbolItem().setPos(self.schematic.scene().snapToGrid(event.scenePos())) # Add symbol lined up on the grid 
+            component.footprintItem().setPos(55,55)
+            
+        elif sourceWidget == MyWidgets.Board.value:
+            component.symbolItem().setPos(111,111)
+            component.footprintItem().setPos(self.board.scene().snapToGrid(event.scenePos()))
+        # print('ADDING ITEMS')
+        
+        self.schematic.scene().addItem(component.symbolItem())
+        self.board.scene().addItem(component.footprintItem())
+        
+        # self.parts.add(part)
+        
+# Be sure to add to: the scene, scene.ids, add one to components, and add to the scene.idx
+        
+
+    def dropEvent(self, event): # This event handler is called when the drag is dropped on this widget. The event is passed in the event parameter.      
+        print()
+        print('MAINWINDOW.DROPEVENT()') # Does not execute when I drop on scene
+        super().dropEvent(event)   # Why call this?   
+
+        
+    def create_menus(self): 
+        self._file_menu = self.menuBar().addMenu("&File") # -> QMenu, so we can add actions to file menu
+        # self.menuBar().clear()
+        self._file_menu.addAction(self.exit_action)
+        self._file_menu.addSeparator() # Aestheic line 
+        self._file_menu.addAction(self._addWireAction)
+        self._file_menu.addAction(self.delete_wire_action)
+        
+        self._preferences_menu = self.menuBar().addMenu("&Preferences")
+        
+        self.create_menu = self.menuBar().addMenu("Create")
+        # self.create_menu.addAction(self.create_symbol_action)
+        # self.create_menu.addAction(self.create_footprint_action)
+        self.create_menu.addAction(self.create_part_action)
+        # self._schematic_toolbar.addAction(self.create_footprint_action)
+        # self._schematic_toolbar.addAction(self.create_part_action)
+        
+# Actions are meant to be children of the application's main window, and live in menus, toolbars, and buttons. Actions shoiuld be connected to slots, which will execute the action
+
+    def create_actions(self): # Later, Actions go on toolbar
+    # Add Net Symbol
+        self.add_net_symbol_action = QAction("Add Net Symbol", self, triggered = self.onAddNetSymbolActionTriggered)
+    # Add Wire 
+        self._addWireAction = QAction("Add Wire", self, triggered = self.on__addWireAction_triggered) # Hook up this action with  MyScene's slot. Equivalent : self._addWireAction.triggered.connect(MyScene.wiring_action_signal) # specifying triggered = func1 in the action's constructor is equivalent to  action.triggered.connect(func1) 
+        self._addWireAction.setCheckable(True)
+        # TODO # Pressing the esc key while in add_wire_mode should set scene.mode to default mode
+        self._addWireAction.setShortcut(QKeySequence("W")) # Set the shortcut#Question: how can I code for self._addWireAction to emit integer '10' when i click its' button?
+    # Delete Wire 
+        self.delete_wire_action = QAction("Delete Wire", self, triggered = self.on_delete_wire_action_triggered)
+        self.delete_wire_action.setShortcut(QKeySequence('D'))
+    # # Create Symbol
+    #     self.create_symbol_action = QAction("Create Symbol", self, triggered = self.on_create_symbol_action_triggered)
+    #     self.create_symbol_action.setShortcut(QKeySequence('S'))
+    # # Create Footprint
+    #     self.create_footprint_action = QAction("Create Footprint", self, triggered = self.on_create_footprint_action_triggered)
+    #     self.create_footprint_action.setShortcut(QKeySequence('F'))
+    # Create Part 
+        self.create_part_action = QAction("Create Part", self, triggered = self.on_create_part_action_triggered)
+        self.create_part_action.setShortcut(QKeySequence('P'))
+    # Show Board 
+        self.show_board_action = QAction('Show Board', self, triggered = self. on_show_board_action_triggered)
+    # Show Schematic 
+        self.show_schematic_action = QAction('Show Schematic', self, triggered = self.on_show_schematic_action_triggered)
+    
+
+#Board Actions 
+    # Add Trace 
+        self.add_trace_action = QAction('Add Trace' , self, triggered = self.add_trace_action_triggered)
+    #Create Gerber 
+        self.create_gerbers_action = QAction('Create Gerber Files', self, triggered = self.create_gerbers)
+    # Exit 
+        self.exit_action = QAction("Exit", self, triggered = self.close)
+        
+
+# Actions not on any toolbar: 
+    # Assign Symbol To Part 
+        self.assign_symbol_action = QAction("Assign Symbol To Part", self)
+    # Assign Footprint to Part
+        self.assign_footprint_action = QAction("Assign Footprint to Part")
+
+    def add_trace_action_triggered(self):
+        print('add_trace_action_triggered')
+        if self.board.scene().mode() != self.board.scene().addTraceMode:
+            self.board.scene().setMode(self.board.scene().addTraceMode)
+        else: 
+            self.board.scene().setMode(self.board.scene().normalMode)
+            self.board.scene().exitAddTraceMode() # Delete currently drawing scene._line & more if exiting
+
+    # def on_create_footprint_action_triggered(self):
+    #     print('on_create_footprint_action_triggered')
+    #     create_footprint_dialog = MyCreateDialog('footprint', self)
+        
+    # def on_create_symbol_action_triggered(self):
+    #     # self.create_symbol_
+    #     print("on_create_symbol_action_triggered")
+    #     create_symbol_dialog = MyCreateDialog('symbol', self) #
+    #     create_symbol_dialog.show() 
+        
+    # def on_create_symbol_dialog_finished(self):
+    #     QFileDialog.getOpenFileName( self, "Select Symbol", os.path.join(kicad_third_party_path, 'symbols'), filter = "All Files (*)" )
+
+    def on_create_part_action_triggered(self):
+        
+        #What should I do to create a new part? 1) launch mpn window
+        self.create_part_dialog = CreatePartDialog( self )
+        self.create_part_dialog.created_part.connect(self.on_created_part) # NOTE could be moved to create_part_dialog.accept(), as long as create_part_dialog is parented on MyMainWindow; as long as create_part_dialog has access to MainWindow.database.insert_into_table... Q: could I miss the dependence  on parentage by sig/slot usage? 
+        self.create_part_dialog.open()
+        
+    @Slot(dict)
+    def on_created_part(self, part):
+        print()
+        # table_name= part.get('table_name', None)
+        # print('TABLE_NAME:', table_name)
+        # self.created_part.emit(part) ??? in constructor: self.created_part.connect(database.insert_into_table())
+        database.insert_into_table(part) # Do a sqlINSERT statement-- database API handles the nittygritty. Spreadsheet owns the database
+    #Prompt user to assign this part a symbol &/or footprint # Symbol files don't exist yet, depending. QFileDialog.getOpenFileName(parent=None, caption="SelectFileToOpen", dir=start_dir, filter="All Files (*)")
+        self.assign_graphics(part) # self.assign_graphics() is a Slot but here we'll call it directly.(Slots are normal functions if you didn't know)
+    # Now refresh the table 
+        # self.spreadsheet.setTableName(table_name) This is done within ss.reload_part, which is called later on down this chain
+        # self.spreadsheet.reload_combo_box_tables() This also called later down chain
+        self.create_part_dialog.deleteLater()
+
+    @Slot(dict)
+    def assign_graphics(self, part): # Dialog to assign both symbol and/or footprint to part 
+        Graphics_assign = MyGraphicsAssign(part, self)
+        Graphics_assign.open()
+        
+    # @Slot(dict)
+    # def assign_graphic(self, graphic, part):
+    #     Graphic_assign = MyGraphicAssign(self.parent(), graphic, part)
+    #     Graphic_assign.open()
+   
+
+    def create_gerbers(self):
+        self.board.create_gerbers()
+        
+    def on_show_schematic_action_triggered(self):    
+        self.centralWidget().setCurrentIndex(0) # Schematic is at index 0
+        self.board_toolbar.hide()
+        self._schematic_toolbar.show()
+        # self.central_widget.setCurrentWidget(self.schematic)
+        
+    def on_show_board_action_triggered(self):
+        self.centralWidget().setCurrentIndex(1) # Board is at index 1 
+        self.board_toolbar.show()
+        self._schematic_toolbar.hide()
+        # self.central_widget.setCurrentWidget(self.board)
+    
+    def create_board_toolbar(self):
+        self.board_toolbar = self.addToolBar("Board Toolbar")
+        self.board_toolbar.setAllowedAreas(Qt.ToolBarArea.AllToolBarAreas)
+        self.board_toolbar.hide() # Hide at start
+        
+        # print()
+        # print('CURRENT TRACE_WIDTH:', self.board.scene().trace_width)
+        board_grid_spacing_options = [.1, .2 , .25, .5, 1, 2, 4, 5, 10]
+        board_grid_spacing_combo = QComboBox()
+        board_grid_spacing_combo.addItems(map(str , board_grid_spacing_options))
+        board_grid_spacing_combo.setCurrentText(str(self.board.scene().grid_spacing_mm))
+        board_grid_spacing_combo.currentTextChanged.connect(self.board.scene().set_grid_spacing_mm )
+        board_grid_spacing_label = QLabel('Grid Spacing')
+        board_grid_spacing_widget = QWidget()
+        board_grid_spacing_widget.setLayout(QHBoxLayout())
+        board_grid_spacing_widget.layout().addWidget(board_grid_spacing_label)
+        board_grid_spacing_widget.layout().addWidget(board_grid_spacing_combo)
+        
+        trace_width_options = [.2,.3,.4,.5,.6,.7,.8,.9,1,1.2,1.4,1.5,1.6,1.8,2,3,4,5,6,7,8,9,10]
+        
+        self.trace_width_combo = QComboBox()
+        self.trace_width_combo.addItems(map( str, trace_width_options))
+        self.trace_width_combo.setCurrentText(str(self.board.scene().traceWidth()))
+        self.trace_width_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        # print()
+        # print(self.trace_width_combo.sizePolicy()) #<PySide6.QtWidgets.QSizePolicy(horizontalPolicy = QSizePolicy::Preferred, verticalPolicy = QSizePolicy::Fixed) at 0x000001791013DCC0>
+        #Q: How do I set the sizes of the dropdown of the combobox? 
+        # self.trace_width_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        # self.trace_width_combo.setBaseSize(QSize(100,100)) Seems to do nothing
+        # self.trace_width_combo.setFixedSize(200,200) Makes a big square
+        self.trace_width_combo.currentTextChanged.connect(self.board.scene().setTraceWidth)
+        self.trace_width_label = QLabel('Trace Width:')
+        self.trace_width_widget = QWidget()
+        self.trace_width_widget.setLayout(QHBoxLayout())
+        self.trace_width_widget.layout().addWidget(self.trace_width_label)
+        self.trace_width_widget.layout().addWidget(self.trace_width_combo)
+        
+        self.board_toolbar.addAction(self.show_schematic_action)
+        self.board_toolbar.addAction(self.create_gerbers_action)
+        self.board_toolbar.addAction(self.add_trace_action)
+        self.board_toolbar.addWidget(self.trace_width_widget)
+        self.board_toolbar.addWidget(board_grid_spacing_widget)
+        
+
+
+
+    def create_schematic_toolbar(self):        # The signal actionTriggered() emits on toolbar button press 
+        
+        self._schematic_toolbar = self.addToolBar("Schematic Toolbar")  # toolbars are most often created with QMainWindow.addToolBar()
+        
+        # self._schematic_toolbar.addAction(self.dk_api_action) 
+        self._schematic_toolbar.addAction(self.add_net_symbol_action)
+        self._schematic_toolbar.addAction(self._addWireAction)
+        self._schematic_toolbar.addAction(self.delete_wire_action)
+        self._schematic_toolbar.addSeparator()
+        self._schematic_toolbar.addAction(self.show_board_action)# May add toolbar buttons by adding actions 
+        # self._schematic_toolbar.addAction(self.create_symbol_action)          # Moved to menuBar
+        # self._schematic_toolbar.addAction(self.create_footprint_action)       
+        # self._schematic_toolbar.addAction(self.create_part_action)
+        # self._schematic_toolbar.addAction(self.show_schematic_action)         #Moved to Board Toolbar
+        # self._schematic_toolbar.addAction(self.create_gerbers_action)
+
+        # Set allowed toolbar areas: .allowedAreas()
+        self._schematic_toolbar.setAllowedAreas(Qt.ToolBarArea.AllToolBarAreas)
+        # self._schematic_toolbar.addWidget(QSpinBox())  May add toolbar buttons by adding widgets, too. # Other suitable actions include QDoubleSpinBox, QComboBox(aka dropdown selection)
+        # Fix in place: .setMovable()
+        # Toolbar hides overflowing items behind extension button if toolbar shrunk too small, clicking extension button will reveal a popup with hidden items( If QToolBar is not child of QMainWindow, popup doesn't work in all cases-- see docs )
+
+    
+    def contextMenuEvent(self, event): # RMB on a window to generate a contextMenuEvent, which is automatically passed to the widget beneath RMB. Default implementation will generates a menu with checkable actions from the DockWidgets & ToolBar(NotMenuBar). Reimplement to run your own code. Here, I make my own context menu for the MyMainWindow
+        # context_menu= QMenu(self) # 
+        # test_action = context_menu.addAction(QAction('TEST_ACTION', self)) # Add action to this menu. Save reference to action in test_action. 
+        # context_menu.exec(event.globalPos()) # Execute menu where the event occurred
+        # Or, call the base implementation, to do the default behavior 
+        super().contextMenuEvent(event)
+        
+
+        
+    def on_delete_wire_action_triggered(self):
+        print("DELETE WIRE ACTION TRIGGERED")
+        # self.schematic.scene().setMode(MyScene.DeleteWireMode)
+        self.centralWidget().schematic().scene().setMode(SchematicScene.DeleteWireMode)
+            
+    def library_id_selector(self, parent=None):
+        print( f'LIBRARY_ID {library_id} NOT FOUND IN FILE {self.library}')
+        lst_widget = QListWidget(parent)
+        for row_idx, library_id in enumerate(self.library_ids):
+            item = QListWidgetItem()
+            item.setText(library_id)
+            lst_widget.insertItem(row_idx, item)
+        lst_widget.show()
+
+    # Q: should this be a slot? 
+    def on__addWireAction_triggered(self):
+        print()
+        print('ACTIVATED ON_WIRING_ACTION_TRIGGERED') 
+        # We have to get the scene first-- don't use signals/slots bc we need to access our instance of QGraphicsScene -- which we cannot emit (without fetching, anyway), and 
+        # central_widget = self.centralWidget()
+        # print()
+        # print(type(central_widget))
+        
+        # scene.setMouseTracking(True) # Don't do this here Enable mouseMoveEvent to fire while no mouse button pressed down mouseMoveEvent. default fire only on mouse move when mouse button pressed down. 
+
+        # .findChildren(QGraphicsView) # QObject.findChildren() -> all children with given name, of given type T. Note that a view's scene is NOT A CHILD WIDGET of the view.
+        print()
+        print(self.schematic.scene())
+        current_mode =self.schematic.scene().mode()
+        if current_mode != SchematicScene.AddWireMode:
+           self.schematic.scene().setMode(SchematicScene.AddWireMode)
+        #    self.schematic.scene().set_cursor(Qt.CursorShape.CrossCursor)
+        else: 
+           self.schematic.scene().exitAddWireMode() # Note triggered is any time we press the btn, including when we've already pressed it & entered _addWireAction. In this case, we want to exit add_wire_mode
+           self.schematic.scene().setMode(SchematicScene.normalMode)
+        #    self.schematic.scene().set_cursor(Qt.CursorShape.ArrowCursor)
+        print(self.schematic.scene()._mode)
+
+# app = QApplication(sys.argv)
+# part = {'ultralibrarian': 'https://ultralibrarian.com' , 'snapmagic': 'https://snapmagic.com'}
+# dialog = MySymbolAssign(part=part)
+# dialog.open() # Shows the dialog as a window modal dialog, returning immediately. Connect to the 'finished' signal to know when the dialog has been QDialog.Accepted or QDialog.rejected
+
+
+# sys.exit(app.exec())

@@ -1,0 +1,333 @@
+# My error was an unindented  function :()
+When a dnd op is performed over a view, the model is queried with .supportedDropActions and .mimeTypes. Default, supports copy actions, and default mime types, all I need
+when a drop is performed on a view, the data is inserted into the model, using .dropMimeData. Default, never overwrite data, instead insert data as siblings, or children.
+To actually use QAbstractItemModel's default dnd implementation, you must reimplement several functions: 
+.insertRows, .insertColumns(), .setData(), .setItemData().
+And to use custom forms of data(which I don't need), must also reimplement: 
+.supportedDropActions()
+.mimeTypes()
+.dropMimeData() # Changes model dimensions via .insertRows(), insertColumns, and setData(), which in turn, must also be correctly reimplemented, with emission of relevant signals, etc 
+And to ensure drag operations work, must also reimplement:
+.removeRows, .removeRow, removeColumns, removeColumn.
+
+The convenience views; item views(QTableWidget, QTreeWidget, QListWiget) override the default dnd, to perform the most sensible dnd according to that layout. But I am using the QTableView, not QTableWidget.
+
+default dnd is supported, but disabled. You have to turn it on by setting certain properties:
+1) enable item dragging by setting the ItemView's .setDragEnabled(True)
+2) Allow user to drop items by setting the ItemView's viewport.setAcceptDrops(True)
+3) Show the user where the item currently being dragged will be placed by setting the ItemView's .setDropIndicatorShown(True)
+
+#Ex: Make a QListView w/ default drag and drop. Note items are COPIED rather than MOVED bc copy is the default
+
+listView = QListView()
+listView.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+listView.setDragEnabled(True)
+listView.setAcceptDrops(True)
+listView.setDropIndicatorShown(True)
+listView.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove) # The default? 
+
+THE MODEL ALSO HAS TO PROVIDE DRAG AND DROP SUPPORT:
+def supportedDragActions(): # define dnd actions supported by the model # Note model still must implement .removeRows() to effect dnd moveactions
+    return Qt.CopyAction | Qt.MoveAction
+
+def flags(self, index): # indicate to views which items can be dragged, and which will accept drops.
+    if index.isValid():
+        return super().flags(index) | Qt.ItemIsDragEnabled | Qt.ItemIsDropEnabled
+    else: # So that items can be dropped anywhere on the model 
+        return super().flags(index) | Qt.ItemIsDropEnabled
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Using Drag and Drop with Item Views
+
+Qt's drag and drop infrastructure is fully supported by the model/view framework. Items in lists, tables, and trees can be dragged within the views, and data can be imported and exported as MIME-encoded data.
+
+The standard views automatically support internal drag and drop, where items are moved around to change the order in which they are displayed. By default, drag and drop is not enabled for these views because they are configured for the simplest, most common uses. To allow items to be dragged around, certain properties of the view need to be enabled, and the items themselves must also allow dragging to occur.
+
+The requirements for a model that only allows items to be exported from a view, and which does not allow data to be dropped into it, are fewer than those for a fully-enabled drag and drop model.
+
+See also the Model Subclassing Reference for more information about enabling drag and drop support in new models.
+Using convenience views
+
+Each of the types of item used with QListWidget, QTableWidget, and QTreeWidget is configured to use a different set of flags by default. For example, each QListWidgetItem or QTreeWidgetItem is initially enabled, checkable, selectable, and can be used as the source of a drag and drop operation; each QTableWidgetItem can also be edited and used as the target of a drag and drop operation.
+
+Although all of the standard items have one or both flags set for drag and drop, you generally need to set various properties in the view itself to take advantage of the built-in support for drag and drop:
+
+    To enable item dragging, set the view's dragEnabled property to true.
+    To allow the user to drop either internal or external items within the view, set the view's viewport()'s acceptDrops property to true.
+    To show the user where the item currently being dragged will be placed if dropped, set the view's showDropIndicator property. This provides the user with continuously updating information about item placement within the view.
+
+For example, we can enable drag and drop in a list widget with the following lines of code:
+
+QListWidget *listWidget = new QListWidget(this);
+listWidget->setSelectionMode(QAbstractItemView::SingleSelection);
+listWidget->setDragEnabled(true);
+listWidget->viewport()->setAcceptDrops(true);
+listWidget->setDropIndicatorShown(true);
+
+The result is a list widget which allows the items to be copied around within the view, and even lets the user drag items between views containing the same type of data. In both situations, the items are copied rather than moved.
+
+To enable the user to move the items around within the view, we must set the list widget's dragDropMode:
+
+listWidget->setDragDropMode(QAbstractItemView::InternalMove);
+
+Using model/view classes
+
+Setting up a view for drag and drop follows the same pattern used with the convenience views. For example, a QListView can be set up in the same way as a QListWidget:
+
+QListView *listView = new QListView(this);
+listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+listView->setDragEnabled(true);
+listView->setAcceptDrops(true);
+listView->setDropIndicatorShown(true);
+
+Since access to the data displayed by the view is controlled by a model, the model used also has to provide support for drag and drop operations. The actions supported by a model can be specified by reimplementing the QAbstractItemModel::supportedDropActions() function. For example, copy and move operations are enabled with the following code:
+
+Qt::DropActions DragDropListModel::supportedDropActions() const
+{
+    return Qt::CopyAction | Qt::MoveAction;
+}
+
+Although any combination of values from Qt::DropActions can be given, the model needs to be written to support them. For example, to allow Qt::MoveAction to be used properly with a list model, the model must provide an implementation of QAbstractItemModel::removeRows(), either directly or by inheriting the implementation from its base class.
+Enabling drag and drop for items
+
+Models indicate to views which items can be dragged, and which will accept drops, by reimplementing the QAbstractItemModel::flags() function to provide suitable flags.
+
+For example, a model which provides a simple list based on QAbstractListModel can enable drag and drop for each of the items by ensuring that the flags returned contain the Qt::ItemIsDragEnabled and Qt::ItemIsDropEnabled values:
+
+Qt::ItemFlags DragDropListModel::flags(const QModelIndex &index) const
+{
+    Qt::ItemFlags defaultFlags = QStringListModel::flags(index);
+
+    if (index.isValid())
+        return Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled | defaultFlags;
+    else
+        return Qt::ItemIsDropEnabled | defaultFlags;
+}
+
+Note that items can be dropped into the top level of the model, but dragging is only enabled for valid items.
+
+In the above code, since the model is derived from QStringListModel, we obtain a default set of flags by calling its implementation of the flags() function.
+Encoding exported data
+
+When items of data are exported from a model in a drag and drop operation, they are encoded into an appropriate format corresponding to one or more MIME types. Models declare the MIME types that they can use to supply items by reimplementing the QAbstractItemModel::mimeTypes() function, returning a list of standard MIME types.
+
+For example, a model that only provides plain text would provide the following implementation:
+
+QStringList DragDropListModel::mimeTypes() const
+{
+    QStringList types;
+    types << "application/vnd.text.list";
+    return types;
+}
+
+The model must also provide code to encode data in the advertised format. This is achieved by reimplementing the QAbstractItemModel::mimeData() function to provide a QMimeData object, just as in any other drag and drop operation.
+
+The following code shows how each item of data, corresponding to a given list of indexes, is encoded as plain text and stored in a QMimeData object.
+
+QMimeData *DragDropListModel::mimeData(const QModelIndexList &indexes) const
+{
+    QMimeData *mimeData = new QMimeData;
+    QByteArray encodedData;
+
+    QDataStream stream(&encodedData, QIODevice::WriteOnly);
+
+    for (const QModelIndex &index : indexes) {
+        if (index.isValid()) {
+            QString text = data(index, Qt::DisplayRole).toString();
+            stream << text;
+        }
+    }
+
+    mimeData->setData("application/vnd.text.list", encodedData);
+    return mimeData;
+}
+
+Since a list of model indexes is supplied to the function, this approach is general enough to be used in both hierarchical and non-heirarchical models.
+
+Note that custom datatypes must be declared as meta objects and that stream operators must be implemented for them. See the QMetaObject class description for details.
+Inserting dropped data into a model
+
+The way that any given model handles dropped data depends on both its type (list, table, or tree) and the way its contents is likely to be presented to the user. Generally, the approach taken to accommodate dropped data should be the one that most suits the model's underlying data store.
+
+Different types of model tend to handle dropped data in different ways. List and table models only provide a flat structure in which items of data are stored. As a result, they may insert new rows (and columns) when data is dropped on an existing item in a view, or they may overwrite the item's contents in the model using some of the data supplied. Tree models are often able to add child items containing new data to their underlying data stores, and will therefore behave more predictably as far as the user is concerned.
+
+Dropped data is handled by a model's reimplementation of QAbstractItemModel::dropMimeData(). For example, a model that handles a simple list of strings can provide an implementation that handles data dropped onto existing items separately to data dropped into the top level of the model (i.e., onto an invalid item).
+
+Models can forbid dropping on certain items, or depending on the dropped data, by reimplementing QAbstractItemModel::canDropMimeData().
+
+The model first has to make sure that the operation should be acted on, the data supplied is in a format that can be used, and that its destination within the model is valid:
+
+bool DragDropListModel::canDropMimeData(const QMimeData *data,
+    Qt::DropAction action, int row, int column, const QModelIndex &parent) const
+{
+    Q_UNUSED(action);
+    Q_UNUSED(row);
+    Q_UNUSED(parent);
+
+    if (!data->hasFormat("application/vnd.text.list"))
+        return false;
+
+    if (column > 0)
+        return false;
+
+    return true;
+}
+bool DragDropListModel::dropMimeData(const QMimeData *data,
+    Qt::DropAction action, int row, int column, const QModelIndex &parent)
+{
+    if (!canDropMimeData(data, action, row, column, parent))
+        return false;
+
+    if (action == Qt::IgnoreAction)
+        return true;
+
+A simple one column string list model can indicate failure if the data supplied is not plain text, or if the column number given for the drop is invalid.
+
+The data to be inserted into the model is treated differently depending on whether it is dropped onto an existing item or not. In this simple example, we want to allow drops between existing items, before the first item in the list, and after the last item.
+
+When a drop occurs, the model index corresponding to the parent item will either be valid, indicating that the drop occurred on an item, or it will be invalid, indicating that the drop occurred somewhere in the view that corresponds to top level of the model.
+
+    int beginRow;
+
+    if (row != -1)
+        beginRow = row;
+
+We initially examine the row number supplied to see if we can use it to insert items into the model, regardless of whether the parent index is valid or not.
+
+    else if (parent.isValid())
+        beginRow = parent.row();
+
+If the parent model index is valid, the drop occurred on an item. In this simple list model, we find out the row number of the item and use that value to insert dropped items into the top level of the model.
+
+    else
+        beginRow = rowCount(QModelIndex());
+
+When a drop occurs elsewhere in the view, and the row number is unusable, we append items to the top level of the model.
+
+In hierarchical models, when a drop occurs on an item, it would be better to insert new items into the model as children of that item. In the simple example shown here, the model only has one level, so this approach is not appropriate.
+Decoding imported data
+
+Each implementation of dropMimeData() must also decode the data and insert it into the model's underlying data structure.
+
+For a simple string list model, the encoded items can be decoded and streamed into a QStringList:
+
+    QByteArray encodedData = data->data("application/vnd.text.list");
+    QDataStream stream(&encodedData, QIODevice::ReadOnly);
+    QStringList newItems;
+    int rows = 0;
+
+    while (!stream.atEnd()) {
+        QString text;
+        stream >> text;
+        newItems << text;
+        ++rows;
+    }
+
+The strings can then be inserted into the underlying data store. For consistency, this can be done through the model's own interface:
+
+    insertRows(beginRow, rows, QModelIndex());
+    for (const QString &text : std::as_const(newItems)) {
+        QModelIndex idx = index(beginRow, 0, QModelIndex());
+        setData(idx, text);
+        beginRow++;
+    }
+
+    return true;
+}
+
+Note that the model will typically need to provide implementations of the QAbstractItemModel::insertRows() and QAbstractItemModel::setData() functions.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+MIME data
+
+By default, the built-in models and views use an internal MIME type (application/x-qabstractitemmodeldatalist) to pass around information about model indexes. This specifies data for a list of items, containing the row and column numbers of each item, and information about the roles that each item supports.
+
+Data encoded using this MIME type can be obtained by calling QAbstractItemModel::mimeData() with a QModelIndexList containing the items to be serialized.
+
+When implementing drag and drop support in a custom model, it is possible to export items of data in specialized formats by reimplementing the following function:
+mimeData()	This function can be reimplemented to return data in formats other than the default application/x-qabstractitemmodeldatalist internal MIME type.
+
+Subclasses can obtain the default QMimeData object from the base class and add data to it in additional formats.
+
+For many models, it is useful to provide the contents of items in common format represented by MIME types such as text/plain and image/png. Note that images, colors and HTML documents can easily be added to a QMimeData object with the QMimeData::setImageData(), QMimeData::setColorData(), and QMimeData::setHtml() functions.
+Accepting dropped data
+
+When a drag and drop operation is performed over a view, the underlying model is queried to determine which types of operation it supports and the MIME types it can accept. This information is provided by the QAbstractItemModel::supportedDropActions() and QAbstractItemModel::mimeTypes() functions. Models that do not override the implementations provided by QAbstractItemModel support copy operations and the default internal MIME type for items.
+
+When serialized item data is dropped onto a view, the data is inserted into the current model using its implementation of QAbstractItemModel::dropMimeData(). The default implementation of this function will never overwrite any data in the model; instead, it tries to insert the items of data either as siblings of an item, or as children of that item.
+
+To take advantage of QAbstractItemModel's default implementation for the built-in MIME type, new models must provide reimplementations of the following functions:
+insertRows()	These functions enable the model to automatically insert new data using the existing implementation provided by QAbstractItemModel::dropMimeData().
+insertColumns()
+setData()	Allows the new rows and columns to be populated with items.
+setItemData()	This function provides more efficient support for populating new items.
+
+To accept other forms of data, these functions must be reimplemented:
+supportedDropActions()	Used to return a combination of drop actions, indicating the types of drag and drop operations that the model accepts.
+mimeTypes()	Used to return a list of MIME types that can be decoded and handled by the model. Generally, the MIME types that are supported for input into the model are the same as those that it can use when encoding data for use by external components.
+dropMimeData()	Performs the actual decoding of the data transferred by drag and drop operations, determines where in the model it will be set, and inserts new rows and columns where necessary. How this function is implemented in subclasses depends on the requirements of the data exposed by each model.
+
+If the implementation of the dropMimeData() function changes the dimensions of a model by inserting or removing rows or columns, or if items of data are modified, care must be taken to ensure that all relevant signals are emitted. It can be useful to simply call reimplementations of other functions in the subclass, such as setData(), insertRows(), and insertColumns(), to ensure that the model behaves consistently.
+
+In order to ensure drag operations work properly, it is important to reimplement the following functions that remove data from the model:
+
+    removeRows()
+    removeRow()
+    removeColumns()
+    removeColumn()
+
+For more information about drag and drop with item views, refer to Using drag and drop with item views.

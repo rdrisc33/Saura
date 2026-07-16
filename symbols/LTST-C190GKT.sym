@@ -1,0 +1,17 @@
+<Symbol name="LTST-C190GKT">
+  <graphic unit="0" style="0">
+    <pin name="C" number="C" PIN_ELECTRICAL_TYPE="passive" PIN_GRAPHIC_STYLE="line" x1="-7.62" y1="0.0" x2="-5.08" y2="0.0"/>
+    <pin name="A" number="A" PIN_ELECTRICAL_TYPE="passive" PIN_GRAPHIC_STYLE="line" x1="10.16" y1="0.0" x2="7.62" y2="3.110602869834277e-16"/>
+    <polyline points="2.54,-1.27 0.0,0.0"/>
+    <polyline points="0.0,0.0 2.54,1.27"/>
+    <polyline points="0.0,-1.27 0.0,0.0"/>
+    <polyline points="0.0,0.0 0.0,1.27"/>
+    <polyline points="2.54,-1.27 2.54,1.27"/>
+    <polyline points="1.778,2.032 0.381,3.429"/>
+    <polyline points="0.635,1.905 -0.762,3.302"/>
+    <polyline points="0.381,3.429 1.27,3.048 0.762,2.54 0.381,3.429"/>
+    <polyline points="-0.762,3.302 0.127,2.921 -0.381,2.413 -0.762,3.302"/>
+    <polyline points="-5.08,0.0 0.0,0.0"/>
+    <polyline points="2.54,0.0 7.62,0.0"/>
+  </graphic>
+</Symbol>

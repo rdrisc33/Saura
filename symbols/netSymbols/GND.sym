@@ -1,0 +1,8 @@
+<Symbol name="GND" exclude_from_sim="no" embedded_fonts="no">
+  <graphic unit="0" style="1">
+    <polyline points="0,0 0,-1.27 1.27,-1.27 0,-2.54 -1.27,-1.27 0,-1.27"/>
+  </graphic>
+  <graphic unit="1" style="1">
+    <pin name="~" number="1" PIN_ELECTRICAL_TYPE="power_in" PIN_GRAPHIC_STYLE="line" x1="0.0" y1="0.0" x2="0.0" y2="0.0"/>
+  </graphic>
+</Symbol>
