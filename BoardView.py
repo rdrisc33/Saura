@@ -26,3 +26,7 @@ class BoardView(MyView):
                 painter.drawPoint(QPoint(x*self.tick_spacing , y*self.tick_spacing))
             
         # super().drawBackground(painter, rect) # Base implementation calls scene.drawBackground, if no brush set(which is default). If pen is set, will draw background with pen. Reimplement to paint a custom background(and Dont call super, bc it'll fill with the pen we set)
+
+    # def mousePressEvent(self, event):
+    #     # print('BOARDVIEW.MOUSEPRESSEVENT:')
+    #     super().mousePressEvent(event)

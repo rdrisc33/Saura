@@ -68,6 +68,10 @@ defaultTraceWidth = .2
 class Utils: 
 
     @staticmethod
+    def distance(pointA , pointB): 
+        return math.sqrt( (pointA.x()-pointB.x())^2 + (pointA.y() - pointB.y())^2)
+    
+    @staticmethod
     def rangesOverlap(a1,a2 , b1,b2) : 
         # First, make sure that ranges are 'well ordered':  n1 < n2 
         if a1 > a2: 
@@ -326,10 +330,13 @@ class LineItem(LayerItem, QGraphicsLineItem):
 
 
     
-class CopperItemContainer(QGraphicsItem):
-# class CopperItemContainer(): # Base class of FP TR ZN VA PD classes. Has .layers() and .copperItems(). Not useful by itself
-    def __init__(self, parent=None):
-        super().__init__(parent)
+# class CopperItemContainer(QGraphicsItem):# Cannot inherit QGI if elsewhere in inheritance chain, QGLI or other convenience class is also inherited. Remove QGI from CuIC inheritance.
+#     def __init__(self, parent=None):
+#         super().__init__(parent)
+class CopperItemContainer(): # Base class of FP TR ZN VA PD classes. Has .layers() and .copperItems(). Not useful by itself
+    def __init__(self):
+        super().__init__()
+        # print('COPPERITEMCONTAINER.INIT')
         self._layers                = None
         self._copperItems           = defaultdict(list) # {'F.Cu': [PadItem , ViaItem] , 'Inr_1': [ZoneItem, ... }
         self._layerItems            = defaultdict(list) # { 'F.Cu': LineItem}
@@ -383,7 +390,9 @@ class CopperItemContainer(QGraphicsItem):
     def setBufferDistance(self, bufferDistance): # Upon construction, item may not have a scene, thus it cannot know scene.traceWidth aka bufferDistance, thus we must wait until item is added to scene to implement buffer functions. 
         self._bufferDistance = bufferDistance 
         self.setBuffer()
-        self.setSceneBuffer()
+        print('BUFFER:', self.buffer())
+        self.setSceneBuffer() 
+        print('SETSCENEBUFFER')
         self.setBufferedBounds() # Must have bounds to insert into rtree ( Would do this in constructor, except requires bufferWidth, which is taken from scene)
         self.setSceneBufferedBounds()
         
@@ -398,12 +407,15 @@ class CopperItemContainer(QGraphicsItem):
         self.setSceneBufferedBounds()
         self.insertIntoRtree()
         
-    def layer(self):
-        return self._layer
-    def setLayer(self, layer):
-        self._layer = layer
+    # def layer(self): # CuICs won't all have just one layer
+    #     return self._layer
+    # def setLayer(self, layer):
+    #     self._layer = layer
         
-
+    def layers(self):
+        return self._layers
+    def setLayers(self, layers):
+        self._layers = layers
         
     def id(self):
         return self._id 
@@ -433,10 +445,6 @@ class CopperItemContainer(QGraphicsItem):
     def buffer(self):
         return self._buffer
     def setBuffer(self):#, bufferDistance = None): 
-        # if self._bufferDistance is None : 
-        #     if self.scene() is None: 
-        #         raise ValueError(f"Item needs a scene to know the scene's current traceWidth for self._bufferDistanceing but item has no scene")
-        #     self._bufferDistance = self.scene().traceWidth()
             
         stroker = QPainterPathStroker()
         stroker.setWidth(self._bufferDistance)
@@ -584,10 +592,10 @@ class CopperItemContainer(QGraphicsItem):
     # def removeLayerItem(self, layerItem):
     #     self.layerItems()[layerItem.layer()].remove(layerItem)
         
-    def boundingRect(self):
-        return self.childrenBoundingRect() or QRectF()
-    def paint(self, painter, option, widget):
-        pass 
+    # def boundingRect(self):
+    #     return self.childrenBoundingRect() or QRectF()
+    # def paint(self, painter, option, widget):
+    #     pass 
  
 # updateRtree()
 # setSceneBuffer()
@@ -660,10 +668,6 @@ class CopperItemContainer(QGraphicsItem):
     def removeCopperItem(self, layer, copperItem):
         self.copperItems()[layer].remove(copperItem)
         
-    def layers(self):
-        return self._layers
-    def setLayers(self, layers):
-        self._layers = layers 
     def addLayer(self, layer):
         self._layers.append(layer)
     def removeLayer(self, layer):
@@ -1607,3 +1611,4 @@ class ItemData(Enum):
 
 delimiter = ';'
 encoding = 'utf-8'
+

@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
         G = []
         self.mst = None
 
-        self.components = defaultdict(dict) # {"R": {1:<Component>, '5':<Component> } , "U": {4:<Component>} } # Note netSymbols go in schematic.scene.netSymbols 
+        self.components = defaultdict(defaultdict) # {"R": {1:<Component>, '5':<Component> } , "U": {4:<Component>} } # Note netSymbols go in schematic.scene.netSymbols 
 
         self.setAcceptDrops(True)
         self.schematic= Schematic() #Shown on start. part of stacked_widget
@@ -65,7 +65,7 @@ class MainWindow(QMainWindow):
         self.create_board_toolbar()
         
         
-        database.changed.connect(self.reload_part) # When the database changes, reload all parts on all scenes
+        database.changed.connect(self.reloadPart) # When the database changes, reload all parts on all scenes
         
 ### Had many issues adding part to both brdScene & schScene @same time-- I ended up creating a signal, to .emit on a sceneDropEvent, .connecting that symbol at the MainWindow level, below: ### I THINK it'd be better to have a BoardScene & symbolScene subclass...
         
@@ -182,10 +182,10 @@ class MainWindow(QMainWindow):
         print(f'POS {startPos} PROPAGATED TO { len(visitedPositions) } POINTS:', list(visitedPositions)) 
         return list(visitedPositions) 
         
-    def queryRtrees(self, pos=None , item = None ): 
+    def queryRtrees(self, xyLayer=None , item = None ): 
         """Query rtree for either pos, a 3-tuple (x,y,layer) or item, a QGraphicsItem """
-        if pos: 
-            x, y, layer = pos
+        if xyLayer: 
+            x, y, layer = xyLayer
             bounds = ( x, y , x , y )
         elif item: 
             bounds = item.sceneBounds()
@@ -882,7 +882,7 @@ class MainWindow(QMainWindow):
         
         
     @Slot(dict) # part . The part which was changed.
-    def reload_part(self, part): # part was just updated in db. I need to propogate fresh part to all symbols/footprints. 
+    def reloadPart(self, part): # part was just updated in db. I need to propogate fresh part to all symbols/footprints. 
         print()
         print('MySCENE.RELOAD_PART')
         for item in self.schematic.scene().items():
@@ -927,14 +927,20 @@ class MainWindow(QMainWindow):
     #         print(f'SOMETHING WRONG, COULD NOT DELETE reference_value: {reference}{referenceNumber}')
             
         
-    @Slot( dict , QGraphicsSceneDragDropEvent, int) # event fresh from QGraphicsScene.dropEvent(self, event). part is dict, contained in drop's mimeData. sourceWidget is the widget where event happened, either Widgets.Schematic or Widgets.Board
-    def deletePart(self, reference , referenceNumber): 
+    # @Slot( dict , QGraphicsSceneDragDropEvent, int) # event fresh from QGraphicsScene.dropEvent(self, event). part is dict, contained in drop's mimeData. sourceWidget is the widget where event happened, either Widgets.Schematic or Widgets.Board
+    @Slot( dict , str, int) 
+    def deletePart(self, referenceDesignator , referenceNumber): 
         print("MW DELETING PART")
+        print('COMPONENTS:', self.components)
+        print('REFERENCEDESIGNATOR:', referenceDesignator)
+        print('REFERENCENUMBER:', referenceNumber)
 
         # print(self.board.scene().footprints)
         # print(self.schematic.scene().symbols)
-        footprint = self.board.scene().footprints[reference].pop(referenceNumber)
-        symbol = self.schematic.scene().symbols[reference].pop(referenceNumber)
+        # footprint = self.board.scene().footprints[referenceDesignator].pop(referenceNumber)
+        # symbol = self.schematic.scene().symbols[referenceDesignator].pop(referenceNumber)
+        footprint = self.components[referenceDesignator][referenceNumber].footprintItem()
+        symbol = self.components[referenceDesignator][referenceNumber].symbolItem()
         print('FOOTPRINT:', footprint)
         # # self.board.scene().ids[footprint.id] = None # set value in ids to 'None' 
         # self.board.scene().ids.pop(footprint.id) # Remove from ids 

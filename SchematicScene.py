@@ -23,10 +23,9 @@ class SchematicScene(QGraphicsScene):
     def __init__(self, parent = None, *args, **kwargs):
         super().__init__(parent, *args, **kwargs) 
                 
-
+        # self.symbols = defaultdict(defaultdict)
         self._netSymbols = defaultdict(dict)
         self._labels = defaultdict(dict) 
-        self._symbols = defaultdict(dict) # A dict to store symbols , keyed on reference then value. Usage: to get symbol C0: symbol = self.symbols['C'][0]. Ex: { 'C': {0: <Symbol> , 1: <Symbol>, ...} , 'R': ... , ... } 
 
 
         self.seeker_rect = QRectF(-seeker_radius,-seeker_radius, seeker_radius*2 , seeker_radius*2)
@@ -116,9 +115,9 @@ class SchematicScene(QGraphicsScene):
             print('DELETE KEY PRESSED')
             for item in self.selectedItems():
 
-                if item.reference: # Then we are a footprint item, we should ALSO delete the SYMBOL w/ corresponding reference_value. 
+                if item.reference(): # Then we are a item, we should ALSO delete the SYMBOL w/ corresponding reference_value. 
                     print(f'ITEM: {item} IS A SYMBOL, deleting from both sch and brd')
-                    self.deletePart.emit(item.reference , item.value) # Let MMW handle SymbolItem removal, bc we need to remove corresponding footprint too, and we can only reach boardScene through mmw. deleted_item.emit(reference, value).connect(MMW.delete_part) 
+                    self.deletePart.emit(item.referenceDesignator(), item.referenceNumber()) # Let MMW handle SymbolItem removal, bc we need to remove corresponding footprint too, and we can only reach boardScene through mmw. deleted_item.emit(reference, value).connect(MMW.delete_part) 
                 else: 
                     self.removeItem(item)
                     item = None
@@ -140,8 +139,7 @@ class SchematicScene(QGraphicsScene):
     def removeItem(self, item): 
         super().removeItem(item)
 
-        if isinstance(item, ComponentSymbol):
-            self.symbols[item.reference].pop(item.value)
+
     ##CODE FOR DRAGNDROP DROPS
     # def dragEnterEvent(self, event): # dragEnterEvent default does what we want: accepts event, & allows scene to receive future dragMoves 
     #     print("MYSCENE.DRAGENTEREVENT")

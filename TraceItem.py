@@ -2,12 +2,15 @@ from utils import *
 
 class TraceItem(CopperItemContainer, QGraphicsLineItem):
     # QGLI has no .setBrush only .setPen
-    def __init__(self, line, traceWidth, layer): 
-
+    def __init__(self, traceWidth, layers, line=QLineF()): 
         super().__init__()#layer, line) 
-        self._color                 = Utils.layerColors[layer]
-        self.setTraceWidth(traceWidth)
-
+        # self._color                 = Utils.layerColors[layer] 
+        self.setTraceWidth(traceWidth) 
+        self.setLayers(layers)
+        self.setLine(line) # crashes kernel
+        self.setBounds() # Note that this'll be (0000) for 'blank' traceItems
+        self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable) 
+        
         self.previous_seeker_side = None # Store the side the seeker was last on. Equals 1 for cw side or 2 for ccw side. Never set equal to 0 only 1 or 2.  
         self.adjusting = False # Track whether we are adjusting this trace's position
         self._net = None 
@@ -33,11 +36,28 @@ class TraceItem(CopperItemContainer, QGraphicsLineItem):
         self.initial_anchor1 = None 
         self.initial_anchor2 = None 
         self.arbitrary = QPointF(-1e3, -1e3)        
-        self.setBounds() # Note that this'll be (0000) for 'blank' traceItems
-        self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
+
+        
+    def queryRtrees(self, layer):
+        """query MainWindow.rtrees[layer] for trace"""
+        print('self.bufferedBounds():', self.bufferedBounds())
+        hitIds = self.scene().rtrees[layer].intersection(self.bufferedBounds())
+        hitItems = [self.scene().ids[hitId] for hitId in hitIds]
+        return hitItems
+        
+    def nearestSceneSnap(self, pos):
+        """return the snappable point nearest to 'pos'. p1 and p2 are possible snap points for traces. Pads, zones, and vias have just one snap point; their centroid"""
+        # calculate distance from p1,p2 to pos 
+        # calculate min distance and return corresponding point
+        
+        if Utils.distance(pos, self.p1()) <= Utils.distance(pos, self.p2()): 
+            return self.p1() 
+        else: 
+            return self.p2()
+    
     def netCollision(self): # Returns true if there are any net collisions, else False. A net collision occurs when two items overlap, on the same layer, with different, nonNone, nets.
-        hitItems = self.queryRtrees() 
-        for hitItem in hitItem: 
+        hitItems = self.queryRtrees(self.scene().activeLayer()) 
+        for hitItem in hitItems: 
             pass
             
     def sceneTerminals(self):#  
@@ -50,14 +70,20 @@ class TraceItem(CopperItemContainer, QGraphicsLineItem):
         return self._traceWidth
     def setTraceWidth(self, traceWidth):
         self._traceWidth = traceWidth 
-        self.setPen(QPen(self._color, self.traceWidth(), c=Qt.PenCapStyle.RoundCap))
-        self.setBufferDistance(traceWidth)
-        
+        # self.setPen(QPen(self._color, self._traceWidth, c=Qt.PenCapStyle.RoundCap))
+        # print('ABOUT OT SET BUFFER DISTANCE')
+        self.setBufferDistance(self._traceWidth) # Crashes kernel
+        print('SETTRACEWIDTH DONE')
     def terminals_hits(self):# Return items queried from p1/p2
         ids1 = self.scene().idx.intersection(self.p1_bounds())
         ids2 = self.scene().idx.intersection(self.p2_bounds())
         items = [ self.scene().ids[id] for id in ids1.extend(ids2) ]
 
+    def p1(self):
+        return self.line().p1()
+    def p2(self):
+        return self.line().p2() 
+    
     def p1_bounds(self):
         x1,y1= self.line().p1().toTuple()
         p1_bounds =  (x1,y1, x1,y1)
@@ -115,11 +141,11 @@ class TraceItem(CopperItemContainer, QGraphicsLineItem):
         print('TRACEITEM.MOUSEDOUBLECLICKEVENT')
         super().mouseDoubleClickEvent(event) # Base implelentation calls mousePressEvent
         
-    def mousePressEvent(self, event): 
-        print()
-        print('TRACEITEM.MOUSEPRESSEVENT')
+    # def mousePressEvent(self, event): 
+    #     print()
+    #     print('TRACEITEM.MOUSEPRESSEVENT')
 
-        # super().mousePressEvent(event)
+    #     super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
         print('TRACEITEM.RELEASEEVENT')
@@ -129,17 +155,19 @@ class TraceItem(CopperItemContainer, QGraphicsLineItem):
         if self.adjusting: 
             self.adjusting = False
             if not self.l1.isNull():
-                ti1 = TraceItem(self.layer, self.li1.line() , self._net, self.trace_width) # not out of l1, but out of 1i1.line()
+                ti1 = TraceItem(self.traceWidth(), self.layer(), self.li1.line()) # not out of l1, but out of 1i1.line()
                 ti1.setPen(QPen(Qt.red, self.trace_width ,c = Qt.RoundCap))
                 self.scene().addItem(ti1)
                 
             if not self.l2.isNull():
-                ti2 = TraceItem(self.layer, self.li2.line() , self._net, self.trace_width)
+                ti2 = TraceItem(self.traceWidth(), self.layer(), self.li2.line())
+  
                 ti2.setPen(QPen(Qt.green, self.trace_width, c= Qt.RoundCap))
                 self.scene().addItem(ti2)
                 
             if not self.l3.isNull():
-                ti3 = TraceItem(self.layer , self.li3.line() , self._net, self.trace_width)
+                ti3 = TraceItem(self.traceWidth() , self. layer() , self.li3.line())
+                    
                 ti3.setPen(QPen(Qt.blue, self.trace_width, c = Qt.RoundCap))
                 self.scene().addItem(ti3)
                 
@@ -549,5 +577,4 @@ class TraceItem(CopperItemContainer, QGraphicsLineItem):
         super().hoverEnterEvent(event)
 
     def clone(self):
-        return TraceItem(self. layer, self.line() , net = self._net, zlayer = self.zlayer , trace_width = self.trace_width ) 
-     
+        return TraceItem(self.traceWidth() , self.layer() , self.line())

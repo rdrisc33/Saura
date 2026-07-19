@@ -148,7 +148,7 @@ class FootprintItem( Reference, QGraphicsItem):
                 if layer in Utils.CuLayers: # Pads also appear on the mask and silks layers, but we can ignore those as copperItems
                     self.addCopperItem(layer, pad )
             self.pads().append(pad)# Note if p is not referenced by anything, p will be garbage collected; deallocated; deleted. When p is deallocated, its childrenItems are, too, so no more pads. To avoid this, maintain a reference to p; put p in a list
-            pad.setZValue(1) # Draw pads atop the Fab layer and other layers.
+            pad.setZValue(1) 
 
                 
         for line in line_elems: 
@@ -265,6 +265,9 @@ class PadBase(QGraphicsItem):
         self.setPath(self.createPath())        
         self.setCentroid()
   
+    def nearestSceneSnap(self, pos): 
+        return self.mapToScene(self.centroid())
+    
     def boundingRect(self):
         return self._boundingRect
         
