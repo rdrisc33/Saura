@@ -121,10 +121,10 @@ class MainWindow(QMainWindow):
             
             pins = sorted(pins, key = lambda pin: pin.name()+str(pin.number())) # pin.id is unique integer assigned during brdScene.addItem. TODO: confirm pin.id is deterministic way for sorting pins. Could also sort by pin name ('C3-1') since we need it for the net anyway
             pin = pins[0]
-            if pin.name():
-                net = pin.parentItem().reference() + '_' + pin.name()    
-            else: 
-                net = pin.parentItem().reference() + '_' + pin.number()
+            net = pin.parentItem().reference() + '_' + pin.number()
+            # if pin.name():
+            #     net = pin.parentItem().reference() + '_' + pin.name()    
+            # else: 
             
         elif highestPriority == Utils.SchematicItemKinds.LocalLabel.value: 
             print()
@@ -159,37 +159,71 @@ class MainWindow(QMainWindow):
         # First, update nets@BI's, because, ratsnest will use padTerminals=nets[BI.Pad]  
         self.updateRatsnest(net)
     
-    def propagations(self, pos, net):  # pos(x,y,layer) # -> list of positions which pos propagates to, incl. pos. Propagations will find all connected BoardItems on board scene. Used in ratsnest creation. See ratsnest tutorial. Ratsnest is a minimum spanning tree; a modified Kruskal algo, of terminals of all items in a net... which remain unconnected to other items in that net. Say pad connects to nothing: ratsnest travels to terminal of nearest item in net. Say pad is wired to a wire which in turn connects to nothing: ratsnest travels from unconnected terminal of wire to terminal of nearest item in net: This latter case calls for checking 'propagations' of each pad.  If pad propagates its way onto another pad, then, ratsnest no longer needed between these pads. Any copper, incl pads vias zones wires, all propogate a net. 
-        startPos = pos 
-        positionQueue = [pos]
+    # def propagations(self, pos, net):  # pos(x,y,layer) # -> list of positions which pos propagates to, incl. pos. Propagations will find all connected BoardItems on board scene. Used in ratsnest creation. See ratsnest tutorial. Ratsnest is a minimum spanning tree; a modified Kruskal algo, of terminals of all items in a net... which remain unconnected to other items in that net. Say pad connects to nothing: ratsnest travels to terminal of nearest item in net. Say pad is wired to a wire which in turn connects to nothing: ratsnest travels from unconnected terminal of wire to terminal of nearest item in net: This latter case calls for checking 'propagations' of each pad.  If pad propagates its way onto another pad, then, ratsnest no longer needed between these pads. Any copper, incl pads vias zones wires, all propogate a net. 
+    #     startPos = pos 
+        # positionQueue = [pos]
+        # visitedItems = set()
+        # visitedPositions = set()
+        # while positionQueue: 
+        #     pos = positionQueue.pop(0)
+        #     visitedPositions.add(pos)
+        #     for hitItem in self.queryRtrees(pos):
+        #         if hitItem in visitedItems: continue 
+        #         visitedItems.add(hitItem)
+        #         # item = hitItem):
+        #         for hitItem2 in self.queryRtrees(bounds=hitItem.sceneBounds(), layer=xyLayer[2])
+        #             if hitItem2 in visitedItems: continue 
+        #             elif hitItem2 == hitItem: continue 
+        #             if hitItem2.connectsTo(hitItem):
+        #                 positionQueue.extend(hitItem2.sceneTerminals())
+        #         # if not isinstance(hitItem ,FootprintItem):
+        #         #     if hitItem.net() != None and  hitItem.net() != net: 
+        #         #         raise ValueError(f'HITITEM.NET(): {hitItem.net()} AND TRACE NET: {net} DO NOT MATCH')
+        #         #     hitItem.setNet(net) # Set net on every BoardItem, (but not here-- done before) so that brdScene knows net info w/o relying on MW.nets, which it cannot ez access.  
+        # print(f'POS {startPos} PROPAGATED TO { len(visitedPositions) } POINTS:', list(visitedPositions)) 
+        # return list(visitedPositions) 
+
+    def propagations(self, xYLayer, net): # xyLayer is a 3-tuple (x,y,layer). pos already taken to refer to 2-tuple|QPointF(x,y)
+        startXYLayer = xYLayer
+
+        xYLayerQueue = [xYLayer]
         visitedItems = set()
-        visitedPositions = set()
-        while positionQueue: 
-            pos = positionQueue.pop(0)
-            visitedPositions.add(pos)
-            for hitItem in self.queryRtrees(pos):
+        visitedxYLayers = set()
+        while xYLayerQueue: 
+            xYLayer = xYLayerQueue.pop(0)
+            visitedxYLayers.add(xYLayer)
+            for hitItem in self.queryRtrees(xYLayer):
                 if hitItem in visitedItems: continue 
                 visitedItems.add(hitItem)
-                for hitItem2 in self.queryRtrees(item = hitItem):
+                # item = hitItem):
+                for hitItem2 in self.queryRtrees(item=hitItem, layer=xYLayer[2]):
                     if hitItem2 in visitedItems: continue 
                     elif hitItem2 == hitItem: continue 
                     if hitItem2.connectsTo(hitItem):
-                        positionQueue.extend(hitItem2.sceneTerminals())
+                        # xYLayerQueue.extend(hitItem2.sceneTerminals()) # not enough
+                        for layer in hitItem2.copperLayers():
+                            for terminal in hitItem2.sceneTerminals():
+                                
+                                xYLayerQueue.append( (*terminal.toTuple(), layer) )
                 # if not isinstance(hitItem ,FootprintItem):
                 #     if hitItem.net() != None and  hitItem.net() != net: 
                 #         raise ValueError(f'HITITEM.NET(): {hitItem.net()} AND TRACE NET: {net} DO NOT MATCH')
                 #     hitItem.setNet(net) # Set net on every BoardItem, (but not here-- done before) so that brdScene knows net info w/o relying on MW.nets, which it cannot ez access.  
-        print(f'POS {startPos} PROPAGATED TO { len(visitedPositions) } POINTS:', list(visitedPositions)) 
-        return list(visitedPositions) 
+        print(f'xYLayer {startXYLayer} PROPAGATED TO { len(visitedxYLayers) } POINTS:', list(visitedxYLayers)) 
+        return list(visitedxYLayers) 
         
-    def queryRtrees(self, xyLayer=None , item = None ): 
-        """Query rtree for either pos, a 3-tuple (x,y,layer) or item, a QGraphicsItem """
+    def queryRtrees(self, xyLayer=None , item=None, bounds=None, layer=None ): 
+        """Query rtree for either pos, item&layer, or bounds&layer.
+        pos: 3-tuple (x,y,layer) 
+        item: a PadTraceViaZone item
+        bounds: 4-tuple 
+        layer: str representing which rtree layer to query
+        """
         if xyLayer: 
             x, y, layer = xyLayer
             bounds = ( x, y , x , y )
         elif item: 
             bounds = item.sceneBounds()
-            layer = item.layer()
             
         hitIds = self.board.scene().rtrees[layer].intersection(bounds)
         hitItems = [self.board.scene().ids[id] for id in hitIds]
@@ -229,7 +263,7 @@ class MainWindow(QMainWindow):
         for pad in pads :
             pad.setSceneTerminal()
             for layer in pad.layers(): 
-                if layer in Utils.CuLayers: 
+                if layer in Utils.CopperLayers: 
                     padTerminals.append( (*pad.sceneTerminal().toTuple() , layer) ) # xyLayer form
 
         print('PADTERMINALS:', len(padTerminals), padTerminals) 
@@ -381,7 +415,8 @@ class MainWindow(QMainWindow):
             u,v = list(edge)
             print('FLAT[u]:', flat[u])
             line = QLineF(*flat[u], *flat[v])
-            line = QGraphicsLineItem(line)
+            # line = QGraphicsLineItem(line)
+            line = BoardLineItem(None, line)
             line.setPen(QPen(Qt.blue, 0 ))
             self.board.scene().addItem(line)
             self.ratsnests[net].append(line) # Track ratsnest lines for later removal from scene
@@ -738,7 +773,7 @@ class MainWindow(QMainWindow):
             for pad in pads: 
                 if pad.name() == pin.number(): 
                     print('PADNAME MATCHES PINNUMBER', pad, pin)
-                    pad.setNet(net) #Set pad net
+                    pad.setNet(net) # initial pad net is set in constructor, but pad nets may be overridden
                     self.nets[net][Utils.BoardItemKinds.Pad.value].append(pad)# update nets with pads whose pad.name() matches the pin.number(). 
                     # pad.setNet(vein['net]) ???
                     # pins/pads are linked via their padName matching their pinNumber. Based on looking at 2 kicad files.

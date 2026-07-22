@@ -13,7 +13,6 @@ from PySide6.QtSvgWidgets import (
 QGraphicsSvgItem,                                       # NOTE this is for using svgs as icons/button icons. See QSvgRenderer to draw SVGs more complicated-ly.
 QSvgWidget                                              # display svg drawings, as icons, like how QLabel displays text/bitmap images
 ) 
-import regex 
 
 
 ###
@@ -45,10 +44,8 @@ import time
 # print(os.getcwd())
 ###
 
-from lxml import etree as ET                            # Parse xml documents, like svgs. Part of python standard library. Can be EXTENDED by lxml, I'll use lxml bc I want QName and more.
-from svgpathtools import svg2paths                      # specifically for working with svg <path> elements; complex shapes.
+from lxml import etree
 from collections import defaultdict
-import lxml.etree as etree 
 from sexpdata import loads 
 import pandas as pd 
 from enum import Enum
@@ -58,14 +55,32 @@ import sexpdata
 import math 
 import os
 import re # 'Regular Expressions' 
-# from xml.dom.minidom import parseString                 Indents xml for > HR. xml.dom.minidom is a python builtin. Great for neatly formatted svgs 
-# import svgwrite                                         #
+
+from BoardItem import * 
 
 app = QApplication(sys.argv)
 
 defaultTraceWidth = .2
 
 class Utils: 
+    
+    class Shape(Enum):
+        
+        Rectangle = 0 
+        Ellipse = 1
+        Path = 2
+        Line = 3 
+        Pixmap = 4
+        Polygon = 5
+        SimpleText = 6 
+        Text = 7
+        
+        Footprint = 8
+        ComponentSymbol = 9 
+        LabelSymbol = 10
+        HierarchyLabelSymbol = 11
+        GlobalLabelSymbol = 12
+        
 
     @staticmethod
     def distance(pointA , pointB): 
@@ -299,50 +314,68 @@ class Utils:
         'B.Fab'     :       QColor(65,65,100)               # darkish bluish                             ,
     }
 
-    CuLayers = [ 'F.Cu', 'B.Cu' ,'Inr.1', 'Inr.2', 'Inr.3', 'Inr.4'] 
+    CopperLayers = [ 'F.Cu', 'B.Cu' ,'Inr.1', 'Inr.2', 'Inr.3', 'Inr.4'] 
  
-class LayerItem(): # LIs have no electrical connectivity, & include silkscreen, courtyard, mask & do not go in rtree & are .childItems 
-    def __init__(self, layer, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+# class LayerItem(): # LIs have no electrical connectivity, & include silkscreen, courtyard, mask & do not go in rtree & are .childItems 
+#     def __init__(self, layer, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
         
-        self._layer                     = None 
-        self._color                     = None 
+#         self._layer                     = None 
+#         self._color                     = None 
         
-        self.setLayer(layer)
-        # print()
-        # print('SELF:', self)
-        # print('SELF.LAYER():', self.layer())
-        self.setColor(Utils.layerColors[self.layer()])
+#         self.setLayer(layer)
+#         # print()
+#         # print('SELF:', self)
+#         # print('SELF.LAYER():', self.layer())
+#         self.setColor(Utils.layerColors[self.layer()])
         
-    def layer(self):
-        return self._layer
-    def setLayer(self, layer):
-        self._layer = layer
-    def color(self):
-        return self._color
-    def setColor(self, color):
-        self._color = color
+#     def layer(self):
+#         return self._layer
+#     def setLayer(self, layer):
+#         self._layer = layer
+#     def color(self):
+#         return self._color
+#     def setColor(self, color):
+#         self._color = color
         
-class LineItem(LayerItem, QGraphicsLineItem): 
-    def __init__(self, layer, *args, **kwargs): 
-        super().__init__(layer, *args, *kwargs)
+# class LineItem(LayerItem, QGraphicsLineItem): 
+#     def __init__(self, layer, *args, **kwargs): 
+#         super().__init__(layer, *args, *kwargs)
 
 
 
     
-# class CopperItemContainer(QGraphicsItem):# Cannot inherit QGI if elsewhere in inheritance chain, QGLI or other convenience class is also inherited. Remove QGI from CuIC inheritance.
-#     def __init__(self, parent=None):
-#         super().__init__(parent)
-class CopperItemContainer(): # Base class of FP TR ZN VA PD classes. Has .layers() and .copperItems(). Not useful by itself
-    def __init__(self):
-        super().__init__()
+
+class CopperItem(BoardItem): 
+    def __init__(self, layer, *args, **kwargs): 
+        super().__init__( *args, **kwargs)
+    
+        self.setLayer(layer)
+         
+    def showLayer(self, layer): 
+        print('SHOWLAYER')
+        if self.layer() == layer: 
+            
+            self.show()
+            self.setZValue(1)
+        else: 
+            self.setZValue(0)
+
+    def hideLayer(self, layer):
+        print('HIDELAYER')
+        if self.layer() == layer: 
+            self.hide() 
+            self.setZValue(0)
+
+class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. Has .layers() and .copperItems(). Not useful by itself
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         # print('COPPERITEMCONTAINER.INIT')
+        self._layer                 = None    
         self._layers                = None
-        self._copperItems           = defaultdict(list) # {'F.Cu': [PadItem , ViaItem] , 'Inr_1': [ZoneItem, ... }
         self._layerItems            = defaultdict(list) # { 'F.Cu': LineItem}
         self._terminals             = None 
         self._nonNoneNets           = None 
-        self._layer                 = None    
         self._sceneTerminal         = None      # 3-Tuple (scenePosX,scenePosY,layer) 
         self._sceneTerminals        = None      # self.terminals are point(s) on a pad, via, which are connectable. Ex TraceItem self.terminals are p1,p1. Via self.terminals are center aka origin, pad self.terminals are pad origin(NOT necessarily pad centroid, think solder bridge pads), and Footprint self.terminals are pads/vias contained in the footprint
         self._buffer                = None      # QGraphicsPolygonItem representing item's shape, buffered by (mostLikely) scene.tracewidth
@@ -353,40 +386,25 @@ class CopperItemContainer(): # Base class of FP TR ZN VA PD classes. Has .layers
         self._sceneBufferedBounds   = None      # ._bufferedBounds in scene coordinates
         self._id                    = None 
         self._net                   = None 
+        self._copperItems           = defaultdict(list) # {'F.Cu': [PadItem , ViaItem] , 'Inr_1': [ZoneItem, ... }
         
+    def showLayer(self, layer): 
+        for childItem in self.childItems(): 
+            childItem.showLayer(layer)
+            
+    def hideLayer(self, layer):
+        for childItem in self.childItems():
+            childItem.hideLayer(layer)
+            
     def insertIntoRtree(self): 
         for layer in self.layers(): 
             self.scene().rtrees[layer].insert(self.id() , self.sceneBufferedBounds())
-
-
-
+            
     def net(self):
         return self._net 
     def setNet(self, net):
         self._net = net
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      
     def setBufferDistance(self, bufferDistance): # Upon construction, item may not have a scene, thus it cannot know scene.traceWidth aka bufferDistance, thus we must wait until item is added to scene to implement buffer functions. 
         self._bufferDistance = bufferDistance 
         self.setBuffer()
@@ -416,6 +434,9 @@ class CopperItemContainer(): # Base class of FP TR ZN VA PD classes. Has .layers
         return self._layers
     def setLayers(self, layers):
         self._layers = layers
+        
+    def copperLayers(self):
+        return [layer for layer in self.layers() if layer in Utils.CopperLayers]
         
     def id(self):
         return self._id 
@@ -478,7 +499,9 @@ class CopperItemContainer(): # Base class of FP TR ZN VA PD classes. Has .layers
 
         if  isinstance(other, CopperItemContainer): 
             for t in other.sceneTerminals():  # Try cheap check: do terminal exact positions match 
-                if any(t == t2 for t2 in self.terminals()): 
+                print("SELF:", self)
+                print('SELF.SCENETERMINALS():', self.sceneTerminals())
+                if any(t == t2 for t2 in self.sceneTerminals()): 
                     return True 
             for t in other.sceneTerminals(): # Try cheap-ish check: does shape contain termianal
                 if self.contains(t): 
@@ -497,36 +520,6 @@ class CopperItemContainer(): # Base class of FP TR ZN VA PD classes. Has .layers
             
         else: 
             print('MW.connectsTo() SOMETHING WRONG ')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     def connectedNets(self): 
         return self._connectedNets
@@ -614,24 +607,6 @@ class CopperItemContainer(): # Base class of FP TR ZN VA PD classes. Has .layers
     def removeFromRtrees(self): 
         for layer in self.layers(): 
             self.scene().rtrees[layer].delete(self.id() , self.sceneBufferedBounds())# rtree removal demands (id, bounds). Thus we must remove B4 .setSceneBufferedBounds()
-
-
-    # def updateSceneBuffers(self):
-    #     for layer, copperItems in self.copperItems().items():
-    #         for copperItem in copperItems: 
-    #             copperItem.setSceneBuffer()
-            
-    # def updateSceneTerminals(self):
-    #     for layer, copperItems in self.copperItems().items():
-    #         for copperItem in copperItems: 
-    #             copperItem.setSceneTerminal()
-            
-    # def updateSceneBounds(self):
-    #     for layer, copperItems in self.copperItems().items():
-    #         for copperItem in copperItems: 
-    #             copperItem.setSceneBounds()
-                
-
     
     def containsTerminal(self, terminal): # returns true if layers match and terminal pos is contained within shape. terminal: (layer:str, pos:QPoint)
         terminalPos = terminal['pos']
@@ -652,13 +627,6 @@ class CopperItemContainer(): # Base class of FP TR ZN VA PD classes. Has .layers
                 for layer_item in layer_items:
                     layer_item.hide()
             
-    # QGraphicsItem subclasses at a minimum must reimplement .bR and .paint. Here, they do nothinare subclassed to let the childItems handle .bR and paint
-    # def boundingRect(self):
-    #     return self.childrenBoundingRect() # Let the childItems dictate parent bR
-    
-    # def paint(self, painter, option, widget):
-    #     return None # childItems will draw themselves, parent has no drawing for itself
-
     def copperItems(self):
         return self._copperItems 
     def setCopperItems(self,copperItems):

@@ -45,7 +45,7 @@ class VisibilityAndSelectionButton(QWidget):
 class LayersVisibilityControlWidget(QWidget):
     
     setTopmostLayer = Signal(str)
-    onlyShowCuLayers = Signal()
+    onlyShowCopperLayers = Signal()
     toggleLayerVisibility = Signal(bool, str)# visibilityChecked:bool , layer:str
     
     def __init__(self):
@@ -67,16 +67,16 @@ class LayersVisibilityControlWidget(QWidget):
         options_group_box = QGroupBox('Options')
         options_group_box.setLayout(QVBoxLayout())
         only_show_cu_layers_btn = QPushButton('Only Show Cu Layers')
-        # only_show_cu_layers_btn.clicked.connect(self.onlyShowCuLayers)
+        # only_show_cu_layers_btn.clicked.connect(self.onlyShowCopperLayers)
         only_show_cu_layers_btn.clicked.connect(self.only_show_cu_layers_btn_clicked)
         options_group_box.layout().addWidget(only_show_cu_layers_btn)
         
         self.layout().addWidget(options_group_box)        
         
     def only_show_cu_layers_btn_clicked(self):
-        self.onlyShowCuLayers.emit()
+        self.onlyShowCopperLayers.emit()
         for count, layer in enumerate(Utils.layers): 
-            if layer in Utils.CuLayers: 
+            if layer in Utils.CopperLayers: 
                 self.layout().itemAt(count).widget().visibilityButton.setChecked(True)
             else: 
                 self.layout().itemAt(count).widget().visibilityButton.setChecked(False)

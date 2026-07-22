@@ -11,6 +11,7 @@ from MyAStar import *
 from TraceItem import * 
 from ViaItem import * 
 from ZoneItem import * 
+from BoardItem import BoardEllipseItem
 
 class Ffline: 
     # Angles in radians. If angles in degrees, _degrees should be attached to variable name 
@@ -260,8 +261,9 @@ class BoardScene(QGraphicsScene):
         
         # print()
         # print("DPI:", self.dpi)
-        self.seeker_rect = QRectF(-seeker_radius,-seeker_radius, seeker_radius*2 , seeker_radius*2)
-        self.seeker   = QGraphicsEllipseItem(self.seeker_rect) # Scene has a item, to detect important points/items/to highlight/snap to points of interest on mouse over # Note that do not add it to scene until needed.
+        self.seekerRect = QRectF(-seeker_radius,-seeker_radius, seeker_radius*2 , seeker_radius*2)
+        # self.seeker   = QGraphicsEllipseItem(self.seekerRect)
+        self.seeker = BoardEllipseItem(None, self.seekerRect) # Scene has a item, to detect important points/items/to highlight/snap to points of interest on mouse over # Note that do not add it to scene until needed.
         self._mode = self.normalMode 
         self.ffline                     = None                      # ffline representing traces currently being drawn.
         self._line                      = None                      # Line from mouse position to position of last click. Usually not displayed but for debugging
@@ -376,9 +378,9 @@ class BoardScene(QGraphicsScene):
         for item in self.layerItems()[self.topmost_layer]:
             item.setZValue(1)
             
-    def onlyShowCuLayers(self):
+    def onlyShowCopperLayers(self):
         for layer in Utils.layers: 
-            if layer in Utils.CuLayers:
+            if layer in Utils.CopperLayers:
                 self.showLayer(layer)
             else: 
                 self.hideLayer(layer)
@@ -392,25 +394,14 @@ class BoardScene(QGraphicsScene):
             self.showLayer(layer)
     
     def showLayer(self, layer):
-        if layer not in self.showing_layers:
-            
-            self.showing_layers.add(layer)
-            
-            for item in self.copperItems()[layer]: 
-                item.show()
-            for item in self.layerItems()[layer]: 
-                item.show()
-                
+            print('BOARDSCENE.SHOWLAYER()')
+            for item in self.items(): 
+                item.showLayer(layer)
                 
     def hideLayer(self, layer):
-        if layer in self.showing_layers: 
-            
-            for item in self.copperItems()[layer]:
-                item.hide()
-            for item in self.layerItems()[layer]:
-                item.hide()
-                
-            self.showing_layers.remove(layer)
+        print('BOARDSCENE.HIDELAYER()')
+        for item in self.items(): 
+            item.hideLayer(layer)
    
     def drawBackground(self, painter, rect): # Paint a dot grid onto our scene background. 
         # print("PAINTER:", painter)
@@ -491,7 +482,10 @@ class BoardScene(QGraphicsScene):
 
       
     def addItem(self, item): # QGraphicsScene.addItem reimplementation: Add (Trace,Via,Zone,Footprint) items to: the scene, scene.ids, scene.idx. If Footprint, +1 to reference_values. 
-
+        if not isinstance(item, BoardItem):
+            print('CANNOT ADD NONBOARDITEM TO BOARDSCENE')
+            return 
+        
         super().addItem(item) # Add Item normally, which adds all childItems. We still have to add copperItems to their rtree.
         
         if isinstance( item, FootprintItem): # Footprint pads go in rtree, so call addItem again for each pad 
@@ -759,26 +753,25 @@ class BoardScene(QGraphicsScene):
                 break
             
 
-### INITIAL DIRECTION DETECTION : Detect which multiple-of-45 degree angle the user wants the line to take.
-        if self.startPosition is not None : # If we previously pressed mouse, we are drawing a trace. Use the mouse position to sense start_angle. Note is not None used because QPoint(0,0) evaluates False while QPoint(1,1) evaluates True; QPoint if testing shouldn't be used, so we compare against None.
+        if self.startPosition is not None : # If we previously pressed mouse, we are drawing a trace. Use the mouse position to sense startAngle. Note is not None used because QPoint(0,0) evaluates False while QPoint(1,1) evaluates True; QPoint if testing shouldn't be used, so we compare against None.
             dx = scenePos.x() - self.startPosition.x() # 
             dy = scenePos.y() - self.startPosition.y() 
             theta = BoardScene.normalize_angle( math.atan2( -dy, dx ) ) # Note y is flipped because in QT, positiveY is downwards while atan2 positiveY is upwards. Also, atan2 returns from -pi to 0 to pi, so normalize that angle 
             
             # print('THETA:', theta)
-            start_angle= self.getStartAngle(theta) # 
+            startAngle= self.getStartAngle(theta) # 
             # print('start_angle:', start_angle)
             octant = self.getOctant(theta)
             # print('OCTANT:', octant)
             
             if math.sqrt(dx**2 + dy**2) < self.start_angle_threshold: # if we are within threshold, assign start_angle
                 # print('WE ARE WITHIN THRESHOLD')
-                self.start_angle = start_angle 
+                self.start_angle = startAngle 
             
             elif octant != self.octant: # If we are in a new octant, assign start_angle
                 # print('WE ARE IN A NEW OCTANT')
                 self.octant = octant
-                self.start_angle = start_angle
+                self.start_angle = startAngle
 
             # print('SELF.start_angle:', self.start_angle)
             # print('SELF.OCTANT:', self.octant)
@@ -845,7 +838,7 @@ class BoardScene(QGraphicsScene):
         super().mousePressEvent(event) # Call base implementation to: fwd event to mousegrabber if there's a mousegrabber, OR fwd event to topmost item, if no mousegrabber, OR reset selections, then remove focus from any focused items, then ignore the event, if no item below event position. TLDR; Call base implementation to forward event to any items beneath the press.  
                
     def mouseMoveEvent(self, event):
-        print('BOARDSCENE.MOUSEMOVEEVENT')
+        # print('BOARDSCENE.MOUSEMOVEEVENT')
         # self.seeker.setPos(self.snap_to_grid(event.scenePos())) # This could probably be moved here...?
             
         if self._line : 

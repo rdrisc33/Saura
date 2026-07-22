@@ -50,7 +50,7 @@ class ListWidgetItem(QListWidgetItem):
 class LayersVisibilityControlWidget(QWidget):
     
     # setTopmostLayer = Signal(str)
-    onlyShowCuLayers = Signal()
+    onlyShowCopperLayers = Signal()
     toggleLayerVisibility = Signal(Qt.CheckState, str)# 
     
     def __init__(self):
@@ -68,16 +68,16 @@ class LayersVisibilityControlWidget(QWidget):
         options_group_box = QGroupBox('Options')
         options_group_box.setLayout(QVBoxLayout())
         only_show_cu_layers_btn = QPushButton('Only Show Cu Layers')
-        # only_show_cu_layers_btn.clicked.connect(self.onlyShowCuLayers)
-        only_show_cu_layers_btn.clicked.connect(self.onlyShowCuLayersBtnClicked)
+        # only_show_cu_layers_btn.clicked.connect(self.onlyShowCopperLayers)
+        only_show_cu_layers_btn.clicked.connect(self.onlyShowCopperLayersBtnClicked)
         options_group_box.layout().addWidget(only_show_cu_layers_btn)
         
         self.layout().addWidget(options_group_box)        
 
-    def onlyShowCuLayersBtnClicked(self):
-        self.onlyShowCuLayers.emit()
+    def onlyShowCopperLayersBtnClicked(self):
+        self.onlyShowCopperLayers.emit()
         for count, layer in enumerate(Utils.layers): 
-            if layer in Utils.CuLayers: 
+            if layer in Utils.CopperLayers: 
                 self.listWidget.item(count).setCheckState(Qt.CheckState.Checked)
                 self.listWidget.item(count).setIcon(QIcon("images/visible.svg"))
             else: 

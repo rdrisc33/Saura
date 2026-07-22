@@ -43,7 +43,7 @@ class Board(QWidget): # Board goes in the stacked widget centralWidget of the Ma
         self.layersVisibilityControlWidget = LayersVisibilityControlWidget()
         # self.layersVisibilityControlWidget.setTopmostLayer.connect(self._scene.setTopmostLayer)
         self.layersVisibilityControlWidget.toggleLayerVisibility.connect(self.onVisibilityToggled)
-        self.layersVisibilityControlWidget.onlyShowCuLayers.connect(self._scene.onlyShowCuLayers)
+        self.layersVisibilityControlWidget.onlyShowCopperLayers.connect(self._scene.onlyShowCopperLayers)
         
         self.setLayout(QHBoxLayout())
         self.layout().addWidget(self.view)
@@ -62,19 +62,14 @@ class Board(QWidget): # Board goes in the stacked widget centralWidget of the Ma
         print('CHECKSTATE', checkState)
         if checkState == Qt.CheckState.Checked: 
             self._scene.showLayer(layer)
-            self._scene.setTopmostLayer(layer)
-            
-        elif checkState== Qt.CheckState.PartiallyChecked:
-            self._scene.partiallyShowLayer(.1) # Show layer w/ 10% opacity
-            self._scene.setTopmostLayer(layer)
         elif checkState== Qt.CheckState.Unchecked: 
             self._scene.hideLayer(layer)
 
             
-    def onlyShowCuLayers(self):
+    def onlyShowCopperLayers(self):
         print('SHOWING ONLY CU LAYERS')
         for layer in Utils.layers: 
-            if layer in Utils.CuLayers: 
+            if layer in Utils.CopperLayers: 
                 self.showLayer(layer)
             else: 
                 self.hideLayer(layer)
