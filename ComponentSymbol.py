@@ -1,9 +1,9 @@
 from utils import *
 
-from SchematicSymbolItem import SchematicSymbolItem
+from Symbol import Symbol
     # def __init__(self, referenceDesignator, referenceNumber, symbolFile=None ,footprintFile=None , part=None,*args,**kwargs):
     
-class ComponentSymbol(SchematicSymbolItem): 
+class ComponentSymbol(Symbol): 
     def __init__(self, referenceDesignator, referenceNumber, file, *args, **kwargs): # 
         super().__init__(referenceDesignator=referenceDesignator, referenceNumber=referenceNumber, file=file, *args, **kwargs)
 
@@ -28,13 +28,20 @@ class ComponentSymbol(SchematicSymbolItem):
         return self._sceneTerminals # [ ( (0,0) , <pin> ) , ... ]
 
     def setSceneTerminals(self): # Called by self.mouseMoveEvent
-        # self._sceneTerminals = []
-        self._sceneTerminals = {}
-        for pin in self.pins():
-            self._sceneTerminals[ self.mapToScene(pin.lineItem.line().p1()).toTuple() ] = pin 
-            # self._sceneTerminals.append( ( self.mapToScene(pin.lineItem.line().p1() ) , pin) ) 
-        print('COMPSYM.SCENETERMINALS:', self.sceneTerminals())
-            # self._sceneTerminals.append( ( pin.lineItem.line().p1())) NO BAD because pins are in parent coordinates
+        self._sceneTerminals = []
+        for pin in self.pins(): 
+            self._sceneTerminals.append( pin.sceneTerminal() )
+            
+
+        
+
+
+
+        # self._sceneTerminals = {}
+        # for pin in self.pins():
+        #     self._sceneTerminals[ self.mapToScene(pin.lineItem.line().p1()).toTuple() ] = pin 
+        # # print('COMPSYM.SCENETERMINALS:', self.sceneTerminals())
+        #     # self._sceneTerminals.append( ( pin.lineItem.line().p1())) NO BAD because pins are in parent coordinates
 
             
     def mouseReleaseEvent(self, event):

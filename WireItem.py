@@ -115,8 +115,8 @@ class WireItem(QGraphicsLineItem):
             return True 
         return False 
     
-    def terminatesOn(self, wire):
-        for terminal in self.terminals():
+    def terminatesOnWire(self, wire):
+        for terminal in self.sceneTerminals():
             for otherTerminal in wire.terminals: 
                 if terminal == otherTerminal: 
                     return True 
@@ -145,7 +145,11 @@ class WireItem(QGraphicsLineItem):
         return self.line().p2()
     
     def terminals(self):
-        return [ self.line().p1() , self.line().p2() ]
+        pass
+    def sceneTerminals(self):
+        return self._sceneTerminals 
+    def setSceneTerminals(self):
+        self._sceneTerminals = [ self.mapToScene(self.line().p1()) , self.mapToScene( self.line().p2()) ]
     
 
 

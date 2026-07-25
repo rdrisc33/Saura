@@ -50,18 +50,18 @@ class TableWidget(QTableWidget):
 
             
     def mouseMoveEvent(self, event):
-        print('MYTABLEWIDGET.MOUSEMOVEEVENT')
+        # print('MYTABLEWIDGET.MOUSEMOVEEVENT')
         if QLineF(event.position(), self.start).length() < QApplication.startDragDistance():
             # print('Distance too short to begin QDrag')
             return 
         # self.clicked.emit(self.record) This doesnt quite work how I want 
         drag = QDrag(self) # Stopped using QDrag in favor of (Sch/Brd)Scene.addDesignItemMode
-        print('JSON.DUMPS(self.record):', json.dumps(self.record))
+        # print('JSON.DUMPS(self.record):', json.dumps(self.record))
         mime_data = QMimeData()
         mime_data.setText(json.dumps(self.record))
         drag.setMimeData(mime_data)
         # drag.setPixmap()
-        print('ABOUT TO EXEC')
+        # print('ABOUT TO EXEC')
         drag.exec()
         print('DRAGDONE')
         

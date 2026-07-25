@@ -65,7 +65,7 @@ class BoardItem():
         self._bufferDistance = bufferDistance
         
     def layer(self): 
-        print('SELF:', self)
+        # print('SELF:', self)
         return self._layer
     
     def setLayer(self, layer):

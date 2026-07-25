@@ -5,10 +5,11 @@ from MyNode import MyNode # Node as in little circle indicating wire connects to
 # from UtilsAfterApp import UtilsAfterApp 
 from ComponentSymbol import ComponentSymbol
 from NetSymbol import NetSymbol
-from SchematicItem import SchematicItem
+from Symbol import Symbol
 from PySide6.QtGui import QDropEvent
 from Database import database 
 from PySide6.QtWidgets import QGraphicsSceneDragDropEvent
+from SchematicItem import SchematicItem
 
 class SchematicScene(QGraphicsScene):
     NormalMode, AddWireMode, DeleteWireMode, AddSymbolMode = range(4)
@@ -23,9 +24,10 @@ class SchematicScene(QGraphicsScene):
     def __init__(self, parent = None, *args, **kwargs):
         super().__init__(parent, *args, **kwargs) 
                 
-        # self.symbols = defaultdict(defaultdict)
-        self._netSymbols = defaultdict(dict)
-        self._labels = defaultdict(dict) 
+        self.symbols = defaultdict(defaultdict) # Track symbols. Symbols include ComponentSymbol , Label, and NetSymbol 
+        
+        # self._netSymbols = defaultdict(dict)
+        # self._labels = defaultdict(dict) 
 
 
         self.seeker_rect = QRectF(-seeker_radius,-seeker_radius, seeker_radius*2 , seeker_radius*2)
@@ -78,15 +80,19 @@ class SchematicScene(QGraphicsScene):
         
     def addItem(self, item):
         super().addItem(item)
-        if isinstance(item, (NetSymbol, ComponentSymbol)):
+
+        if isinstance(item , Symbol) :
+            self.symbols[item.referenceDesignator()][item.referenceNumber()] = item
+            
+        if isinstance(item, (WireItem, Symbol)):
             item.setSceneTerminals()
-            for pin in item.pins(): # Give pins a pin id such that they may always be sorted
-                self._pinId += 1 
-                pin.setId(self.pinId())
+    #         for pin in item.pins(): # Give pins a pin id such that they may always be sorted
+    #             self._pinId += 1 
+    #             pin.setId(self.pinId())
                 
             
-    def pinId(self):
-        return self._pinId
+    # def pinId(self):
+    #     return self._pinId
         
     def wireVein(self, pos): # Return the vein of wire, a dict including wire and other interconnected wires, pins, NetSymbols, and labels, and more.
         pass  # Implemented in MainWindow

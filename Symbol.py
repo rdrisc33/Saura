@@ -1,16 +1,21 @@
 from utils import * 
 
-from SchematicItem import SchematicItem
 from MyGraphicAssign import MyGraphicAssign
 from TerminalItem import TerminalItem
+from Reference import Reference
+from WireItem import WireItem 
 
+# class SchematicSymbolItem(SchematicItem):
+class Symbol(Reference, QGraphicsItem):
+    font = Utils.symbolFont
 
-class SchematicSymbolItem(SchematicItem):
-    def __init__(self, referenceDesignator, referenceNumber, file):
-        super().__init__(referenceDesignator, referenceNumber)
+    def __init__(self, referenceDesignator, referenceNumber, file, *args, **kwargs):
+        super().__init__(referenceDesignator, referenceNumber, *args, **kwargs)
         self._file = None 
         self._pins = [] # A list to store Pin objects
         # self._terminals = [] # idt this ever needed 
+        self._sceneTerminals = [] 
+        
         self.setFile(file)
 
         self._nameItem = QGraphicsSimpleTextItem('', self) 
@@ -25,7 +30,64 @@ class SchematicSymbolItem(SchematicItem):
             # self.offset = None # A value representing the x and y offsets needed to get this item lined up with the grid ( equal to the distance from the origin to a MyTerminalItem. offset is made 'permanent' by implementing .setPos(pos() - offset) in the .paint() reimplementation(?)) # This is all wrong, silly past-me
 
             self.draw_graphics()
-            
+
+        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
+
+
+    def boundingRect(self):
+        return self.childrenBoundingRect() or QRectF(0,0,0,0)
+
+    def paint(self, painter, option, widget):
+       pass# Child Items will draw themselves
+    
+    def mousePressEvent(self, event):  # MOUSEGRABBER: User chooses mousegrabber by clicking on it(and item will stay mousegrabber(?) for ~.3s after the release event, enough time for it to register any incoming double click events. item has to be mouse grabber to process second mousePressEvent as a double click. Item becomes mousegrabber by .accept()ing initial press event. reimplements of QGItem.mouse(press,release,doubleclick)Event()s automatically accept their respective event, so reimplement QGraphicsItem.MusePressEvent() to accept the mousePressEvent, then do what you will with it
+        print("SCHEMATICSYMBOL.MousePressEvent")
+        print('ITEM IS MOUSEGRABBER') if self.scene().mouseGrabberItem() is self else print('ITEM IS NOT MOUSE GRABBER')
+        self.offset = self.scenePos() - event.scenePos()  # Could also utilize event.mouseDownPosition(no could not
+        # self.p1_offset = event.scenePos() - p1
+        # self.p2_offset = p2 - event.scenePos() #offsets must be recorded at mouse press location ( Hmm but we don't have p1/p2 here )(Gotta record connected wires upon mousePressEvent)
+        wires = [wire for wire in self.scene().items() if isinstance(wire, WireItem)]
+        terminals = [ terminal for terminal in self.childItems() if isinstance(terminal, TerminalItem)]
+        self.connected_wires = {}
+        for wire in wires: 
+            p1 = wire.line().p1()
+            print()
+            p2 = wire.line().p2() 
+            for terminal in terminals: 
+                # print('TERMINAL.POS():', terminal.scenePos()) # Must specify scenePos, else will use itemPos, relative to items' 0,0.
+                if p1 == terminal.scenePos(): #  This works only if terminal has not yet moved which I believe is the case 
+                    print('P1 is connected to a terminal')
+                    self.connected_wires[wire] = {'point': 'p1' , 'p1_offset': p1 - event.scenePos() }
+                    # wire.setLine( QLineF( self.snapToGrid(event.scenePos() + self.p1_offset) , wire.line().p2() ) )
+                elif p2 == terminal.scenePos():
+                    self.connected_wires[wire] = {'point': 'p2' , 'p2_offset': p2 - event.scenePos() }
+                    # wire.setLine( QLineF( wire.line().p1() , self.snapToGrid(event.scenePos() + self.p2_offset)) )
+                    
+        print('SELF.OFFSET:', self.offset)
+        super().mousePressEvent(event) 
+
+    def mouseMoveEvent(self, event): 
+        print("MOUSEMOVEEVENT")
+        print('EVENT.SCENEPOS:', event.scenePos())
+
+        
+        for wire in self.connected_wires: # I have to find offsets of connected_wires, in order to move connected wires when user moves item. Record connected_wire offsets in mousePress, and move the wires in mouseMove
+            if self.connected_wires[wire]['point'] == 'p1': 
+                p1_offset =  self.connected_wires[wire]['p1_offset']
+                wire.setLine( QLineF( self.scene().snapToGrid(event.scenePos() +p1_offset) , wire.line().p2() ) ) # TODO: set line xy componenets # TODO: implement snap_to_graph 
+            elif self.connected_wires[wire]['point'] == 'p2':
+                p2_offset = self.connected_wires[wire]['p2_offset']
+                wire.setLine( QLineF( wire.line().p1() , self.scene().snapToGrid(event.scenePos() + p2_offset) ) )
+
+        self.setPos(self.scene().snapToGrid(event.scenePos() + self.offset))
+        
+        self.setSceneTerminals() # We need to setSceneTerminals() on every mouseMove
+        # print('SCENETERMINALS:' ,self.sceneTerminals())
+        
+    def mouseReleaseEvent(self, event):
+        print("MySymbolItem.MouseReleaseEvent")
+        super().mouseReleaseEvent(event) # Release's base implementation handles selection and moving, which we want, so call base implementation
+        
     def nameItem(self):
         return self._nameItem
 
@@ -111,6 +173,10 @@ class SchematicSymbolItem(SchematicItem):
     def pins(self):
         return self._pins
 
+    def sceneTerminals(self):
+        return self._sceneTerminals
+            
+
 class PinItem( QGraphicsItem): 
     terminalRadius = 1
     font = Utils.symbolFont
@@ -123,7 +189,7 @@ class PinItem( QGraphicsItem):
         self._electricalType = electrical_type 
         self._logicType = logic_type 
         self._terminal = QPointF(x1, y1)
-        self._terminals = []
+        # self._terminals = []
         self._nameItem = QGraphicsSimpleTextItem(name, parent) # appears at origin of MySymbolItem-- not line_item-- oh bc line_item uses parent coordinates, &child items are placed at origin of parent
 
         # LINE
@@ -174,6 +240,9 @@ class PinItem( QGraphicsItem):
         return self.childrenBoundingRect()
     def paint(self, painter, option, widget):
         pass 
+
+    def sceneTerminal(self):
+        return self.mapToScene( self.lineItem.line().p1() )
     
     @classmethod
     def fromElem(cls, elem, parent): #     <pin name="C" number="C" PIN_ELECTRICAL_TYPE="passive" PIN_GRAPHIC_STYLE="line" x1="-7.62" y1="0.0" x2="-5.08" y2="0.0"/>

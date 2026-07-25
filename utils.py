@@ -3,24 +3,24 @@ from PySide6.QtCore import *
 from PySide6.QtGui import * 
 
 # () around imports allows imports to span multiple lines. w/o (), a backslash would need to be added at each EOL 
-from PySide6.QtSvgWidgets import QSvgWidget, QGraphicsSvgItem
-from PySide6.QtSvg import  (QSvgRenderer, QSvgGenerator,)
+# from PySide6.QtSvgWidgets import QSvgWidget, QGraphicsSvgItem
+# from PySide6.QtSvg import  (QSvgRenderer, QSvgGenerator,)
 # Renderer: Draw SVG files onto paint devices. Rendering is perfomed with QPainter; render on any QPaintDevice(screen, a file, a widget, etc). Load as xml, or with filename
 # Genrerator: Provides a paint device used to create SVG drawings 
 
-from PySide6.QtXml import QDomDocument                  # like xml.etree.ElementTree but for Qt
-from PySide6.QtSvgWidgets import (
-QGraphicsSvgItem,                                       # NOTE this is for using svgs as icons/button icons. See QSvgRenderer to draw SVGs more complicated-ly.
-QSvgWidget                                              # display svg drawings, as icons, like how QLabel displays text/bitmap images
-) 
+# from PySide6.QtXml import QDomDocument                  # like xml.etree.ElementTree but for Qt
+# from PySide6.QtSvgWidgets import (
+# QGraphicsSvgItem,                                       # NOTE this is for using svgs as icons/button icons. See QSvgRenderer to draw SVGs more complicated-ly.
+# QSvgWidget                                              # display svg drawings, as icons, like how QLabel displays text/bitmap images
+# ) 
 
 
 ###
 # Digikey API & oauth Library depencies
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from urllib.parse import urlparse, parse_qs, urljoin
+# from selenium import webdriver
+# from selenium.webdriver.chrome.service import Service
+# from selenium.webdriver.chrome.options import Options
+# from urllib.parse import urlparse, parse_qs, urljoin
 
 #'Normal' imports
 import sys
@@ -226,13 +226,14 @@ class Utils:
     }
 
     class SchematicItemKinds(Enum): # Used as keys in MW.veins[vein_id]
-        Wire                = 0
-        Pin                 = 1
-        ComponentSymbol     = 2
-        NetSymbol           = 3
-        LocalLabel          = 4
-        HierarchyLabel      = 5
-        GlobalLabel         = 6
+        Wire                                    = 0
+        Pin                                     = 1
+        ComponentSymbol                         = 2
+        NetSymbol                               = 3
+        LocalLabel                              = 4
+        HierarchyLabel                          = 5
+        GlobalLabel                             = 6
+        Label                                   = 7 
         
         
     class BoardItemKinds(Enum): # Used in MW.nets as keys 
@@ -408,9 +409,9 @@ class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. Ha
     def setBufferDistance(self, bufferDistance): # Upon construction, item may not have a scene, thus it cannot know scene.traceWidth aka bufferDistance, thus we must wait until item is added to scene to implement buffer functions. 
         self._bufferDistance = bufferDistance 
         self.setBuffer()
-        print('BUFFER:', self.buffer())
+        # print('BUFFER:', self.buffer())
         self.setSceneBuffer() 
-        print('SETSCENEBUFFER')
+        # print('SETSCENEBUFFER')
         self.setBufferedBounds() # Must have bounds to insert into rtree ( Would do this in constructor, except requires bufferWidth, which is taken from scene)
         self.setSceneBufferedBounds()
         
@@ -543,14 +544,14 @@ class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. Ha
     #         for copperItem in copperItems: 
     #             copperItem.updateStuff()
             
-    def mousePressEvent(self, event): 
-        self.offset = event.scenePos() - self.scenePos()
-        super().mousePressEvent(event)
+    # def mousePressEvent(self, event): 
+    #     self.offset = event.scenePos() - self.scenePos()
+    #     super().mousePressEvent(event)
         
-    def mouseMoveEvent(self, event): #QGI.mmE moves all child items, so would call super() for that-- if we didn't need custom snapping behavior. And, still have to update rtrees & sceneBounds & sceneTerminals etc of all descendant Items
-        # print()
-        # print('COPPERITEMCONTAINER.MME')
-        self.setPos(self.scene().snapToGrid(event.scenePos() - self.offset))
+    # def mouseMoveEvent(self, event): #QGI.mmE moves all child items, so would call super() for that-- if we didn't need custom snapping behavior. And, still have to update rtrees & sceneBounds & sceneTerminals etc of all descendant Items
+    #     # print()
+    #     # print('COPPERITEMCONTAINER.MME')
+    #     self.setPos(self.scene().snapToGrid(event.scenePos() - self.offset))
         
 
 

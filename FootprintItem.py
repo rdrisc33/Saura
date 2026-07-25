@@ -54,7 +54,19 @@ class FootprintItem( BoardItem, Reference, QGraphicsItem):
         print('FOOTPRINTITEM CREATED') 
         # print('FOOTPRINTITEM.COPPERITEMS:', self.copperItems()) # {'F.Cu': [<FootprintItem.PadItem(0x21be98e6b00, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE7617FC0>, <FootprintItem.PadItem(0x21be98e7400, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE8493D00>], 'F.Paste': [<FootprintItem.PadItem(0x21be98e7740, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE8493800>, <FootprintItem.PadItem(0x21be98e7440, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE8493FC0>], 'F.Mask': [<FootprintItem.PadItem(0x21be98e7380, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE8493A40>, <FootprintItem.PadItem(0x21be98e7b80, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE84A0200>]})
 
+    def mousePressEvent(self, event): 
+        self.offset = event.scenePos() - self.scenePos()
+        super().mousePressEvent(event)
         
+    def mouseMoveEvent(self, event): #QGI.mmE moves all child items, so would call super() for that-- if we didn't need custom snapping behavior. And, still have to update rtrees & sceneBounds & sceneTerminals etc of all descendant Items # Note that when parent footprint gets a moveEvent, parent footprint does NOT send that event to children# QGI.mmE moves all decendant items,but we need custom snapping behavior, so can't just call super(), AND still have to update rtrees & bounds of all descendant Items
+        # print()
+        # print('COPPERITEMCONTAINER.MME')
+        self.setPos(self.scene().snapToGrid(event.scenePos() - self.offset))
+        self.updateRtrees()
+        # When footprint moves, need to update ratsnest. How do I run MainWindow.updateRatsnest from here? A: signals and slots. As QObjects have sig/slots, and QGraphicsItems are not Qobjects, we would need to subclass QObject to use signals/slots...
+        # self.moved.emit()
+        
+
     def copperItems(self):
         return self._copperItems 
     def setCopperItems(self,copperItems):
@@ -70,7 +82,7 @@ class FootprintItem( BoardItem, Reference, QGraphicsItem):
     def setNets(self):
         self._nets = set()
         for childItem in self.childItems(): 
-            print('CHILDITEM:', childItem)
+            # print('CHILDITEM:', childItem)
             self._nets.add(childItem.net())
             
         if None in self._nets: 
@@ -93,13 +105,7 @@ class FootprintItem( BoardItem, Reference, QGraphicsItem):
         # for pad in self.pads():
         #     pad.updateRtrees()
                       
-    def mouseMoveEvent(self, event): # Note that when parent footprint gets a moveEvent, parent footprint does NOT send that event to children# QGI.mmE moves all decendant items, so call super() for that. But still have to update rtrees & bounds of all descendant Items
-        # print('FOOTPRINTITEM.MOUSEMOVEEVENT')
-        super().mouseMoveEvent(event)    
-        self.updateRtrees()
-        
-        # When footprint moves, need to update ratsnest. How do I run MainWindow.updateRatsnest from here? A: signals and slots. As QObjects have sig/slots, and QGraphicsItems are not Qobjects, we would need to subclass QObject to use signals/slots...
-        # self.moved.emit()
+
 
         
     def sceneTerminalsOnNet(self, net):
@@ -464,7 +470,7 @@ class Pad(PadBase, CopperItemContainer, QGraphicsItem):# CopperItem, PadBase):
 #MRO: padItem, CopperItem, BoardItem, PadBase, QGI, object
 class PadItem(CopperItem, PadBase, QGraphicsItem):
     def __init__(self, layer, elem, color, parent):
-        print('PAD.MRO():', PadItem.mro())
+        # print('PAD.MRO():', PadItem.mro())
         super().__init__(layer=layer,elem= elem, parent=parent)# Pad is parented on parent, a FootprintItem. # Its good to use keywords when passing args, when inheritance is at play, because you don't need to remember the order of arguments 
         self._terminals = []
         self.color = color

@@ -1,6 +1,6 @@
 from utils import *
 from MyView import MyView 
-from SchematicItem import SchematicItem
+from Symbol import Symbol
 
 class NetSymbolSelector(QWidget):
         
@@ -69,7 +69,7 @@ class ItemViewer(MyView):
             file = os.path.join(os.getcwd(), Utils.SymbolDirectoryName, Utils.NetSymbolDirectoryName, file)
             print()
             print('FILE: ', file)
-            net_symbol = SchematicItem(file)
+            net_symbol = Symbol(file)
             self.scene().addItem(net_symbol)
         else:
             print('SCENE IS NONE')
@@ -77,6 +77,6 @@ class ItemViewer(MyView):
 # net_symbol_selector = NetSymbolSelector()
 # net_symbol_selector.show()
 
-mw = MainWindow()
-mw.show()
-sys.exit(app.exec())
+# mw = MainWindow()
+# mw.show()
+# sys.exit(app.exec())

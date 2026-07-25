@@ -228,7 +228,7 @@ class BoardScene(QGraphicsScene):
     # grid_spacing = ( ( dpi/25.4 ) * 1 ) # The default grid for the board should be ? mm 
     # dropped_part = Signal(dict)
     # added_footprint = Signal(dict, int) # (part, value) value as in reference_value as in "C3" "R1" "L2" etc. Note app crashed when Signal(MyFootprintItem)-- signals/slots Demand correct typing
-    dropped_part = Signal(dict, QGraphicsSceneDragDropEvent, int) # part, event, source_widget
+    droppedPart = Signal(dict, QGraphicsSceneDragDropEvent, int) # part, event, source_widget
     deletePart = Signal(str , int) # reference, value . As in reference_value which was deleted. 
     
     tracingLaid = Signal(str) # (net) net of the newly laid tracingTracing as in new traces were added to board
@@ -894,7 +894,7 @@ class BoardScene(QGraphicsScene):
         part = json.loads(event.mimeData().text()) # part will be in mimeData().text() as a json string representing a python dictionary
         if part:
             source_widget = MyWidgets.Board.value
-            self.dropped_part.emit(part, event, source_widget) # We will .addItem from MyMainWindow, because we ALSO need to add corresponding part to sch. 
+            self.droppedPart.emit(part, event, source_widget) # We will .addItem from MyMainWindow, because we ALSO need to add corresponding part to sch. 
         # self.add_footprint(part,  event.scenePos()
         
     @staticmethod 

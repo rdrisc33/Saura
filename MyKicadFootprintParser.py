@@ -110,7 +110,7 @@ class KicadFootprintParser():
         
         layer = element.find('layer') # 'layer' not 'layers' here
         layer = layer.get('layer')
-        print("LAYER:", layer)
+        # print("LAYER:", layer)
         return layer
 
     def parse_width(self, element):
