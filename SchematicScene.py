@@ -79,6 +79,7 @@ class SchematicScene(QGraphicsScene):
         self._seeker = seeker
         
     def addItem(self, item):
+        print('SCHEMATICSCENE.ADDITEM')
         super().addItem(item)
 
         if isinstance(item , Symbol) :
@@ -86,13 +87,8 @@ class SchematicScene(QGraphicsScene):
             
         if isinstance(item, (WireItem, Symbol)):
             item.setSceneTerminals()
-    #         for pin in item.pins(): # Give pins a pin id such that they may always be sorted
-    #             self._pinId += 1 
-    #             pin.setId(self.pinId())
-                
-            
-    # def pinId(self):
-    #     return self._pinId
+
+               
         
     def wireVein(self, pos): # Return the vein of wire, a dict including wire and other interconnected wires, pins, NetSymbols, and labels, and more.
         pass  # Implemented in MainWindow
@@ -181,7 +177,7 @@ class SchematicScene(QGraphicsScene):
         # self.added_symbol.emit(part) # Let the world know that a part was added to a scene. In MyMainWindow: mw.schematic.scene.added_symbol.connect(mw.board.scene.add_part) & vv.
         
     def AddWireModeMousePressEvent(self, event): 
-        print("AddWireModeMOUSEPRESSEVENT")
+        # print("AddWireModeMOUSEPRESSEVENT")
         
         if self._wire: # If we already clicked, and click again near the same spot, don't do anything. 
             if  self._wire.line().length() == 0: 
@@ -197,6 +193,14 @@ class SchematicScene(QGraphicsScene):
                 # print()
                 # print('SCHSCENE.WIRINGPOS:', self._wiringPos)
 
+
+        if self._horWire: # If we have a _horWire, and we click again, but _horWire is of 0 length, we should take it off the scene. (This case happens when user draws all-vertical wiring)(Otherwise, it will be an invisible, but 0 length line on the scene. We just don't need it.)
+            if self._horWire.line().length() == 0: 
+                self.removeItem(self._horWire)
+        if self._vertWire: # If we have a _horWire, and we click again, but _horWire is of 0 length, we should take it off the scene. (This case happens when user draws all-vertical wiring)(Otherwise, it will be an invisible, but 0 length line on the scene. We just don't need it.)
+            if self._vertWire.line().length() == 0: 
+                self.removeItem(self._vertWire)
+            
 # Create new items when we click
         self._wire = QGraphicsLineItem(QLineF(self._seeker.scenePos(),self._seeker.scenePos())) # Begin a wire when we click. This wire will represent the wire 'as the crow flies'. Helps create hor_wire and vert_wire.  
         self._line = QGraphicsLineItem(QLineF(self._seeker.scenePos(),self._seeker.scenePos()))
@@ -242,12 +246,12 @@ class SchematicScene(QGraphicsScene):
                 for item in detected_items:  # These for loops are written such that we only bother processing a single item
                     if isinstance(item, TerminalItem):
                         self.terminal = item 
-                        print('DETECTED TERMINAL:', self.terminal)
+                        # print('DETECTED TERMINAL:', self.terminal)
                         self._seeker.setPos(self.terminal.scenePos()) # Snap seeker to terminal item
                         break
                     elif isinstance(item, WireItem) and not item==self._horWire and not item==self._vertWire and not item==self._wire:#  Find wires in enlarged area under mouse press(enlarge bc skinny wires are hard to click on). Disregard currently drawing wire items, tho.
                         self.moused_over_wire = item 
-                        print('DETECTED WIRE:', self.moused_over_wire)
+                        # print('DETECTED WIRE:', self.moused_over_wire)
                     # wires= [item for item in items if isinstance(item, MyGraphicsWireItem) and not item==self.hor_wire and not item== self.vert_wire and not item==self._wire] #  Find wires in enlarged area under mouse press(enlarge bc skinny wires are hard to click on). Disregard currently drawing wire items, tho.
 
                         if self.moused_over_wire.line().dy(): # If this wire is vertical:
@@ -261,16 +265,15 @@ class SchematicScene(QGraphicsScene):
                 self._line.setLine( QLineF(self._line.line().p1() , event.scenePos()) ) # Update _line with current pos of mouse. Line does NOT snap
 ### Drawing Wire. _wire snaps, to seeker
             if self._wire and self._line: # self._wire is created in mousePressEvent. Check if we have one. self.line draws straightest path between start point and mouse,(which is necessary to have but we also want user to draw ONLY horizontal & vertical wires on the schematic)
-                self.update_wire_components()# Update x/y componenets to match self._wire. 
+                self.updateWireComponents()# Update x/y componenets to match self._wire. 
             # We saved self.terminal and self.moused_over_wire as an instance variable for mousePressEvent to use 
 
         elif self._mode == SchematicScene.NormalMode: 
             pass
         super().mouseMoveEvent(event)
 
-    def update_wire_components(self): # self.hor_wire and self.vert_wire depend on self.line()
-        # I NEED TO KNOW BOTH THE MOUSE POSITION TO BIAS LINE HOR / VERT, AND GRID POSITION TO SNAP
-        if not self._line or not self._wire: 
+    def updateWireComponents(self): # self.hor_wire and self.vert_wire depend on self.line()
+        if (not self._line) or (not self._wire): 
             print('We need _wire and _line to calculate wire componenets')
             return None 
         
@@ -285,10 +288,14 @@ class SchematicScene(QGraphicsScene):
         if self._initial_direction == 'x': 
             self._horWire.setLine(QLineF(self._wire.line().p1() , QPointF(self._wire.line().p2().x() , self._wire.line().p1().y())))
             self._vertWire.setLine(QLineF(self._horWire.line().p2() , self._wire.line().p2()))
+            
         elif self._initial_direction == 'y':
             self._vertWire.setLine(QLineF(self._wire.line().p1() , QPointF(self._wire.line().p1().x() , self._wire.line().p2().y())))
             self._horWire.setLine(QLineF(self._vertWire.line().p2() , self._wire.line().p2()))
-                
+
+        self._horWire.setSceneTerminals() # Set scene Terminals every time the _hor/_vertWire moves
+        self._vertWire.setSceneTerminals()
+        
         # _WIRE and HOR_WIRE and VERT_WIRE only VISIBLE IF length is nonzero
         self._horWire.setVisible(False)
         self._vertWire.setVisible(False)
@@ -304,7 +311,6 @@ class SchematicScene(QGraphicsScene):
             self._line.setVisible(True)
             
     def exitAddWireMode(self):
-
 
         print('MYSCENE.exitAddWireMode')
         self.views()[0].setMouseTracking(False) # disable mouseMoveEvent from firing while no mouse button pressed down. this is default setting.    
@@ -327,7 +333,7 @@ class SchematicScene(QGraphicsScene):
         # self.vert_wire = None# We are done drawing lines. # Note: Empty MyGraphicsWireItem()s are allowed. They evaluate to True. 
                 
     def mousePressEvent(self, event): # ToDo: Only allow lines to move hor/vertically from their start point
-        print('MYSCENE MOUSEPRESSEVENT')
+        # print('MYSCENE MOUSEPRESSEVENT')
         
         if self._mode == SchematicScene.AddWireMode: # Add a new MyGraphicsWireItem() to the scene, with every click.
             self.AddWireModeMousePressEvent( event)
