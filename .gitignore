@@ -7,6 +7,7 @@ gerbers/
 third_party/
 myenv/
 utils/
+nx-guides
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

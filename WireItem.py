@@ -7,13 +7,12 @@ class WireItem(QGraphicsLineItem):
 
         super().__init__( *args, **kwargs )
         self.setPen(QPen(wireItemColor, 1))
-        self.veinId = None # Wire will know the id of the vein which they belong to.  
+        self._veinId = None # Wire will know the id of the vein which they belong to.  
         self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
-        self.setPen(QPen(Qt.magenta, 1)) # 
         self.li1 = None 
         self.li2 = None 
                     
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event): # Commented out last bit so will not work
         self._dragStart = event.scenePos()
         self.connectedWiresP1 = dict() # stores wire:anchor key-value pairs. wire:WireItem, anchor: QPointF
         self.connectedWiresP2 = dict()
@@ -43,15 +42,15 @@ class WireItem(QGraphicsLineItem):
         print('CONNECTEDWIRESP1:', self.connectedWiresP1)
         print('CONNECTEDWIRESP2:', self.connectedWiresP2)
 
-            
-        if len(self.connectedWiresP1) == 0: # Then there are no wires connected to p1. Create one 
-            newWire = WireItem(QLineF(p1,p1))
-            self.connectedWiresP1[newWire] = p1 # zero length WireItem anchored on p1
-            self.scene().addItem(newWire)
-        if len(self.connectedWiresP2) == 0: 
-            newWire = WireItem(QLineF(p2,p2))
-            self.connectedWiresP2[newWire] = p2 
-            self.scene().addItem(newWire)
+# Q: Will this interfere during adding wires to scene? Cmment it out, seems not   
+        # if len(self.connectedWiresP1) == 0: # Then there are no wires connected to p1. Create one 
+        #     newWire = WireItem(QLineF(p1,p1))
+        #     self.connectedWiresP1[newWire] = p1 # zero length WireItem anchored on p1
+        #     self.scene().addItem(newWire)
+        # if len(self.connectedWiresP2) == 0: 
+        #     newWire = WireItem(QLineF(p2,p2))
+        #     self.connectedWiresP2[newWire] = p2 
+        #     self.scene().addItem(newWire)
 
             
         # p1 = self.line().p1()
@@ -149,8 +148,18 @@ class WireItem(QGraphicsLineItem):
     def sceneTerminals(self):
         return self._sceneTerminals 
     def setSceneTerminals(self):
-        self._sceneTerminals = [ self.mapToScene(self.line().p1()) , self.mapToScene( self.line().p2()) ]
+        # print('WIREITEM.SETSCENETERMINALS:')
+        # print('P1:',self.line().p1().toPoint())
+        # print('P2:',self.line().p2().toPoint())
+        # print('MAPTOSCENEP1:',self.mapToScene(self.line().p1()).toPoint())
+        # print('MAPTOSCENEP2:',self.mapToScene(self.line().p2()).toPoint())
+        # print()
+        
+        self._sceneTerminals = [ self.mapToScene(self.line().p1()) , self.mapToScene( self.line().p2()) ] 
     
-
+    def veinId(self):
+        return self._veinId
+    def setVeinId(self, veinId):
+        self._veinId = veinId
 
 #WireItem is NOT a copperItem; connects things on the schematic not board. 

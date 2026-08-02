@@ -8,6 +8,7 @@ class NetSymbol(Symbol):
         self._sceneTerminals = [] 
 
     def setSceneTerminals(self):
+        self._sceneTerminals.clear()
         for pin in self.pins(): 
             self._sceneTerminals.append(pin.scenePos())
 

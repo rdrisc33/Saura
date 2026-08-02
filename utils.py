@@ -39,11 +39,7 @@ import csv
 import pickle
 import sexpdata # use sexpdata.loads() sexpdata.dumps() to turn sexpressiions into /out of lists. 
 import time
-
-#Check your cwd: 
-# print(os.getcwd())
-###
-
+from scipy.sparse import coo_array
 from lxml import etree
 from collections import defaultdict
 from sexpdata import loads 
@@ -63,7 +59,9 @@ app = QApplication(sys.argv)
 defaultTraceWidth = .2
 
 class Utils: 
-    
+
+    epsilon = 1e-9 # epsilon is a value used to compare floats against. 
+
     class Shape(Enum):
         
         Rectangle = 0 
@@ -80,11 +78,34 @@ class Utils:
         LabelSymbol = 10
         HierarchyLabelSymbol = 11
         GlobalLabelSymbol = 12
+
+
+    def pointWithinSegment(point, line, epsilon = 1e-9): #  https://stackoverflow.com/questions/328107/how-can-you-determine-a-point-is-between-two-other-points-on-a-line-segment. Q: Where did his equations for CP, DP, come from? Q: Best value for epsilon? 
+        a, b, c = line.p1() , line.p2() , point
         
+        crossProduct = (c.y() - a.y()) * (b.x() - a.x()) - (c.x() - a.x()) * (b.y() - a.y())
+        
+        if abs(crossProduct) > epsilon: 
+            return False 
+
+        dotProduct = (c.x() - a.x()) * (b.x() - a.x()) + (c.y() - a.y())*(b.y() - a.y())
+        print('DOTPRODUCT:', dotProduct)
+        # if dotProduct < 0: # Inclusive of endpoints 
+        if dotProduct <= 0: # Exclusive of endpoints (to test if point WITHIN line, I want exclusive)()
+            return False 
+
+        squaredLengthBA = (b.x() - a.x())*(b.x() - a.x()) + (b.y() - a.y())*(b.y() - a.y())
+        print('SQUAREDLENGTHBA:', squaredLengthBA)
+        if dotProduct >= squaredLengthBA: 
+            return False 
+        
+        else: 
+            print('POINT IS WITHIN SEGMENT')
+            return True 
 
     @staticmethod
     def distance(pointA , pointB): 
-        return math.sqrt( (pointA.x()-pointB.x())^2 + (pointA.y() - pointB.y())^2)
+        return math.sqrt( (pointA.x()-pointB.x())**2 + (pointA.y() - pointB.y())**2)
     
     @staticmethod
     def rangesOverlap(a1,a2 , b1,b2) : 
@@ -95,6 +116,32 @@ class Utils:
             b1, b2 = b2, b1
         # Its a mindfuck, but ranges overlap if the start of one range is <= end of the other AND vice versa
         return a1 <= b2 and b1 <= a2
+
+    @staticmethod
+    def wiresAreOrthagonal(wire1, wire2): 
+        line1 = wire1.line()
+        line2 = wire2.line() 
+
+        p1 = line1.p1()
+        p2 = line1.p2()
+        p3 = line2.p1()
+        p4 = line2.p2()
+        
+        x1, y1 = p1.toTuple() 
+        x2, y2 = p2.toTuple()
+        x3, y3 = p3.toTuple()
+        x4, y4 = p4.toTuple()
+
+        orient1 = Utils.threePointOrientation(p1,p2,p3) 
+        orient2 = Utils.threePointOrientation(p1,p2,p4)
+        orient3 = Utils.threePointOrientation(p3,p4,p1)
+        orient4 = Utils.threePointOrientation(p3,p4,p2)
+        
+        orientations = [orient1, orient2, orient3, orient4]
+        numZeroes = orientations.count(0)
+        
+        if numZeroes == 2: # Then these wires are perpendicular
+            return True
     
     @staticmethod
     def junction(line1, line2): 
@@ -1145,7 +1192,7 @@ footprint_font = QFont("Segoe UI", 1) # Likely must change-- gerber only knows f
 footprint_placeholder_font = QFont("Segoe UI", 6) # for humans to read
 
 
-wireItemColor = QColor(Qt.darkGray)
+wireItemColor = QColor(Qt.magenta)
 kicad_canonical_layers = [
     'F.Cu', 'B.Cu',
     'F.Paste', 'B.Paste',
@@ -1218,16 +1265,16 @@ def xml_attribute_value_filter(string):
   return string 
 
 
-# _[^0-9]_
+# _[**0-9]_
 
 @staticmethod
 def normalize(string): 
   string = string.lower() 
   string = string.replace('-', '_') # Hyphens become underscore
   # string = string.replace('/', '_') 
-  string = re.sub(r"\s+([^A-Za-z0-9])\s+" , r'\1', string ) # remove spaces around nonalphanumeric characters.  The \1 is a regex capture group thing
+  string = re.sub(r"\s+([**A-Za-z0-9])\s+" , r'\1', string ) # remove spaces around nonalphanumeric characters.  The \1 is a regex capture group thing
   return string
-#  Pro Tip: re.sub(r'\W+', '', your_string) By Python definition '\W == [^a-zA-Z0-9_], which excludes all numbers, letters and _
+#  Pro Tip: re.sub(r'\W+', '', your_string) By Python definition '\W == [**a-zA-Z0-9_], which excludes all numbers, letters and _
 def normalize_sql_table_name(categories:list):
   string = '_'.join(categories)     # Join w/ underscore
   string = string.replace(" ", "_") # Spaces become underscore
@@ -1239,7 +1286,7 @@ def normalize_sql_table_name(categories:list):
 # Try simpler: 
 
 
-# string =re.sub( "_+[^A-Za-z0-9]_+" , "_", string) # replace any _*_ pattern with _  (This happens on "Package / Case") 
+# string =re.sub( "_+[**A-Za-z0-9]_+" , "_", string) # replace any _*_ pattern with _  (This happens on "Package / Case") 
 #         string = re.sub(r'\s+', '', string) #replacde any whitespace with underscore
 #         string = re.sub("_+", "_", string) # replace any multiple underscores with underscore 
 #         return string 

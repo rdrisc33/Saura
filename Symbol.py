@@ -13,7 +13,8 @@ class Symbol(Reference, QGraphicsItem):
         super().__init__(referenceDesignator, referenceNumber, *args, **kwargs)
         self._file = None 
         self._pins = [] # A list to store Pin objects
-        # self._terminals = [] # idt this ever needed 
+        # self._pins = {} # A dict to store pin.sceneTerminal:Pinobjects pairs
+        self._terminals = [] # idt this ever needed 
         self._sceneTerminals = [] 
         
         self.setFile(file)
@@ -41,8 +42,8 @@ class Symbol(Reference, QGraphicsItem):
        pass# Child Items will draw themselves
     
     def mousePressEvent(self, event):  # MOUSEGRABBER: User chooses mousegrabber by clicking on it(and item will stay mousegrabber(?) for ~.3s after the release event, enough time for it to register any incoming double click events. item has to be mouse grabber to process second mousePressEvent as a double click. Item becomes mousegrabber by .accept()ing initial press event. reimplements of QGItem.mouse(press,release,doubleclick)Event()s automatically accept their respective event, so reimplement QGraphicsItem.MusePressEvent() to accept the mousePressEvent, then do what you will with it
-        print("SCHEMATICSYMBOL.MousePressEvent")
-        print('ITEM IS MOUSEGRABBER') if self.scene().mouseGrabberItem() is self else print('ITEM IS NOT MOUSE GRABBER')
+        # print("SCHEMATICSYMBOL.MousePressEvent")
+        # print('ITEM IS MOUSEGRABBER') if self.scene().mouseGrabberItem() is self else print('ITEM IS NOT MOUSE GRABBER')
         self.offset = self.scenePos() - event.scenePos()  # Could also utilize event.mouseDownPosition(no could not
         # self.p1_offset = event.scenePos() - p1
         # self.p2_offset = p2 - event.scenePos() #offsets must be recorded at mouse press location ( Hmm but we don't have p1/p2 here )(Gotta record connected wires upon mousePressEvent)
@@ -56,19 +57,19 @@ class Symbol(Reference, QGraphicsItem):
             for terminal in terminals: 
                 # print('TERMINAL.POS():', terminal.scenePos()) # Must specify scenePos, else will use itemPos, relative to items' 0,0.
                 if p1 == terminal.scenePos(): #  This works only if terminal has not yet moved which I believe is the case 
-                    print('P1 is connected to a terminal')
+                    # print('P1 is connected to a terminal')
                     self.connected_wires[wire] = {'point': 'p1' , 'p1_offset': p1 - event.scenePos() }
                     # wire.setLine( QLineF( self.snapToGrid(event.scenePos() + self.p1_offset) , wire.line().p2() ) )
                 elif p2 == terminal.scenePos():
                     self.connected_wires[wire] = {'point': 'p2' , 'p2_offset': p2 - event.scenePos() }
                     # wire.setLine( QLineF( wire.line().p1() , self.snapToGrid(event.scenePos() + self.p2_offset)) )
                     
-        print('SELF.OFFSET:', self.offset)
+        # print('SELF.OFFSET:', self.offset)
         super().mousePressEvent(event) 
 
     def mouseMoveEvent(self, event): 
-        print("MOUSEMOVEEVENT")
-        print('EVENT.SCENEPOS:', event.scenePos())
+        # print("MOUSEMOVEEVENT")
+        # print('EVENT.SCENEPOS:', event.scenePos())
 
         
         for wire in self.connected_wires: # I have to find offsets of connected_wires, in order to move connected wires when user moves item. Record connected_wire offsets in mousePress, and move the wires in mouseMove

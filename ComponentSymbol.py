@@ -31,7 +31,11 @@ class ComponentSymbol(Symbol):
         self._sceneTerminals = []
         for pin in self.pins(): 
             self._sceneTerminals.append( pin.sceneTerminal() )
-            
+        # self._sceneTerminals = {}
+        # for pin in self.pins(): 
+        #     self._sceneTerminals[pin.sceneTerminal().toTuple()] = pin
+
+# Note setSceneTerminals returns a sequence. Either a list of sceneTerminals, or a dict, of sceneTerminal:pin pairs
 
         
 

@@ -9,9 +9,9 @@ class Label(Symbol):
     # This class has stuff for labels like double click to set text
     
 
-class LocalLabelItem(Label):
+class LocalLabel(Label):
     pass 
-class HierarchyLabelItem(Label):
+class HierarchyLabel(Label):
     pass 
-class GlobalLabelItem(Label):
+class GlobalLabel(Label):
     pass
