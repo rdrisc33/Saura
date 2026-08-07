@@ -25,8 +25,8 @@ class FootprintItem( BoardItem, Reference, QGraphicsItem):
     font = footprint_font
 
 
-    def __init__(self, referenceDesignator, referenceNumber, file, layer = "F.Cu"):
-        super().__init__(referenceDesignator=referenceDesignator, referenceNumber=referenceNumber) 
+    def __init__(self, referenceDesignator, referenceNumber, file, layer = "F.Cu"): # Note 'layer' argument: Footprints tend to (always?) exist on either F.Cu or B.Cu. (Don't think dual sided footprints exist nor would be supported by any pcb manufacture ). However , BoardItems take a 'layers' argument
+        super().__init__(referenceDesignator=referenceDesignator, referenceNumber=referenceNumber, layers = [layer]) 
         # print('FOOTPRINTITEM.INIT')
         self._file = None 
         self._layer = None 
@@ -183,9 +183,9 @@ class FootprintItem( BoardItem, Reference, QGraphicsItem):
             stroke_width = float(line.get('stroke_width', 0))
             stroke_width = .1 # For debugging
     
-            layer = line.get('layer')  
+            layer = line.get('layer')
             if layer:
-                lineItem = BoardLineItem(layer, x1, y1, x2, y2, self)
+                lineItem = BoardLineItem([layer], x1, y1, x2, y2, self)
                 lineItem.setPen(QPen(Utils.layerColors[layer] , stroke_width))
                 # self.addLayerItem(lineItem)
                 # self.copperItems()[layer] = lineItem NO BAD remember to extend the copperItems 
@@ -370,7 +370,15 @@ class PadBase():
 class Pad(PadBase, CopperItemContainer, QGraphicsItem):# CopperItem, PadBase):
 
     def __init__(self, elem, parent): # elem: xml describing this pad. parent: the Footprint to which this pad belongs 
-        super().__init__( elem=elem, parent=parent) 
+        
+        layers = elem.get('layers')
+        if layers == '': 
+            layers = "F.Cu, F.Paste, F.Mask"
+        layers = [layer.strip() for layer in layers.split(',')] # Convert string into list 
+            
+        self.setLayers(layers)
+            
+        super().__init__( elem=elem, parent=parent, layers = layers) 
         self._terminal          = None 
         self._sceneTerminal     = None 
         self._terminals         = None 
@@ -379,13 +387,7 @@ class Pad(PadBase, CopperItemContainer, QGraphicsItem):# CopperItem, PadBase):
 
         self.setRotation(float(elem.get('angle', 0)))
 
-        layers = elem.get('layers')
-        if layers == '': 
-            layers = "F.Cu, F.Paste, F.Mask"
        
-        layers = [layer.strip() for layer in layers.split(',')] # Convert string into list 
-            
-        self.setLayers(layers)
                     
         for layer in self.layers():
             PadItem(layer, elem, Utils.layerColors[layer], self)            # Create padItem
@@ -468,7 +470,7 @@ class Pad(PadBase, CopperItemContainer, QGraphicsItem):# CopperItem, PadBase):
                 net = self.net() 
 
 #MRO: padItem, CopperItem, BoardItem, PadBase, QGI, object
-class PadItem(CopperItem, PadBase, QGraphicsItem):
+class PadItem(LayerItem, PadBase, QGraphicsItem):
     def __init__(self, layer, elem, color, parent):
         # print('PAD.MRO():', PadItem.mro())
         super().__init__(layer=layer,elem= elem, parent=parent)# Pad is parented on parent, a FootprintItem. # Its good to use keywords when passing args, when inheritance is at play, because you don't need to remember the order of arguments 

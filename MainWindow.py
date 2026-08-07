@@ -174,6 +174,8 @@ class MainWindow(QMainWindow):
         # update ( nets@BIs, ratsnest )
         # First, update nets@BI's, because, ratsnest will use padTerminals=nets[BI.Pad]  
         self.updateRatsnest(net)
+        print()
+        print(f'TRACING LAID ON NET {net}')
 
     def propagations(self, xYLayer, net): # xYLayer is a 3-tuple (x,y,layer). pos already taken to refer to 2-tuple|QPointF(x,y)
         startxYLayer = xYLayer

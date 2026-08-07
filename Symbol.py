@@ -21,7 +21,7 @@ class Symbol(Reference, QGraphicsItem):
 
         self._nameItem = QGraphicsSimpleTextItem('', self) 
         dpi = qApp.screens()[0].physicalDotsPerInch() # dpi relies on the qApp instance; you have to already have instantiated QApplication()
-        kicad_symbol_scale_factor = dpi * grid_4mm / file_grid_step  # scale_factor = 1/1.27 * 50 
+        kicad_symbol_scale_factor = dpi * Utils.grid4mm / Utils.fileGridStep  # scale_factor = 1/1.27 * 50 
         self.setScale(kicad_symbol_scale_factor) # scale item so it fits on the scene's grid
         if self.file() is None or self.file() == "": 
             self.placeholder = QGraphicsSimpleTextItem("Assign Symbol", self) # Indicate this item requires footprint assignment

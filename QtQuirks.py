@@ -1,0 +1,2 @@
+# QPainter.draw(Point, Arc, Ellipse, etc) convenience functions have both int and float versions 
+# But the float version can only be accessed by passing a QPointF() while drawPoint(x ,y) has to take integer.

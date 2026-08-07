@@ -60,6 +60,19 @@ defaultTraceWidth = .2
 
 class Utils: 
 
+    grid4mm = 1 / 25.4 * 4 
+    grid1mm = 1 / 25.4 
+    grid1in = 1 
+    grid50thou = .05
+    fileGridStep = 1.27  # kicad symbols are designed on .05inch grid, .05inches = 1.27mm 
+    gridPt1mm = 1 / 25.4 * .1 # board grid step is .1mm 
+
+    schematicGridSpacing = qApp.screens()[0].physicalDotsPerInch() * grid4mm # SchematicScene gridSpacing is 4mm aka 17.86046511627907 pixels
+    schematicTickSpacing = schematicGridSpacing
+
+    boardGridSpacing = schematicGridSpacing 
+    boardTickSpacing = boardGridSpacing
+    
     epsilon = 1e-9 # epsilon is a value used to compare floats against. 
 
     class Shape(Enum):
@@ -394,7 +407,8 @@ class Utils:
 
     
 
-class CopperItem(BoardItem): 
+class LayerItem(): 
+    """Items which have just one layer. Always childItems of Trace, zone, pad, etc"""
     def __init__(self, layer, *args, **kwargs): 
         super().__init__( *args, **kwargs)
     
@@ -415,13 +429,20 @@ class CopperItem(BoardItem):
             self.hide() 
             self.setZValue(0)
 
-class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. Has .layers() and .copperItems(). Not useful by itself
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def layer(self):
+        return self._layer
+    def setLayer(self, layer):
+        self._layer = layer
+
+class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. Not useful by itself
+    def __init__(self, layers, *args, **kwargs):
+        # print('CUIC.LAYERS:', layers)
+        # print('CUIC.KWARGS:', kwargs)
+        super().__init__(layers, *args, **kwargs)
         # print('COPPERITEMCONTAINER.INIT')
-        self._layer                 = None    
-        self._layers                = None
-        self._layerItems            = defaultdict(list) # { 'F.Cu': LineItem}
+        # self._layer                 = None    Moved to BoardItem
+        # self._layers                = layers  Moved to BoardItem
+        # self._layerItems            = defaultdict(list) # { 'F.Cu': LineItem} Phasing out
         self._terminals             = None 
         self._nonNoneNets           = None 
         self._sceneTerminal         = None      # 3-Tuple (scenePosX,scenePosY,layer) 
@@ -434,8 +455,19 @@ class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. Ha
         self._sceneBufferedBounds   = None      # ._bufferedBounds in scene coordinates
         self._id                    = None 
         self._net                   = None 
-        self._copperItems           = defaultdict(list) # {'F.Cu': [PadItem , ViaItem] , 'Inr_1': [ZoneItem, ... }
-        
+        # self._copperItems           = phasing out defaultdict(list) # {'F.Cu': [PadItem , ViaItem] , 'Inr_1': [ZoneItem, ... }
+
+
+    def queryRtrees(self):
+        """query MainWindow.rtrees for self.sceneBufferedBounds() at each layer in self.layers """
+        print('self.SceneBufferedBounds():', self.sceneBufferedBounds())
+        hitIds = [] 
+        for layer in self.layers(): 
+            hitIds.extend( self.scene().rtrees[layer].intersection(self.sceneBufferedBounds()) )
+        print(f'HIT {len(hitIds)} ITEMS')
+        hitItems = [self.scene().ids[hitId] for hitId in hitIds]
+        return hitItems
+    
     def showLayer(self, layer): 
         for childItem in self.childItems(): 
             childItem.showLayer(layer)
@@ -542,7 +574,7 @@ class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. Ha
     def setSceneBufferedBounds(self):
         rect = self.mapToScene(self.boundingRect().adjusted(-self._bufferDistance,-self._bufferDistance, self._bufferDistance,self._bufferDistance)).boundingRect() # 
         self._sceneBufferedBounds = ( rect.left() , rect.top() , rect.right() , rect.bottom() ) 
-    
+        
     def connectsTo(self, other): # -> True if self is connected to other. Connected as in electrically connected.
 
         if  isinstance(other, CopperItemContainer): 
@@ -736,7 +768,7 @@ class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. Ha
         # self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable | QGraphicsItem.GraphicsItemFlag.ItemIsMovable) # NO BAD we in fact do NOT want CuItems movable, only their parent items movable
         
     # def queryRtrees(self):
-    #     hitIds = self.scene().rtrees[self.layer()].intersection(self.bufferedBounds())
+    #     hitIds = self.scene().rtrees[self.layer()].intersection(self.sceneBufferedBounds())
     #     hitItems = [self.scene().ids[hitId] for hitId in hitIds]
     #     return hitItems 
     
@@ -1053,7 +1085,7 @@ QGraphicsLineItem.is_design_item             =None
 QGraphicsLineItem.layer                      =None
 QGraphicsLineItem.net                        =None
 QGraphicsLineItem.id                         =None
-QGraphicsLineItem.layers                     =None
+# QGraphicsLineItem.layers                     =None
 QGraphicsLineItem.reference                  =None
 QGraphicsLineItem.value                      =None
 QGraphicsLineItem.reference_item       =None
@@ -1154,14 +1186,14 @@ class MyWidgets(Enum):
     Board     = 1
     
      
-grid_4mm = 1 / 25.4 * 4 
-grid_1mm = 1 / 25.4 
-grid_1in = 1 
-grid_50thou = .05
-file_grid_step = 1.27  # kicad symbols are designed on .05inch grid, .05inches = 1.27mm 
-grid_pt1mm = 1 / 25.4 * .1 # board grid step is .1mm 
-# kicad_symbol_scale_factor = dpi * grid_4mm / file_grid_step  # scale_factor = 1/1.27 * 50 
-# self.setScale(kicad_symbol_scale_factor) # scale item so it fits on the scene's grid
+# grid_4mm = 1 / 25.4 * 4 
+# grid_1mm = 1 / 25.4 
+# grid_1in = 1 
+# grid_50thou = .05
+# file_grid_step = 1.27  # kicad symbols are designed on .05inch grid, .05inches = 1.27mm 
+# grid_pt1mm = 1 / 25.4 * .1 # board grid step is .1mm 
+# # kicad_symbol_scale_factor = dpi * grid_4mm / file_grid_step  # scale_factor = 1/1.27 * 50 
+# # self.setScale(kicad_symbol_scale_factor) # scale item so it fits on the scene's grid
 
 table_name_column = 'table_name'
 general_attributes_column = 'general_attributes'

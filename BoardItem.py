@@ -3,11 +3,15 @@ from PySide6.QtCore import *
 from PySide6.QtGui import * 
 
 class BoardItem(): 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, layers, *args, **kwargs):
+        # print('BOARDITEM.KWARGS:', kwargs)
+        # print('BOARDITEM.ARGS:', args)
+        super().__init__(*args, **kwargs) # TypeError: ViaBase.__init__() missing 1 required positional argument: 'clearance'
+
 
         self._layer                 = None    
-        self._layers                = None
+        self._layers                = layers
+        print('LAYERS:', layers)
         self._terminals             = None 
         self._nonNoneNets           = None 
         self._sceneTerminal         = None      # 3-Tuple (scenePosX,scenePosY,layer) 
@@ -16,7 +20,7 @@ class BoardItem():
         self._sceneBuffer           = None      # A QPolygonF(?) representing item's shape, buffered by .bufferDistance(), in scene coordinates 
         self._bounds                = None      # A 4-tuple(left top right bottom). unbuffered. used by ... ?
         self._sceneBounds           = None      # A 4-tuple(left top right bottom), buffered by .bufferDistance(). Used in the rtree
-        self._bufferedBounds        = None      # A 4-tuple(left top right bottom) buffered by .bufferDistance(). local coordinates 
+        # self._bufferedBounds        = None    This never used. Only sceneBufferedBounds is used, in rtree  # A 4-tuple(left top right bottom) buffered by .bufferDistance(). local coordinates 
         self._sceneBufferedBounds   = None      # ._bufferedBounds in scene coordinates
         self._id                    = None 
         self._net                   = None 
@@ -72,7 +76,7 @@ class BoardItem():
         self._layer = layer        
         
     def layers(self):
-        return self._layers 
+        return self._layers
     def setLayers(self, layers):
         self._layers = layers 
         
@@ -96,8 +100,8 @@ class BoardItem():
         return self._sceneBuffer
     def setSceneBuffer(self):
         return None 
-    def bufferedBounds(self):
-        return self._bufferedBounds  
+    # def bufferedBounds(self):
+    #     return self._bufferedBounds  
     def setBufferedBounds(self):#, self._bufferDistance=None): # calulate and set new bounds. Bounds describes a bounding rectangle around a shape, in the form of a 4-tuple (xmin ymin xmax ymax), aka (left top right bottom). Bounds is borrowed from how the the python modules Shapely/rtree use bounds; bounds is not from Qt. calculate_bufferedBounds returns the bounds, buffered by self._bufferDistance(most likely = currently selected scene.traceWidth()). The bounds 4-tuple is used bt the rtree module to describe rectangles. Note that, because Qt considers pen_width in .boundingRect, I have to manually set a 0 width pen away from the default width-of-1 pen, else the buffered bounds will be .5 wider than supposed to.
         return None 
     def sceneBufferedBounds(self):
@@ -124,38 +128,38 @@ class BoardItem():
 # Excepting seeker and ratsnest lines, all board items have a layer. Even a pad's number itm gets a layer.
 
 class BoardSimpleTextItem(BoardItem, QGraphicsSimpleTextItem): 
-    def __init__(self,layer=None , text=None, *args, **kwargs):
-        super().__init__( *args, **kwargs)
-        self.setLayer(layer)
+    def __init__(self, layers , text=None, *args, **kwargs):
+        super().__init__(layers, *args, **kwargs)
+        self.setLayers(layers)
         self.setText(text)
         
 class BoardRectItem(BoardItem, QGraphicsRectItem ): 
-    def __init__(self, layer=None, *args, **kwargs):
-        super().__init__( *args, **kwargs)
-        self.setLayer(layer)
+    def __init__(self, layers, *args, **kwargs):
+        super().__init__(layers, *args, **kwargs)
+        self.setLayers(layers)
 
 class BoardEllipseItem(BoardItem, QGraphicsEllipseItem): 
-    def __init__(self, layer=None, *args, **kwargs):
-        super().__init__( *args, **kwargs)
-        self.setLayer(layer)
+    def __init__(self, layers, *args, **kwargs):
+        super().__init__(layers, *args, **kwargs)
+        self.setLayers(layers)
 
 class BoardPathItem(BoardItem, QGraphicsPathItem): 
-    def __init__(self, layer=None, *args, **kwargs):
-        super().__init__( *args, **kwargs)
-        self.setLayer(layer)
+    def __init__(self, layers, *args, **kwargs):
+        super().__init__(layers, *args, **kwargs)
+        self.setLayers(layers)
 
 class BoardLineItem(BoardItem, QGraphicsLineItem): 
-    def __init__(self, layer=None, *args, **kwargs):
-        super().__init__( *args, **kwargs)
-        self.setLayer(layer)
+    def __init__(self, layers, *args, **kwargs):
+        super().__init__( layers, *args, **kwargs )
+        self.setLayers(layers)
 
 class BoardPixmapItem(BoardItem, QGraphicsPixmapItem): 
-    def __init__(self, layer=None, *args, **kwargs):
-        super().__init__( *args, **kwargs)
-        self.setLayer(layer)
+    def __init__(self, layers, *args, **kwargs):
+        super().__init__(layers, *args, **kwargs)
+        self.setLayers(layers)
 
 class BoardPolygonItem(BoardItem, QGraphicsPolygonItem): 
-    def __init__(self, layer=None, *args, **kwargs):
-        super().__init__( *args, **kwargs)
-        self.setLayer(layer)
+    def __init__(self, layers, *args, **kwargs):
+        super().__init__(layers, *args, **kwargs)
+        self.setLayers(layers)
 

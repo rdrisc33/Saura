@@ -1,15 +1,49 @@
 from utils import * 
 
-class TraceItem(CopperItemContainer, QGraphicsLineItem):
-    # QGLI has no .setBrush only .setPen
-    def __init__(self, traceWidth, layers, line=QLineF()): 
-        super().__init__()#layer, line) 
-        # self._color                 = Utils.layerColors[layer] 
-        self.setTraceWidth(traceWidth) 
-        self.setLayers(layers)
-        self.setLine(line) # crashes kernel
-        self.setBounds() # Note that this'll be (0000) for 'blank' traceItems
-        self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable) 
+class TraceBase(QGraphicsLineItem): 
+    """A QGLI with 'paint' overridden to pass. Inherited by Trace and TraceItem. TraceItem then reimplements paint to paint a trace
+    Ok when I did this, I """
+    def __init__(self, p1, p2, traceWidth, parent=None ):
+
+        super().__init__(QLineF(p1, p2), parent)
+        print('INITIALIZED TRACEBASE ')
+        print('P1:', self.line().p1()) 
+        print('P2:', self.line().p2())
+        self._traceWidth = traceWidth 
+        
+    #     self._boundingRect = QRectF(p1, p2).normalized()
+
+    # def boundingRect(self):
+    #     return self._boundingRect
+
+    def paint(self, painter, option , widget): 
+        pass
+    
+    # def shape(self):
+    #     path = QPainterPath()
+    #     path.moveTo(self.p1())
+    #     path.lineTo(self.p2())
+    #     stroker = QPainterPathStroker() # In computer graphics, 'stroking' is the known difficult problem of offsetting shapes. Qt uses it to calculate 'fillable outlines of shapes': Give a path, get an offset of that path. note it strokes the 'inside' and 'outside' of the given shape, so there's two
+    #     stroker.setWidth(self.traceWidth()) 
+    #     stroker.setJoinStyle(Qt.RoundJoin)
+    #     stroker.setCapStyle(Qt.RoundCap)        
+    #     path = stroker.createStroke(path)
+    #     return path 
+    
+    # def p1(self):
+    #     return self._p1 
+    # def p2(self):
+    #     return self._p2 
+    # def traceWidth(self):
+    #     return self._traceWidth 
+    # def setTraceWidth(self, traceWidth):
+    #     self._traceWidth = traceWidth
+        
+
+class Trace(CopperItemContainer, TraceBase): # TraceBase goes last, as it inherits QGraphicsLineItem, which cannot accept additional *args/**kwargs
+    def __init__(self, layers, p1, p2, traceWidth):
+        # super().__init__(p1, p2, traceWidth, layers) TypeError: 'PySide6.QtWidgets.QGraphicsLineItem.__init__' called with wrong argument types: PySide6.QtWidgets.QGraphicsLineItem.__init__(QLineF, int, list)
+        super().__init__(layers=layers, p1=p1, p2=p2, traceWidth=traceWidth) 
         
         self.previous_seeker_side = None # Store the side the seeker was last on. Equals 1 for cw side or 2 for ccw side. Never set equal to 0 only 1 or 2.  
         self.adjusting = False # Track whether we are adjusting this trace's position
@@ -26,24 +60,30 @@ class TraceItem(CopperItemContainer, QGraphicsLineItem):
         self.li2 = None 
         self.li3 = None 
         
-        self.ti0 = None # t as in TraceItem. The TraceItem representing l0 ( aka self, this traceItem ) 
-        self.ti1 = None 
-        self.ti2 = None
-        self.ti3 = None 
-        
+        self.t0 = None # t as in TraceItem. The TraceItem representing l0 ( aka self, this traceItem ) 
+        self.t1 = None 
+        self.t2 = None
+        self.t3 = None 
         
         self.initial_anchor1_orientation = None
         self.initial_anchor1 = None 
         self.initial_anchor2 = None 
         self.arbitrary = QPointF(-1e3, -1e3)        
+    
+        self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable) 
 
+        print('SELF.LAYERS:', self.layers())
+        if isinstance(self.layers(), str):
+            self._layers = [self.layers()]
+            
+        for layer in self.layers():
+            TraceItem(self, p1, p2, traceWidth , layer)
+
+    @classmethod 
+    def fromLine(cls, line, traceWidth , layers):
+        return cls( layers , line.p1() , line.p2(), traceWidth)
         
-    def queryRtrees(self, layer):
-        """query MainWindow.rtrees[layer] for trace"""
-        print('self.bufferedBounds():', self.bufferedBounds())
-        hitIds = self.scene().rtrees[layer].intersection(self.bufferedBounds())
-        hitItems = [self.scene().ids[hitId] for hitId in hitIds]
-        return hitItems
+
         
     def nearestSceneSnap(self, pos):
         """return the snappable point nearest to 'pos'. p1 and p2 are possible snap points for traces. Pads, zones, and vias have just one snap point; their centroid"""
@@ -56,7 +96,8 @@ class TraceItem(CopperItemContainer, QGraphicsLineItem):
             return self.p2()
     
     def netCollision(self): # Returns true if there are any net collisions, else False. A net collision occurs when two items overlap, on the same layer, with different, nonNone, nets.
-        hitItems = self.queryRtrees(self.scene().activeLayer()) 
+        # hitItems = self.queryRtrees(self.scene().activeLayer()) 
+        hitItems = self.queryRtrees()
         for hitItem in hitItems: 
             pass
             
@@ -68,12 +109,14 @@ class TraceItem(CopperItemContainer, QGraphicsLineItem):
         
     def traceWidth(self):
         return self._traceWidth
+    
     def setTraceWidth(self, traceWidth):
         self._traceWidth = traceWidth 
         # self.setPen(QPen(self._color, self._traceWidth, c=Qt.PenCapStyle.RoundCap))
         # print('ABOUT OT SET BUFFER DISTANCE')
-        self.setBufferDistance(self._traceWidth) # Crashes kernel
+        self.setBufferDistance(self._traceWidth)
         print('SETTRACEWIDTH DONE')
+
     def terminals_hits(self):# Return items queried from p1/p2
         ids1 = self.scene().idx.intersection(self.p1_bounds())
         ids2 = self.scene().idx.intersection(self.p2_bounds())
@@ -149,27 +192,30 @@ class TraceItem(CopperItemContainer, QGraphicsLineItem):
 
     def mouseReleaseEvent(self, event):
         print('TRACEITEM.RELEASEEVENT')
-        super().mouseReleaseEvent(event) # call MyGraphicsObject.mRE to remove the trace, the trace we clicked on, self,  from the rtree, then put it BACK in the rtree, with its new position... which is useless... because we next .removeItem(self.ti0)... but 
+        super().mouseReleaseEvent(event) # call MyGraphicsObject.mRE to remove the trace, the trace we clicked on, self,  from the rtree, then put it BACK in the rtree, with its new position... which is useless... because we next .removeItem(self.t0)... but 
         
 # add TraceItems to scene, if we were adjusting a trace, based on li123.
         if self.adjusting: 
             self.adjusting = False
             if not self.l1.isNull():
-                ti1 = TraceItem(self.traceWidth(), self.layer(), self.li1.line()) # not out of l1, but out of 1i1.line()
-                ti1.setPen(QPen(Qt.red, self.trace_width ,c = Qt.RoundCap))
-                self.scene().addItem(ti1)
+                t1 = Trace(self.traceWidth(), self.layer(), self.li1.line()) # not out of l1, but out of 1i1.line()
+                # t1 = TraceItem(self.traceWidth(), self.layer(), self.li1.line()) # not out of l1, but out of 1i1.line()
+                t1.setPen(QPen(Qt.red, self.trace_width ,c = Qt.RoundCap))
+                self.scene().addItem(t1)
                 
             if not self.l2.isNull():
-                ti2 = TraceItem(self.traceWidth(), self.layer(), self.li2.line())
+                t2 = Trace(self.traceWidth(), self.layer(), self.li2.line())
+                # t2 = TraceItem(self.traceWidth(), self.layer(), self.li2.line())
   
-                ti2.setPen(QPen(Qt.green, self.trace_width, c= Qt.RoundCap))
-                self.scene().addItem(ti2)
+                t2.setPen(QPen(Qt.green, self.trace_width, c= Qt.RoundCap))
+                self.scene().addItem(t2)
                 
             if not self.l3.isNull():
-                ti3 = TraceItem(self.traceWidth() , self. layer() , self.li3.line())
+                t3 = Trace(self.traceWidth() , self. layer() , self.li3.line())
+                # t3 = TraceItem(self.traceWidth() , self. layer() , self.li3.line())
                     
-                ti3.setPen(QPen(Qt.blue, self.trace_width, c = Qt.RoundCap))
-                self.scene().addItem(ti3)
+                t3.setPen(QPen(Qt.blue, self.trace_width, c = Qt.RoundCap))
+                self.scene().addItem(t3)
                 
         
             self.scene().removeItem(self.li1)
@@ -177,18 +223,17 @@ class TraceItem(CopperItemContainer, QGraphicsLineItem):
             self.scene().removeItem(self.li3)
             self.scene().removeItem(self.test_item)
             
-            self.scene().removeItem(self.ti0) # ti0 is always removed after an adjust
-            
+            self.scene().removeItem(self.t0) # t0 is always removed after an adjust
             
             self.l0 = None             
             self.l1 = None 
             self.l2 = None 
             self.l3 = None
             
-            self.ti0 = None 
-            self.ti1 = None 
-            self.ti2 = None
-            self.ti3 = None 
+            self.t0 = None 
+            self.t1 = None 
+            self.t2 = None
+            self.t3 = None 
 
     def mouseMoveEvent(self, event): # Reimplement so user can move traces by grabbing on a line
         print()
@@ -218,8 +263,8 @@ class TraceItem(CopperItemContainer, QGraphicsLineItem):
         self.adjusting = True 
         
         self.l0 = self.line()
-        self.ti0 = self # Not a typo, self is traceItem0
-        self.ti0.setPen(QPen(Qt.magenta, self.trace_width, c = Qt.PenCapStyle.RoundCap))
+        self.t0 = self # Not a typo, self is traceItem0
+        self.t0.setPen(QPen(Qt.magenta, self.trace_width, c = Qt.PenCapStyle.RoundCap))
         self.calculate_anchors() # anchors, li1, li2 
         
         self.li3 = QGraphicsLineItem(None)#, self._net, self.trace_width)
@@ -578,3 +623,29 @@ class TraceItem(CopperItemContainer, QGraphicsLineItem):
 
     def clone(self):
         return TraceItem(self.traceWidth() , self.layer() , self.line())
+
+
+
+class TraceItem(TraceBase ):
+# class TraceItem(CopperItemContainer, QGraphicsLineItem):
+    # QGLI has no .setBrush only .setPen
+    def __init__(self, parent, p1 , p2, traceWidth, layer): 
+    # def __init__(self, traceWidth, layers, line=QLineF()): 
+        super().__init__(p1, p2, traceWidth, parent)#layer, line) 
+        self.setTraceWidth(traceWidth) 
+        self.setLine(QLineF(p1, p2 ))
+        print('LAYER:', type(layer), layer)
+        self.setPen(QPen(Utils.layerColors[layer] , self.traceWidth()))
+        # self.setBounds() # Note that this'll be (0000) for 'blank' traceItems
+
+    def traceWidth(self):
+        return self._traceWidth
+    
+    def setTraceWidth(self, traceWidth):
+        self._traceWidth = traceWidth 
+
+    def paint(self, painter, option , widget): 
+        QGraphicsLineItem().paint(painter, option, widget)
+        
+    # def queryRtrees(self, layer):
+        # """query MainWindow.rtrees[layer] for trace"""

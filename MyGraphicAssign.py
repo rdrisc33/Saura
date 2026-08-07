@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout,QVBoxLayout, QLabel, QPushButton, QLineEdit, QWidget, QGroupBox, QFileDialog, QGraphicsScene,QGraphicsView, QApplication
 from PySide6.QtCore import Signal, Slot, Qt, QModelIndex
 from MyThirdPartyDownloadExtract import MyThirdPartyDownloadExtract
-from MyKicadSymbolConverter import MyKicadSymbolConverter
+from kicadSymbolConverter import KicadSymbolConverter
 import webbrowser
 import sys
 import os
@@ -224,7 +224,7 @@ class MyGraphicAssign(QDialog):
         # Now convert .ki_sym into .sym
         categories = self.part.get('categories')
         print('CATEGORIES:' , categories) 
-        save_file = MyKicadSymbolConverter.convert(ki_sym_file, categories ) # Automatically make converted file the selected_file.
+        save_file = KicadSymbolConverter.convert(ki_sym_file, categories ) # Automatically make converted file the selected_file.
         if save_file: 
             self.selected_file = save_file
             self.line_edit_select.setText(save_file)# populate line_edit with 'self.selected_file' so user can see file was auto-selected. 

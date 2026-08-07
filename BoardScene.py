@@ -8,7 +8,7 @@ from FootprintItem import *
 import heapq 
 import numpy as np
 from MyAStar import *
-from TraceItem import * 
+from Trace import * 
 from ViaItem import * 
 from ZoneItem import * 
 from BoardItem import BoardEllipseItem
@@ -21,14 +21,15 @@ class Ffline:
         
         self._scene = scene
         
-        self._lineA = QLineF() # QLineF is used to do all maths, before it is set as TraceItems line 
+        self._lineA = QLineF() # QLineF is used to do all maths, before it is set as Traces line 
         self._lineB = QLineF()
-        
-        self._traceA = TraceItem( self.scene().traceWidth(), self.scene().activeLayer(), self._lineA )
+
+        layers = [ self.scene().activeLayer() ]
+        self._traceA = Trace.fromLine(self._lineA, self.scene().traceWidth(), layers )
         self._traceA.setPen(QPen(Qt.green, self.scene().traceWidth(), c=Qt.PenCapStyle.RoundCap)) # c is for cap;pencap
         self.scene().addItem(self._traceA)
         
-        self._traceB = TraceItem(self.scene().traceWidth() , self.scene().activeLayer() , self._lineB) 
+        self._traceB = Trace.fromLine( self._lineB, self.scene().traceWidth() , layers) 
         self._traceB.setPen(QPen(Qt.darkGreen, self.scene().traceWidth(), c=Qt.PenCapStyle.RoundCap)) # c is for cap;pencap
         self.scene().addItem(self._traceB)
         
@@ -43,7 +44,7 @@ class Ffline:
     # def addTraceModeMousePressEvent(self, event):
         # self.startPosition = event.scenePos()
         # ffline = Ffline(here, there , self) 
-        # ffline.add_traces_to_scene() # Remove the standin QGraphicsLineItems from scene and add TraceItems to scene.
+        # ffline.add_traces_to_scene() # Remove the standin QGraphicsLineItems from scene and add Traces to scene.
     # def addTraceModeMouseMoveEvent(self,event):
     #     ffline.setPoints(self.startPosition, event.scenePos()):
     # def addTraceModeMouseDoubleClickEvent(self, event):
@@ -68,7 +69,7 @@ class Ffline:
         self.start_angle = self.scene().start_angle # Relies on MyBoardScene().start_angle , as determined in MyBoardScene.addTraceModeMouseMoveEvent
 
         self._lineA.setP1(self.here)
-        self._lineA.setP2(self.there) # This is gonna be overwritten; yet needed to ensure line is not null
+        self._lineA.setP2(self.there) # This is gonna be overwritten; just need to ensure line is not null
         
         # self._traceA.setLine(self._lineA)
         # self._traceB.setLine(self._lineB)
@@ -90,17 +91,23 @@ class Ffline:
             if self.isColliding():
                 print("This ffline is colliding")
                 return False  # The ffline we drew from here to there collided with something
-            
+
+        print('UPDATING RTREE')
+        self._traceA.updateRtree() # If no collisions, update rtree
+        self._traceB.updateRtree()
+        # self._traceA.setBufferedBounds() 
+        # self._traceB.setBufferedBounds()
         # print('Updating line item a and b: ')
  
         # self._traceA.setLine(self.line_a) # If we reached here, set new points, update the scene if no collisions
         # self._traceB.setLine(self.line_b)
         # print('all done')
+        print('SET FFLINE POINTS')
         return True 
             
         
     # def add_line_items_to_scene(self): # Note that this is done once, when the ffline is instantiated, if self.is_valid. They can't be added a bajillion times 
-    #     self._traceA = QGraphicsLineItem() # A line item allows us to preview traceItems on the scene: lineItems are not given ids/not added to the rtree by scene.addItem, so use LineItems, until we know what we want our traceItems to be 
+    #     self._traceA = QGraphicsLineItem() # A line item allows us to preview Traces on the scene: lineItems are not given ids/not added to the rtree by scene.addItem, so use LineItems, until we know what we want our Traces to be 
     #     self._traceB = QGraphicsLineItem() 
     #     self._traceA.setPen(QPen(Qt.black, self.scene().traceWidth())) 
     #     self._traceB.setPen(QPen(Qt.black, self.scene().traceWidth()))
@@ -124,32 +131,33 @@ class Ffline:
         else:
             self._lineA.setLength( math.sqrt(2) * abs(min(abs(self.dx) , abs(self.dy))) ) # This is the fortyfivedegree distance component of our ffline. see ffline distance.
 
-        # # print('CreatingTraceItem')
-        # test_traceA = TraceItem(self._lineA, self.scene().traceWidth() , self.scene().activeLayer()) # Note this trace is created BUT NOT PUT ON THE SCENE we just need it for its .bufferedBounds() so we can query the rtree
+        # # print('CreatingTrace')
+        # test_traceA = Trace(self._lineA, self.scene().traceWidth() , self.scene().activeLayer()) # Note this trace is created BUT NOT PUT ON THE SCENE we just need it for its .bufferedBounds() so we can query the rtree
         # test_traceA = self.create_trace_item(self.line_a) # Note this trace is created BUT NOT PUT ON THE SCENE we just need it for its .bufferedBounds() so we can query the rtree
         # print('Checking test_traceA collides:')
-        if self.trace_collides(self._traceA):
+        if self.traceCollides(self._traceA):
         # if self._traceA.netCollision():
         # if self.trace_collides(test_traceA): # If traceA collides, we are done, return (True ( _ , None) ) 
             return True
         
         # self._lineB.setPoints( self._lineA.p2() , self.there )  # better be QPoints
         # test_trace_b = self.create_trace_item(self.line_b)
-        # test_trace_b = TraceItem(self._lineB , self.scene().traceWidth() , self.scene().activeLayer())
+        # test_trace_b = Trace(self._lineB , self.scene().traceWidth() , self.scene().activeLayer())
         # self.trace_b = self.create_trace_item(self.line_b)
         # if self.line_collides(self.line_b):
         # print('Checking test_trace_b collides ')
         # if self.trace_collides(test_trace_b):
         # if self.trace_collides(self._traceB):
-        if self._traceB.netCollision(): 
+        # if self._traceB.netCollision(): 
+        if self.traceCollides(self._traceB): 
             return True
         
         return False # If we made it here, test traces did not collide
         
-    # def create_trace_item(self, line): # Creates a TraceItem from a QLineF. 
+    # def create_trace_item(self, line): # Creates a Trace from a QLineF. 
     #     # print('Creating Trace_item: ')
-    #     # trace = TraceItem(self.scene().activeLayer(), line) # Not parented on anything, TraceItems will just go on the scene as top-level items 
-    #     trace = TraceItem(line, self.scene().traceWidth(), self.scene().activeLayer()) # Not parented on anything, TraceItems will just go on the scene as top-level items 
+    #     # trace = Trace(self.scene().activeLayer(), line) # Not parented on anything, Traces will just go on the scene as top-level items 
+    #     trace = Trace(line, self.scene().traceWidth(), self.scene().activeLayer()) # Not parented on anything, Traces will just go on the scene as top-level items 
     #     # print('TRACE:', trace)
     #     # print('SELF.SCENE.traceWidth():', self.scene().traceWidth())
     #     trace._bufferDistance = self.scene().traceWidth()
@@ -161,19 +169,21 @@ class Ffline:
     def connecteds(self, item):
         pass
             
-    def trace_collides(self, trace):
-
-        hitItems = trace.queryRtrees(self.scene().activeLayer())
+    def traceCollides(self, trace):
+        print('SELF.ITEMS:', self.items())
+        hitItems = trace.queryRtrees()
         for hitItem in hitItems:
             print('HITITEM:', hitItem)
-            if hitItem == self: 
-                continue 
+            if hitItem == self:
+                continue
             if hitItem.net() == trace.net(): # Traces on the same net are not collisions; these are joinable
-                continue 
-            elif hitItem.collidesWithItem(trace.bufferedBounds()): # Can this be used if trace is not on the scene? 
+                continue
+            # elif hitItem.collidesWithItem(trace.sceneBufferedBounds()): # Can this be used if trace is not on the scene? Also: cWI needs item but gave bounds. Try cWP:
+            # elif hitItem.collidesWithPath(trace.bufferedSceneShape()):
+            elif hitItem.collidesWithItem(trace): # Think needs to be bufferedShape
                 if hitItem.net() == None and trace.net() != None:
                     hitItem.setNet(trace.net())
-                elif hitItem.net() != None and trace.net() == None: 
+                elif hitItem.net() != None and trace.net() == None:
                     trace.setNet(hitItem.net)
                 else: 
                     return True # Item collides w/ another item
@@ -217,7 +227,7 @@ class BoardScene(QGraphicsScene):
     dpi = qApp.screens()[0].physicalDotsPerInch()
     dpmm = dpi / 25.4
     # * 1 bc IDK what the boardScene grid step should be, and * 1 makes for a 1mm grid step.
-    grid_spacing_pixels=  dpi * grid_pt1mm # the spacing at which to snap to. 
+    grid_spacing_pixels=  dpi * Utils.gridPt1mm # the spacing at which to snap to. 
     grid_spacing_mm = .1 # as in .1mm
     # print('MYBOARDSCENE.grid_spacing:', grid_spacing)
     tick_spacing = dpi / 25.4 # The spacing at which to draw tick marks 
@@ -241,8 +251,8 @@ class BoardScene(QGraphicsScene):
         self.rtrees = defaultdict(rectangletree.index.Index) # {'F.Cu': rtree}
         # self.footprints = defaultdict(defaultdict) Not used for anything so commented  defaultdict of default dict  { 'C':{1: item , 2: item , 5: item} , 'R': {1:item , 2:item}}}Note Entries/Deletions to this dict managed by MainWindow, bc, parts, with reference_value, go on both schematic AND board, but cant  reach both schematic and board from here, so we pass up to MW.
         self.topmost_layer = 'F.Cu' # The layer which is drawn on top of all other layers. Selected via layerVisibilityControlWidget. Most of the time, will be same value as activeLayer. Default F.Cu
-        self._activeLayer = 'F.Cu' # The currently selected layer; the layer the user is currently working on. F_Cu, Inr.3, B_Silk, etc # The layer to which TraceItems will be added. Selected via layerVisibilityControlWidget. Most of the time, will be same value as topmost_layer. Default F.Cu
-        self._active_net = None  # The currently selected net. gnd, Vcc, 3v3, signal_gnd, etc
+        self._activeLayer = 'F.Cu' # The currently selected layer; the layer the user is currently working on. F_Cu, Inr.3, B_Silk, etc # The layer to which Traces will be added. Selected via layerVisibilityControlWidget. Most of the time, will be same value as topmost_layer. Default F.Cu
+        self._activeNet = None  # The currently selected net. gnd, Vcc, 3v3, signal_gnd, etc
 
         self.showing_layers = set(Utils.layers) # A set containing currently showing layers. Default show all layers 
         self.hidden_layers = []
@@ -330,10 +340,10 @@ class BoardScene(QGraphicsScene):
 
 
     def activeNet(self): # The net of the currently selected item. Is used to setActiveNet of None-net items and prevent items with unlike nets from connecting
-        return self._active_net 
+        return self._activeNet 
     
     def setActiveNet(self, activeNet):
-        self._active_net = activeNet
+        self._activeNet = activeNet
         
     def activeLayer(self): 
         return self._activeLayer
@@ -403,39 +413,6 @@ class BoardScene(QGraphicsScene):
         for item in self.items(): 
             item.hideLayer(layer)
    
-    def drawBackground(self, painter, rect): # Paint a dot grid onto our scene background. 
-        # print("PAINTER:", painter)
-        # print('RECT:', rect)
-        # print()
-        painter.setPen(QPen(Qt.black, 0))
-        painter.drawRect(rect)
-        
-        painter.setPen(QPen(QColor(200,100,100), 0))
-        painter.drawEllipse(QPoint(rect.left(), rect.top()), 20,20)
-        
-        painter.setBrush(Qt.black)
-        painter.setPen(Qt.NoPen)
-    
-        num_ticks_x = int(rect.width()/self.tick_spacing) 
-        num_ticks_y = int(rect.height()/self.tick_spacing)
-        
-        # xs = []
-        # ys = []
-        # for x in range(num_ticks_x):
-        #     xs.append(x*self.tick_spacing + rect.left())
-        # for y in range(num_ticks_y):
-        #     ys.append(y*self.tick_spacing + rect.top())
-        # print('XS:',xs)
-        # print('YS',ys)
-        # painter.drawPointsNp(xs,ys)
-        
-        painter.drawPoint(self.sceneRect().topLeft() +QPoint(100,100))
-        for x in range(num_ticks_x): 
-            for y in range(num_ticks_x):
-                painter.drawPoint(x*self.tick_spacing+ rect.left() , y*self.tick_spacing+rect.top())
-                # painter.drawEllipse(QPoint(x*self.tick_spacing, y*self.tick_spacing) , 1, 1) NO BAD expects scene to be at 0,0
-                # painter.drawEllipse(QPoint(x*self.tick_spacing + rect.left() , y*self.tick_spacing+rect.top()) , 1,1) .drawEllipse can only do integer radii...
-                # painter.drawPoint(QPointF(x*self.tick_spacing + rect.left() , y*self.tick_spacing+rect.top())) # drawPoint not working. drawEllipse only working w/ integer radii. 
         
     def normalModeMouseMoveEvent(self, event): # Detect underlying items with .seeker. Move seeker accordingly; seeker ends up snapped to point of interest POI or grid.
         # print('normalModeMouseMoveEvent')
@@ -464,9 +441,9 @@ class BoardScene(QGraphicsScene):
         #                 return
                         
                             
-                # if isinstance(item, TraceItem):
+                # if isinstance(item, Trace):
                 #     # print()
-                #     # print('TRACEITEM BENEATH MOVE')
+                #     # print('Trace BENEATH MOVE')
                 #     # if self.seeker.contains(item.line().p1()): NO BAD (but why exactly)
                 #     if self.seeker.contains(self.seeker.mapFromScene(item.line().p1())): 
                 #         print('SEEKER CONTAINS P1')
@@ -482,11 +459,11 @@ class BoardScene(QGraphicsScene):
 
       
     def addItem(self, item): # QGraphicsScene.addItem reimplementation: Add (Trace,Via,Zone,Footprint) items to: the scene, scene.ids, scene.idx. If Footprint, +1 to reference_values. 
-        if not isinstance(item, BoardItem):
-            print('CANNOT ADD NONBOARDITEM TO BOARDSCENE')
-            return 
-        
         super().addItem(item) # Add Item normally, which adds all childItems. We still have to add copperItems to their rtree.
+        
+        if not isinstance(item, BoardItem):
+            print(f'NONBOARDITEM {item}  ADDED TO BOARDSCENE')
+            return         
         
         if isinstance( item, FootprintItem): # Footprint pads go in rtree, so call addItem again for each pad 
             # self.footprints[item.referenceDesignator()][item.referenceNumber()] = item
@@ -494,7 +471,7 @@ class BoardScene(QGraphicsScene):
                 self.addItem(pad)
             
         
-        if isinstance(item, CopperItemContainer): # Footprint, TraceViaZonePad, are all copperItemContainers: they track copperItems with their .copperItems() method. CopperItems include TraceItem, ViaItem, ZoneItem, PadItem. CopperItems support connectivity, and go in the rtree. CopperItems are also .childItems(). There are also layerItems. Think silkscreen doodles, user notes, and ratsnest lines. Layer items do not support connectivity. layerItems are tracked in .layerItems().
+        if isinstance(item, CopperItemContainer): # Footprint, TraceViaZonePad, are all copperItemContainers: they track copperItems with their .copperItems() method. CopperItems include Trace, ViaItem, ZoneItem, PadItem. CopperItems support connectivity, and go in the rtree. CopperItems are also .childItems(). There are also layerItems. Think silkscreen doodles, user notes, and ratsnest lines. Layer items do not support connectivity. layerItems are tracked in .layerItems().
             
             # print()
             # print('ITEM.COPPERITEMS():', item.copperItems())
@@ -504,7 +481,7 @@ class BoardScene(QGraphicsScene):
             item.setId(self.count)        # Count may differ between brd and sch
             self.count  += 1 
             self.ids[item.id()] = item
-            item.setSceneTerminals() # Note that because TraceItems have TWO terminals, we will use .setSceneTerminals, plural, which will .setTerminal singular for applicable copperItemContainers
+            item.setSceneTerminals() # Note that because Traces have TWO terminals, we will use .setSceneTerminals, plural, which will .setTerminal singular for applicable copperItemContainers
             item.setSceneBounds()
             item.setBufferDistance(self.traceWidth()) # Calls setBuffer & setSceneBuffer & setBufferedBounds & setSceneBufferedBounds
             item.insertIntoRtree()
@@ -605,11 +582,11 @@ class BoardScene(QGraphicsScene):
                 
         print('DONE: VISITED: ', visited)
         for item in self.items():
-            if isinstance(item, TraceItem):
+            if isinstance(item, Trace):
                 print('TRACE.bR():', item.mapToScene(item.boundingRect()).boundingRect())
         return visited
     
-    def chainHitsTrace(self, bounds): # Return rtree chain hits, of TraceItems, that are near enough to given trace that might belong in the trace_vein. Note still need to check if hits exactly connect; need to run result of this function thru further processing. Note that we use self.scene().idx, which is full of buffered rects, which are not needed here, but we can repurpose the rtree here instead of creating a new one. Wait this is senseless bc it saves no time, the traceVein knows exactly where to look don't need rect hitboxes to narrow it down...
+    def chainHitsTrace(self, bounds): # Return rtree chain hits, of Traces, that are near enough to given trace that might belong in the trace_vein. Note still need to check if hits exactly connect; need to run result of this function thru further processing. Note that we use self.scene().idx, which is full of buffered rects, which are not needed here, but we can repurpose the rtree here instead of creating a new one. Wait this is senseless bc it saves no time, the traceVein knows exactly where to look don't need rect hitboxes to narrow it down...
         visited = set()
         queue = [bounds]
         
@@ -620,7 +597,7 @@ class BoardScene(QGraphicsScene):
                     continue 
                 visited.add(hit_id) 
                 item = self.ids[hit_id]
-                if isinstance(item, TraceItem): # Ignore any non-trace items ( so Zone Footprint Via)
+                if isinstance(item, Trace): # Ignore any non-trace items ( so Zone Footprint Via)
                     # visited.add(hit_id)
                     queue.append( item.sceneBufferedBounds() )
 
@@ -730,7 +707,7 @@ class BoardScene(QGraphicsScene):
     
     
     def addTraceModeMouseMoveEvent(self, event):
-        print('addTraceModeMouseMoveEvent')
+        print('ADDTRACEMODEMOUSEMOVEEVENT')
 # CAN WE MOVE SEEKER HERE? Query rtree
 
         scenePos = event.scenePos()
@@ -740,7 +717,7 @@ class BoardScene(QGraphicsScene):
         # seekerBounds =  ( self.seeker.boundingRect().left(), self.seeker.boundingRect().top() , self.seeker.boundingRect().right() , self.seeker.boundingRect().bottom() ) NO BAD this gives bounds based on .bR(), which is in local coords; does not reflect any set scene Position
         r = self.seeker.mapToScene(self.seeker.boundingRect()).boundingRect()
         seekerBounds = ( r.left(), r.top(), r.right() , r.bottom())
-        print('seekerBounds:', seekerBounds)
+        print('SEEKER BOUNDS:', seekerBounds)
         # rtrees = getRtrees()
         hitItems = self.queryRtrees(seekerBounds , self.activeLayer())
         print('HITITEMS:', hitItems)

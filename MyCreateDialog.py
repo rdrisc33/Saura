@@ -4,8 +4,8 @@ import os
 import sys 
 
 from utils import *
-from MyKicadSymbolConverter import MyKicadSymbolConverter
-from MyKicadFootprintConverter import MyKicadFootprintConverter
+from kicadSymbolConverter import KicadSymbolConverter
+from kicadFootprintConverter import KicadFootprintConverter
 
 class MyCreateDialog(QDialog):
     emit_choice = Signal(str) # This signal emits the chosen mpn, and is emitted when the dialog is .finished()
@@ -63,9 +63,9 @@ class MyCreateDialog(QDialog):
             
     def convert_file(self, file_path):
         if self._create.lower() == 'symbol':
-            save_file = MyKicadSymbolConverter.convert(file_path)
+            save_file = KicadSymbolConverter.convert(file_path)
         if self._create.lower()== 'footprint':
-            save_file = MyKicadFootprintConverter.convert(file_path)
+            save_file = KicadFootprintConverter.convert(file_path)
 
         print('CONVERTED FILE HERE: ', save_file)
        

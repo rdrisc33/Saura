@@ -14,9 +14,10 @@ from SchematicItem import SchematicItem
 class SchematicScene(QGraphicsScene):
     NormalMode, AddWireMode, DeleteWireMode, AddSymbolMode = range(4)
 
-    grid_step = qApp.screens()[0].physicalDotsPerInch() * grid_4mm # SchematicScene grid_step is 4mm aka 17.86046511627907 pixels
+    gridSpacing = Utils.schematicGridSpacing # SchematicScene gridSpacing is 4mm aka 17.86046511627907 pixels
+    tickSpacing = Utils.schematicTickSpacing
     # print()
-    # print('GRID_STEP: ', grid_step)
+    # print('GRID_STEP: ', gridSpacing)
     droppedPart = Signal(dict , QGraphicsSceneDragDropEvent, int) # part, event , source_widget . Where part is a dict representing a part, event is QGraphicsScene.dropEvent(event), source_widget is a Widget enum representing schematic or board.  event is needed to set QGrapicsItem.setPos(event.scenePos) Note when I add a part on the schematic's scene, I ALSO want to add a part on the board's scene -- the latter can't be done at schScene's level, so we have to do it at MW level. Plus, I have to assign the same value (for reference_value) to the symbol AND footprint -- may as well generate that once not twice. Plus, I have to support part deletion, and thus value reassignment, all of which may as well be done at a level where schScene AND brdScene are accessible( atm level is MyMainWindow)
     deletePart = Signal(str , int) # reference, value . As in reference_value to be deleted 
     wiringLaid = Signal(QPointF) # Wiring as in new wires were just laid. pos: any terminal position in the wiring, choose first laid wire.p1() as pos. Emitted when: 1) User adds new wire 2) User edits existing wire 
@@ -46,7 +47,7 @@ class SchematicScene(QGraphicsScene):
         self._wiringPos                      = None # Any point on wiring, so that may backfollow wiring
         self._pinId                         = 0    # Id pinItems such that they are always sortable
         # database.changed.connect(self.reload_part ) # In MyBoardScene, too. Moved to stackedWidget
-        self.setSceneRect(0,0,1000,1000) # I think sceneRect is infinite default? 2000 might seem too big, but remember that these units are pixels
+        # self.setSceneRect(0,0,1000,1000) # I think sceneRect is infinite default? 2000 might seem too big, but remember that these units are pixels
         scene_rect = self.sceneRect()
         self.addItem(QGraphicsRectItem(scene_rect))
         
@@ -63,23 +64,26 @@ class SchematicScene(QGraphicsScene):
         # "qApp" is not defined: The qApp object exists only after you create a QApplication instance as in: app = QApplication(sys.argv) # qApp is a global pointer to the application instance. qApp keeps info on things like properties, palette, fonts, and settings. # qApp detects the OS it is running in and try to 'blend in' by matching palettes, etc. QApplication or QGuiApplication creates qApp. # Fetch DPI, aka the number of pixels per inch, of your screen with : qApp.screens()[0].physicalDotsPerInch()
         
         #How do i draw a grid every 17.84456 pixels? Like so: Use not the scene.sceneRect, but the view.viewport().rect(), so we lay dots over the whole viewport (But this needs to happen when we expand the viewport, how do i do that)
-        for x in range(0, int(self.sceneRect().width()/self.grid_step) ): 
-            for y in range(0, int(self.sceneRect().height()/self.grid_step) ):
-                dot = QGraphicsEllipseItem(QRectF(-1,-1,2,2))
-                dot.setBrush(Qt.gray)
-                dot.setPen(Qt.NoPen)
-                # dot.setFlags(QGraphicsItem.GraphicsItemFlag.)
-                dot.setPos(x*self.grid_step,y*(self.grid_step))
-                self.addItem(dot)
+        # Moved to SchematicView
+        # for x in range(0, int(self.sceneRect().width()/self.gridSpacing) ): 
+        #     for y in range(0, int(self.sceneRect().height()/self.gridSpacing) ):
+        #         dot = QGraphicsEllipseItem(QRectF(-1,-1,2,2))
+        #         dot.setBrush(Qt.gray)
+        #         dot.setPen(Qt.NoPen)
+        #         # dot.setFlags(QGraphicsItem.GraphicsItemFlag.)
+        #         dot.setPos(x*self.gridSpacing,y*(self.gridSpacing))
+        #         self.addItem(dot)
         # self.addItem(QGraphicsLineItem(QLineF(30,30,30,30))) # Test to see what a line of no length looks like : A: a dot when zoomed out, a line when zoomed in
-     
+
+
+        
     def seeker(self):
         return self._seeker
     def setSeeker(self, seeker):
         self._seeker = seeker
         
     def addItem(self, item):
-        print('SCHEMATICSCENE.ADDITEM')
+        # print('SCHEMATICSCENE.ADDITEM')
         super().addItem(item)
 
         if isinstance(item , Symbol) :
@@ -229,7 +233,7 @@ class SchematicScene(QGraphicsScene):
         # print("MYSCENE MOUSEMOVEEVENT")
 ### seeker snaps to grid default
         grid_pos = self.snapToGrid(event.scenePos())
-        self._seeker.setPos(grid_pos)         # wire gridding implemeneted by snapping seeker to grid_step in moveEvent, then creating wires at seeker pos. Mousing over a TerminalItem overrides gridding, so you can connect to any TerminalItem, even if it isn't matched up to the grid_step( EVEN THO SYMBOL GRAPHICS SHOULD BE DESIGNED WITH TERMINAL ITEMS ON GRID)
+        self._seeker.setPos(grid_pos)         # wire gridding implemeneted by snapping seeker to gridSpacing in moveEvent, then creating wires at seeker pos. Mousing over a TerminalItem overrides gridding, so you can connect to any TerminalItem, even if it isn't matched up to the gridSpacing( EVEN THO SYMBOL GRAPHICS SHOULD BE DESIGNED WITH TERMINAL ITEMS ON GRID)
         # if self._mode == SchematicScene.AddSymbolMode: 
         #     self._seeker.hide()
         #     self._currentlyAddingSymbolItem.setPos(grid_pos) # Add symbol lined up on the grid 
@@ -255,7 +259,7 @@ class SchematicScene(QGraphicsScene):
                     # wires= [item for item in items if isinstance(item, MyGraphicsWireItem) and not item==self.hor_wire and not item== self.vert_wire and not item==self._wire] #  Find wires in enlarged area under mouse press(enlarge bc skinny wires are hard to click on). Disregard currently drawing wire items, tho.
 
                         if self.moused_over_wire.line().dy(): # If this wire is vertical:
-                            seeker_snap = QPointF(self.moused_over_wire.line().x1(), grid_pos.y()) # Snap wires to the grid_step, as well
+                            seeker_snap = QPointF(self.moused_over_wire.line().x1(), grid_pos.y()) # Snap wires to the gridSpacing, as well
                         elif self.moused_over_wire.line().dx(): # If this wire is horizontal: 
                             seeker_snap = QPointF(grid_pos.x(), self.moused_over_wire.line().y1())  # 
                         self._seeker.setPos(seeker_snap) # Update seeker pos
@@ -279,7 +283,7 @@ class SchematicScene(QGraphicsScene):
         
         dx = self._line.line().dx() 
         dy = self._line.line().dy()
-        threshold = 30 # set to anything less than grid_step 
+        threshold = 30 # set to anything less than gridSpacing 
         if abs(dx) < threshold and abs(dy) < threshold: # If we are below a threshold, let initial_direction be changed
             
             self._initial_direction = 'x' if abs(dx) >= abs(dy) else 'y' # if we have more x than y , we want to draw horizontal line attached to the start point # if more y than x, we want to draw vertical line attached to the start point
@@ -386,7 +390,7 @@ class SchematicScene(QGraphicsScene):
         return self._mode
                 
     def snapToGrid(self, point: QPointF | QPoint):
-        return QPointF( round(point.x()/self.grid_step)*self.grid_step , round(point.y()/self.grid_step)*self.grid_step ) 
+        return QPointF( round(point.x()/self.gridSpacing)*self.gridSpacing , round(point.y()/self.gridSpacing)*self.gridSpacing ) 
 
 
         

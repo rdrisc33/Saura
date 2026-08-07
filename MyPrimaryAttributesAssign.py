@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout,QVBoxLayout, QLabel, QPushButton, QLineEdit, QWidget, QGroupBox, QFileDialog, QGraphicsScene,QGraphicsView, QApplication, QComboBox, QSizePolicy
 from PySide6.QtCore import Signal, Slot, Qt, QModelIndex
 from MyThirdPartyDownloadExtract import MyThirdPartyDownloadExtract
-from MyKicadSymbolConverter import MyKicadSymbolConverter
+from kicadSymbolConverter import KicadSymbolConverter
 import webbrowser
 import sys
 import os

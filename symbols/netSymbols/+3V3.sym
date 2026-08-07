@@ -1,0 +1,10 @@
+<Symbol name="+3V3" power="global" exclude_from_sim="no" in_pos_files="yes" duplicate_pin_numbers_are_jumpers="no" embedded_fonts="no">
+  <graphic unit="0" style="1">
+    <polyline points="-0.762,1.27 0,2.54"/>
+    <polyline points="0,2.54 0.762,1.27"/>
+    <polyline points="0,0 0,2.54"/>
+  </graphic>
+  <graphic unit="1" style="1">
+    <pin name="" number="1" PIN_ELECTRICAL_TYPE="power_in" PIN_GRAPHIC_STYLE="line" x1="0.0" y1="0.0" x2="0.0" y2="0.0"/>
+  </graphic>
+</Symbol>
