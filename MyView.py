@@ -15,25 +15,30 @@ class MyView(QGraphicsView):
         self.setCursor(Qt.CursorShape.ArrowCursor)
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         # Qt::ScrollBarAlwaysOff
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        
+        # self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # self.horizontalScrollBar().setRange(-100000, 100000)
+        # self.verticalScrollBar().setRange(-100000, 100000)
+        self.setSceneRect(-10000, -10000, 20000, 20000)
+
+
         dpi = qApp.screens()[0].physicalDotsPerInch()
 
-    def wheelEvent(self, event):
-        delta = event.angleDelta().y()# Has an x() and .y() componenet for horizontal trackpad &some mice have scrollwheels with horizontal movement too.
+
+    def wheelEvent(self, event): # Wheel as in mouseWheel 
+        
+        delta = event.angleDelta().y() # How much mouseWheel scrolled
         scaleFactor = math.pow(2.0, -delta / 500)
-        self.scale_view(scaleFactor)
+        self.scaleScene(scaleFactor)
 
-    def scale_view(self, scaleFactor):
-        zoom = self.transform().scale(scaleFactor, scaleFactor).mapRect(
-            QRectF(0, 0, 1, 1)).width() # QTransform.mapRect(rect) -> QRectF, mapped onto the given QTransform. Note that we gave a unit rectangle; a rectangle where width&height=1. So, we are testing to see how much a unit scales under this transform. Note that self.transform() includes any previous scaling; representing the currently applied zoom, which we should limit to a certain range 
+    def scaleScene(self, scaleFactor):
+        zoom = self.transform().scale(scaleFactor, scaleFactor).m11() # Scale current transform to predict zoom. The x scale lives in the matrix's m11 element      #  Used to do this , which also works: .mapRect(QRectF(0, 0, 1, 1)).width() # QTransform.mapRect(rect) -> QRectF, mapped onto the given QTransform. Note that we gave a unit rectangle; a rectangle where width&height=1. So, we are testing to see how much a unit scales under this transform. Note that self.transform() includes any previous scaling; representing the currently applied zoom, which we should limit to a certain range 
 
-        if zoom < 0.01 or zoom > 100: # Prevent crazy scale changes. TODO: These bounds work for all mice? 
+        if zoom < 0.01 or zoom > 100: # Prevent crazy scale changes.
             return
 
         self.scale(scaleFactor, scaleFactor) 
-        
+
     def mousePressEvent(self, event):
         # print('MYVIEW.MOUSEPRESSEVENT')
         super().mousePressEvent(event)
