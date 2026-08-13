@@ -52,7 +52,7 @@ import math
 import os
 import re # 'Regular Expressions' 
 
-from BoardItem import * 
+from LayersItem import * 
 
 app = QApplication(sys.argv)
 
@@ -220,10 +220,12 @@ class Utils:
         cross_product = round(cross_product, 12) # Round the cross product  to 12 decimal places. Floats (usually, always) have 16 decimal places. But floats are bad/wrong: .3 * 3 = .9 but python will tell you .3 * 3 = .8999999999999999. So we round.
         if verbose: 
             print('Cross_product:', cross_product)
-        if cross_product > 0: # Then cw 
-            return 1 
-        elif cross_product < 0: # Then ccw
+        if cross_product > 0: # Then cw. 
+            # return 1 NOTE: Qt coordinate system y axis is flipped, so invert UGH so confusing
             return 2
+        elif cross_product < 0: # Then ccw
+            # return 2
+            return 1 
         else: # if cp == 0, p1p2p3 collinear 
             return 0 
         
@@ -408,12 +410,43 @@ class Utils:
     
 
 class LayerItem(): 
-    """Items which have just one layer. Always childItems of Trace, zone, pad, etc"""
-    def __init__(self, layer, *args, **kwargs): 
+    """Items which have just one layer. Always childItems of Via, Trace, Zone, Pad, Footprint"""
+    def __init__(self, layer, net = None, *args, **kwargs): 
         super().__init__( *args, **kwargs)
     
         self.setLayer(layer)
-         
+        self._net = net
+    def sceneBounds(self):
+
+        rect =self.mapToScene(self.boundingRect())
+        return ( rect.left() , rect.top() , rect.right() , rect.bottom() )
+
+
+    def sceneBufferedBounds(self): 
+        # rect =self.mapToScene(self.boundingRect()).adjusted(-)
+        pass
+        
+    def connectedNets(self): 
+        self._connectedNets = [self.net()] 
+        hitIds = self.scene().rtrees()[self.layer()].intersection(self.sceneBounds())
+        hitItems = [self.scene().ids[hitId] for hitId in hitIds]
+        for hitItem in hitItems(): 
+            if self.collidesWithItem(hitItem):
+                self._connectedNets.append(hitItem.net())
+        
+        return self._connectedNets
+            
+
+    def insertIntoRtree(self): 
+        self.scene().rtrees[self.layer()].insert(self.id() , self.sceneBufferedBounds())
+
+            
+
+    def net(self):
+        return self._net 
+    def setNet(self, net): 
+        self._net = net 
+        
     def showLayer(self, layer): 
         print('SHOWLAYER')
         if self.layer() == layer: 
@@ -434,9 +467,10 @@ class LayerItem():
     def setLayer(self, layer):
         self._layer = layer
 
-class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. Not useful by itself
+class CopperItemContainer(LayersItem): # Base class of FP TR ZN VA PD classes. Not useful by itself
     def __init__(self, layers, *args, **kwargs):
         # print('CUIC.LAYERS:', layers)
+        # print('CUIC.ARGS:', args)
         # print('CUIC.KWARGS:', kwargs)
         super().__init__(layers, *args, **kwargs)
         # print('COPPERITEMCONTAINER.INIT')
@@ -460,11 +494,11 @@ class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. No
 
     def queryRtrees(self):
         """query MainWindow.rtrees for self.sceneBufferedBounds() at each layer in self.layers """
-        print('self.SceneBufferedBounds():', self.sceneBufferedBounds())
+        # print('self.SceneBufferedBounds():', self.sceneBufferedBounds())
         hitIds = [] 
         for layer in self.layers(): 
             hitIds.extend( self.scene().rtrees[layer].intersection(self.sceneBufferedBounds()) )
-        print(f'HIT {len(hitIds)} ITEMS')
+        # print(f'HIT {len(hitIds)} ITEMS')
         hitItems = [self.scene().ids[hitId] for hitId in hitIds]
         return hitItems
     
@@ -479,7 +513,10 @@ class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. No
     def insertIntoRtree(self): 
         for layer in self.layers(): 
             self.scene().rtrees[layer].insert(self.id() , self.sceneBufferedBounds())
-            
+        # for child in self.childItems(): 
+        #     if isinstance(child, LayerItem): 
+        #         child.insertIntoRtree()
+                
     def net(self):
         return self._net 
     def setNet(self, net):
@@ -498,7 +535,8 @@ class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. No
     #     self.scene().rtrees[self.layer()].insert(self.id() , self.sceneBufferedBounds())
         
     def removeFromRtree(self):
-        self.scene().rtrees[self.layer()].delete(self.id() , self.sceneBufferedBounds())
+        for layer in self.layers(): 
+            self.scene().rtrees[layer].delete(self.id() , self.sceneBufferedBounds())
         
     def updateRtree(self): # Update existing entry in rtree
         self.removeFromRtree() # rtree removal demands (id, bounds). Thus we must remove B4 .setSceneBufferedBounds()
@@ -601,21 +639,27 @@ class CopperItemContainer(BoardItem): # Base class of FP TR ZN VA PD classes. No
         else: 
             print('MW.connectsTo() SOMETHING WRONG ')
 
-    def connectedNets(self): 
-        return self._connectedNets
+    # def connectedNets(self): 
+    #     return self._connectedNets
     def nonNoneNets(self):
         return self._nonNoneNets
-    def setConnectedNets(self):
-        self._connectedNets = defaultdict(list)
-        for copperItems in self.copperItems().values(): 
-            for copperItem in copperItems:
-                copperItem.setConnectedNets()
-                for net, items in copperItem.connectedNets():
-                    self._connectedNets[net].extend(items)
-        self._nonNoneNets = [net for net in self._connectedNets if not net is None]
-        print() 
-        print('CUIC.CONNECTEDNETS():', self.connectedNets())
-        print('CUIC.NONNONENETS:', self._nonNoneNets) 
+
+    def connectedNets(self):
+        for child in self.childItems(): 
+            self._connectedNets.extend(child.connectedNets())
+            
+        return self._connectedNets
+    # def setConnectedNets(self):
+        # self._connectedNets = defaultdict(list)
+        # for copperItems in self.copperItems().values(): 
+        #     for copperItem in copperItems:
+        #         copperItem.setConnectedNets()
+        #         for net, items in copperItem.connectedNets():
+        #             self._connectedNets[net].extend(items)
+        # self._nonNoneNets = [net for net in self._connectedNets if not net is None]
+        # print() 
+        # print('CUIC.CONNECTEDNETS():', self.connectedNets())
+        # print('CUIC.NONNONENETS:', self._nonNoneNets) 
                             
                     # 
     # def updateStuff(self): 

@@ -226,7 +226,7 @@ class MainWindow(QMainWindow):
     def updateRatsnest(self, net): # Modified Kruskal Minimum Spanning Tree https://www.w3schools.com/dsa/dsa_algo_mst_kruskal.php  https://en.wikipedia.org/wiki/Kruskal's_algorithm#Pseudocode. Note uses indices of vertices as ordered in G, rather than vertices.
         G = [ [ [2,0,'F.Cu'] , [0,0,'F.Cu'],  [1,1,'F.Cu' ] , [1,3,'F.Cu'] ] , [ [3,2,'F.Cu'], [4,2,'F.Cu'] ] ]
         G = self.ratsnestGraph(net) 
-        print('G:', G) # G: [[(55.0, 55.0, 'F.Cu')], (55.0, 55.0, 'F.Cu')]
+        # print('G:', G) # G: [[(55.0, 55.0, 'F.Cu')], (55.0, 55.0, 'F.Cu')]
         if not G: 
             print('NO GRAPH WITH WHICH TO UPDATE RATSNEST')
             return
@@ -240,19 +240,21 @@ class MainWindow(QMainWindow):
         print('FLAT:', flat)
         self.addRatsnestToScene(G , flat, net)
         
-    def ratsnestGraph(self, net):
-        print()
-        print('RATSNESTGRAPH')
+    def ratsnestGraph(self, net, verbose = False):
         G = [] # ratsnest lines arent wanted between connected items. Collect vertices of connected items in G
         # self.subgraphs = [] # ratsnest lines arent wanted between connected items. Collect vertices of connected items in self.subgraphs  
-        print('NET:', net)
-        print('MW.NETS:')
-        for k,v in self.nets.items(): 
-            print(k , ':', v)
-        print(f'MW.NETS[{net}]:', self.nets[net])
+        if verbose: 
+            print()
+            print('RATSNESTGRAPH')
+            print('NET:', net)
+            print('MW.NETS:')
+            for k,v in self.nets.items(): 
+                print(k , ':', v)
+            print(f'MW.NETS[{net}]:', self.nets[net])
 
         pads =  self.nets[net].get(Utils.BoardItemKinds.Pad.value, [])
-        print('PADS:', len(pads), pads)
+        if verbose: 
+            print('PADS:', len(pads), pads)
         if not pads: 
             return
         # padTerminals = {pad.sceneTerminals(net) for pad in pads}         # padTerminals = [ [0,0, 'F.Cu'] , [2,0,'] , [3,0] , [0,2] ] 
@@ -263,7 +265,8 @@ class MainWindow(QMainWindow):
                 if layer in Utils.CopperLayers: 
                     padTerminals.append( (*pad.sceneTerminal().toTuple() , layer) ) # xYLayer form
 
-        print('PADTERMINALS:', len(padTerminals), padTerminals) 
+        if verbose: 
+            print('PADTERMINALS:', len(padTerminals), padTerminals) 
         # padTerminals: 2 [[(-0.9271, 0.0, 'F.Cu'), (-0.9271, 0.0, 'F.Paste'), (-0.9271, 0.0, 'F.Mask')], [(0.9271, 0.0, 'F.Cu'), (0.9271, 0.0, 'F.Paste'), (0.9271, 0.0, 'F.Mask')]]
 
         # G = set(padTerminals) NO SETS bc cannot iterate over sets 

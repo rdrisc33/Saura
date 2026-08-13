@@ -2,16 +2,16 @@ from PySide6.QtWidgets import *
 from PySide6.QtCore import *
 from PySide6.QtGui import * 
 
-class BoardItem(): 
+class LayersItem(): 
     def __init__(self, layers, *args, **kwargs):
         # print('BOARDITEM.KWARGS:', kwargs)
         # print('BOARDITEM.ARGS:', args)
         super().__init__(*args, **kwargs) # TypeError: ViaBase.__init__() missing 1 required positional argument: 'clearance'
 
 
-        self._layer                 = None    
+        # self._layer                 = None    
         self._layers                = layers
-        print('LAYERS:', layers)
+        # print('LAYERS:', layers)
         self._terminals             = None 
         self._nonNoneNets           = None 
         self._sceneTerminal         = None      # 3-Tuple (scenePosX,scenePosY,layer) 
@@ -24,6 +24,32 @@ class BoardItem():
         self._sceneBufferedBounds   = None      # ._bufferedBounds in scene coordinates
         self._id                    = None 
         self._net                   = None 
+        
+    def connectedNets(self): 
+        self._connectedNets = [self.net()]
+        for child in self.childItems(): 
+            self._connectedNets.extend(child.connectedNets())
+
+    def resolveNets(self): 
+        self.connectedNets()
+        nonNoneNets = [net for net in self._connectedNets() if net is not None ]
+
+        if len(nonNoneNets) == 1: 
+            self.setNet(nonNoneNets[0])
+        elif len(nonNoneNets) > 1: 
+            self.setNet('unresolved')
+
+    def mouseMoveEvent(self, event): 
+        self.resolveNets() 
+        
+        if self.net() == 'unresolved':
+            # do NOT move the item here / fill item background red w/alpha.5
+            pass 
+        elif self.net() != 'unresolved' : # None or '3V3' for example.  
+            # DO move the item here...  ONly not that simple. While a Via may simply move itself, a trace complicatedly moves itself, and two other lines, in specific ways ... 
+            pass
+            # left off here 
+        
         
 
     def showLayer(self, layer): 
@@ -125,40 +151,40 @@ class BoardItem():
     # def removeCopperItem(self, layer, copperItem):
     #     return None       
 
-# Excepting seeker and ratsnest lines, all board items have a layer. Even a pad's number itm gets a layer.
+# Excepting seeker and ratsnest lines, all LayerItems have layers. 
 
-class BoardSimpleTextItem(BoardItem, QGraphicsSimpleTextItem): 
+class LayersSimpleTextItem(LayersItem, QGraphicsSimpleTextItem): 
     def __init__(self, layers , text=None, *args, **kwargs):
         super().__init__(layers, *args, **kwargs)
         self.setLayers(layers)
         self.setText(text)
         
-class BoardRectItem(BoardItem, QGraphicsRectItem ): 
+class LayersRectItem(LayersItem, QGraphicsRectItem ): 
     def __init__(self, layers, *args, **kwargs):
         super().__init__(layers, *args, **kwargs)
         self.setLayers(layers)
 
-class BoardEllipseItem(BoardItem, QGraphicsEllipseItem): 
+class LayersEllipseItem(LayersItem, QGraphicsEllipseItem): 
     def __init__(self, layers, *args, **kwargs):
         super().__init__(layers, *args, **kwargs)
         self.setLayers(layers)
 
-class BoardPathItem(BoardItem, QGraphicsPathItem): 
+class LayersPathItem(LayersItem, QGraphicsPathItem): 
     def __init__(self, layers, *args, **kwargs):
         super().__init__(layers, *args, **kwargs)
         self.setLayers(layers)
 
-class BoardLineItem(BoardItem, QGraphicsLineItem): 
+class LayersLineItem(LayersItem, QGraphicsLineItem): 
     def __init__(self, layers, *args, **kwargs):
         super().__init__( layers, *args, **kwargs )
         self.setLayers(layers)
 
-class BoardPixmapItem(BoardItem, QGraphicsPixmapItem): 
+class LayersPixmapItem(LayersItem, QGraphicsPixmapItem): 
     def __init__(self, layers, *args, **kwargs):
         super().__init__(layers, *args, **kwargs)
         self.setLayers(layers)
 
-class BoardPolygonItem(BoardItem, QGraphicsPolygonItem): 
+class LayersPolygonItem(LayersItem, QGraphicsPolygonItem): 
     def __init__(self, layers, *args, **kwargs):
         super().__init__(layers, *args, **kwargs)
         self.setLayers(layers)

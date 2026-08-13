@@ -15,8 +15,8 @@ class BoardView(MyView):
                 
     def drawBackground(self, painter, rect): 
 
-        print()
-        print('DRAWBACKGROUND')
+        # print()
+        # print('DRAWBACKGROUND')
 
         painter.setBrush(Qt.black)
         painter.setPen(QPen(Qt.black, 1)) # Note QPen width 1 makes dots much more visible than width 0 
@@ -28,7 +28,7 @@ class BoardView(MyView):
         # I'm content with this for prototype, but production app should dynamically set pen widths based on zoom (?)
         def calculateTickSpacing():
             xScale = painter.transform().m11() # xScale is represented at the transformationMatrix m11 element. 
-            print('XSCALE:', xScale)
+            # print('XSCALE:', xScale)
             if (xScale <.5): # ZOOMEDWAYOUT
                 painter.setPen(QPen(Qt.black, 10)) # Set a wide pen so user can still see the dots 
                 tickSpacing = Utils.boardTickSpacing*10
@@ -42,7 +42,7 @@ class BoardView(MyView):
             return tickSpacing
 
         tickSpacing = calculateTickSpacing()
-        print('TICKSPACING:', tickSpacing)
+        # print('TICKSPACING:', tickSpacing)
         
         numTicksX = int(rect.width()/tickSpacing) + 2  # Plus two so as to not draw dots short of the screen edge
         numTicksY = int(rect.height()/tickSpacing) + 2 
