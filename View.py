@@ -2,7 +2,7 @@ from utils import *
 
 # This sets up a view that is able to zoom in/out, can scroll via click and drag, and other basic view stuff. Inherited by BoardView and SchematicView, which are further configured to work for the board/schematic respectively.
 
-class MyView(QGraphicsView): 
+class View(QGraphicsView): 
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -39,14 +39,8 @@ class MyView(QGraphicsView):
 
         self.scale(scaleFactor, scaleFactor) 
 
-    def mousePressEvent(self, event):
-        # print('MYVIEW.MOUSEPRESSEVENT')
-        super().mousePressEvent(event)
-
 
     def mouseMoveEvent(self,event):
-        # print()
-        # print('EVENT:', event)
         super().mouseMoveEvent(event)
         self.viewport().update()    # After drawing my grid dots via reimplementing BoardView.drawBackground, the dots would be erased when the seeker moved over them. Redrawing the background with every moveEvent prevents that
         

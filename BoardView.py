@@ -1,10 +1,10 @@
-from MyView import MyView 
+from View import View 
 from PySide6.QtCore import *
 from PySide6.QtWidgets import* 
 from PySide6.QtGui import *
 from utils import * 
 
-class BoardView(MyView):
+class BoardView(View):
     # gridSpacing = Utils.boardGridSpacing #default 4 as in 4mm
     tickSpacing = Utils.boardTickSpacing #default 4 as in 4mm
     

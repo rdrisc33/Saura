@@ -1,4 +1,5 @@
 from utils import * 
+from CopperItemContainer import CopperItemContainer
 
 from shapely.ops import polylabel # polylabel aka pointOfInaccessibility aka centroid of freaky polygons 
 from shapely.geometry import Polygon

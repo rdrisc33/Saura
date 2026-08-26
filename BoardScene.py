@@ -9,220 +9,19 @@ import heapq
 import numpy as np
 from MyAStar import *
 from Trace import * 
-from ViaItem import * 
 from ZoneItem import * 
-from LayersItem import LayersEllipseItem
-
-class Ffline: 
-    # Angles in radians. If angles in degrees, _degrees should be attached to variable name 
-    def __init__(self, here, there, scene):  # here,there: draw this ffline from here, to there. scene: need a reference to the scene, for scene.tracewidth, and scene.ids, and scene.rtrees( but we don't want to add fflines to the scene, until we know them and their connecteds are valid, so ffline is not a QGraphicsItem)
-        # print('ADDING FFLINE')
-        self.is_valid = False 
-        
-        self._scene = scene
-        
-        self._lineA = QLineF() # QLineF is used to do all maths, before it is set as Traces line 
-        self._lineB = QLineF()
-
-        layers = [ self.scene().activeLayer() ]
-        self._traceA = Trace.fromLine(self._lineA, self.scene().traceWidth(), layers )
-        # self._traceA.setPen(QPen(Qt.green, self.scene().traceWidth(), c=Qt.PenCapStyle.RoundCap)) # c is for cap;pencap
-        # self._traceA.setColor(Qt.green)
-        # self._traceA.setTraceWidth(self.scene().traceWidth()) 
-        # self.scene().addItem(self._traceA)
-        
-        self._traceB = Trace.fromLine( self._lineB, self.scene().traceWidth() , layers) 
-        # self._traceB.setPen(QPen(Qt.darkGreen, self.scene().traceWidth(), c=Qt.PenCapStyle.RoundCap)) # c is for cap;pencap
-        self.scene().addItem(self._traceB)
-        
-        self.traces = [self._traceA , self._traceB]
-        self.scene().addItem(self._traceA)
-        self.scene().addItem(self._traceB)
-        
-        # self.add_line_items_to_scene() # # Put standin QGraphicsLineItems onto the scene, until user double click indicates lines are acceptable, and traces can be added to scene.
-        self.setPoints(here, there)
-        
-
-    def setPoints(self, here , there): # Draw ffline from here to there, if no collisions. 
-        # print('SETTING FFLINE POINTS:')
-
-        if here == there: 
-            # print('HERE==THERE; RETURNING')
-            return # Both self.linea/b will be null
-
-        if isinstance(here, tuple):
-            here = QPointF(*here)
-            there = QPointF(*there)
-
-        self.here = here
-        self.there = there 
-
-        self.dy = there.y() - here.y()
-        self.dx = there.x() - here.x()
-        # print('SELF.SCENE.STARTANGLE:', self.scene().startAngle *180/math.pi)
-        self.startAngle = self.scene().startAngle # Relies on MyBoardScene().startAngle , as determined in MyBoardScene.addTraceModeMouseMoveEvent
-
-        self._lineA.setP1(self.here)
-        self._lineA.setP2(self.there) # This is gonna be overwritten; just need to ensure line is not null
-        
-        # self._traceA.setLine(self._lineA)
-        # self._traceB.setLine(self._lineB)
-        
-        self._lineA.setAngle(self.startAngle * 180/math.pi ) # better be in degrees
-        # Depending on whether trace a is at an angle, or hor/vert, the distance varies:
-        if self._lineA.angle() % 90 == 0: # If the angle is hor/vert, 
-            self._lineA.setLength( abs(abs(self.dx) - abs(self.dy)) )
-        else:
-            self._lineA.setLength( math.sqrt(2) * abs(min(abs(self.dx) , abs(self.dy))) ) # This is the fortyfivedegree distance component of our ffline. see ffline distance.
-
-        self._lineB.setPoints( self._lineA.p2() , self.there )  # better be QPoints
-        
-        self._traceA.setLine(self._lineA)
-        self._traceB.setLine(self._lineB)
-        
-        if self.isColliding():
-            self.altAttempt() # Try an alternate attempt: change the startAngle. If this one don't work, ffline.is_valid = False
-            if self.isColliding():
-                print("This ffline is colliding")
-                return False  # The ffline we drew from here to there collided with something
-
-        # print('UPDATING RTREE')
-        self._traceA.updateRtree() # If no collisions, update rtree
-        self._traceB.updateRtree()
-        # self._traceA.setBufferedBounds() 
-        # self._traceB.setBufferedBounds()
-        # print('Updating line item a and b: ')
- 
-        # self._traceA.setLine(self.line_a) # If we reached here, set new points, update the scene if no collisions
-        # self._traceB.setLine(self.line_b)
-        # print('all done')
-        # print('SET FFLINE POINTS')
-        return True 
-            
-        
-    # def add_line_items_to_scene(self): # Note that this is done once, when the ffline is instantiated, if self.is_valid. They can't be added a bajillion times 
-    #     self._traceA = QGraphicsLineItem() # A line item allows us to preview Traces on the scene: lineItems are not given ids/not added to the rtree by scene.addItem, so use LineItems, until we know what we want our Traces to be 
-    #     self._traceB = QGraphicsLineItem() 
-    #     self._traceA.setPen(QPen(Qt.black, self.scene().traceWidth())) 
-    #     self._traceB.setPen(QPen(Qt.black, self.scene().traceWidth()))
-        
-    #     self.scene().addItem(self._traceA)
-    #     self.scene().addItem(self._traceB)
-        
-
-        
-    def fflineDistance(self):
-        return ( math.sqrt(2) * min(self.dx , self.dy) ) + abs(self.dy-self.dx) 
-        
-    def isColliding(self): # Returns 2-tuple (is_colliding , (test_traceA , test_trace_b) ). If is_colliding, test traces will both be None, else they will be set to their non-colliding traces 
-        # test_traceA = None 
-        # test_trace_b = None  
-                      
-        self._lineA.setAngle(self.startAngle * 180/math.pi ) # better be in degrees
-        # Depending on whether trace a is at an angle, or hor/vert, the distance varies:
-        if self._lineA.angle() % 90 == 0: # If the angle is hor/vert, 
-            self._lineA.setLength( abs(abs(self.dx) - abs(self.dy)) )
-        else:
-            self._lineA.setLength( math.sqrt(2) * abs(min(abs(self.dx) , abs(self.dy))) ) # This is the fortyfivedegree distance component of our ffline. see ffline distance.
-
-        # # print('CreatingTrace')
-        # test_traceA = Trace(self._lineA, self.scene().traceWidth() , self.scene().activeLayer()) # Note this trace is created BUT NOT PUT ON THE SCENE we just need it for its .bufferedBounds() so we can query the rtree
-        # test_traceA = self.create_trace_item(self.line_a) # Note this trace is created BUT NOT PUT ON THE SCENE we just need it for its .bufferedBounds() so we can query the rtree
-        # print('Checking test_traceA collides:')
-        if self.traceCollides(self._traceA):
-        # if self._traceA.netCollision():
-        # if self.trace_collides(test_traceA): # If traceA collides, we are done, return (True ( _ , None) ) 
-            return True
-        
-        # self._lineB.setPoints( self._lineA.p2() , self.there )  # better be QPoints
-        # test_trace_b = self.create_trace_item(self.line_b)
-        # test_trace_b = Trace(self._lineB , self.scene().traceWidth() , self.scene().activeLayer())
-        # self.trace_b = self.create_trace_item(self.line_b)
-        # if self.line_collides(self.line_b):
-        # print('Checking test_trace_b collides ')
-        # if self.trace_collides(test_trace_b):
-        # if self.trace_collides(self._traceB):
-        # if self._traceB.netCollision(): 
-        if self.traceCollides(self._traceB): 
-            return True
-        
-        return False # If we made it here, test traces did not collide
-        
-    # def create_trace_item(self, line): # Creates a Trace from a QLineF. 
-    #     # print('Creating Trace_item: ')
-    #     # trace = Trace(self.scene().activeLayer(), line) # Not parented on anything, Traces will just go on the scene as top-level items 
-    #     trace = Trace(line, self.scene().traceWidth(), self.scene().activeLayer()) # Not parented on anything, Traces will just go on the scene as top-level items 
-    #     # print('TRACE:', trace)
-    #     # print('SELF.SCENE.traceWidth():', self.scene().traceWidth())
-    #     trace._bufferDistance = self.scene().traceWidth()
-
-    #     # trace.setBufferedBounds(self.scene().traceWidth()) # Item needs a scene to know its bufferedBounds 
-    #     trace.setBufferedBounds() # Needed to do hits on rtree
-    #     return trace
-
-    def connecteds(self, item):
-        pass
-            
-    def traceCollides(self, trace):
-        # print('SELF.SCENE().ITEMS:', len(self.scene().items()), self.scene().items())
-        hitItems = trace.queryRtrees()
-        for hitItem in hitItems:
-            # print('HITITEM:', hitItem)
-            if hitItem == self:
-                continue
-            if hitItem.net() == trace.net(): # Traces on the same net are not collisions; these are joinable
-                continue
-            # elif hitItem.collidesWithItem(trace.sceneBufferedBounds()): # Can this be used if trace is not on the scene? Also: cWI needs item but gave bounds. Try cWP:
-            # elif hitItem.collidesWithPath(trace.bufferedSceneShape()):
-            elif hitItem.collidesWithItem(trace): # Think needs to be bufferedShape
-                if hitItem.net() == None and trace.net() != None:
-                    hitItem.setNet(trace.net())
-                elif hitItem.net() != None and trace.net() == None:
-                    trace.setNet(hitItem.net)
-                else: 
-                    return True # Item collides w/ another item
-            
-        return False # Item does not collide
-        
-    def netCollision(self):
-        pass
-        
-
-    # MyBoardScene.trace_collides(self, trace):
-
-    def altAttempt(self): # Change the start angle and 
-        pi = math.pi
-        
-        if self.theta < self.startAngle : 
-            self.startAngle = BoardScene.getStartAngle(self.theta - pi/4 ) 
-        elif self.theta > self.startAngle: 
-            self.startAngle = BoardScene.getStartAngle(self.theta + pi/4 )
-        # Note that if self.theta == self.startAngle, the fflines only viable startAngle is startAngle_degreess current value, & startAngle will NOT change, will get tested again, and again be found to collide-- no compute hit bc so rarely happens 
-        
-    def finalize(self): # creates & adds to scene  self.trace_(a,b), based off line_item_(a,b)'s line, them removes line_item_n Should happen once, in BoardScene.addTraceModeDoubleClickEvent,  when our traces are finalized;not colliding; ready to be id'd and go into rtree.
-        
-        if self._traceA.line().isNull(): # null aka line of 0 length
-            print('TRACEA IS NULL')
-            self.scene().removeItem(self._traceA) # standin QGLi no longer needed
-
-        if self._traceB.line().isNull():
-            self.scene().removeItem(self._traceB)
-        
-    def scene(self): # B/c this class takes a reference to a scene, 
-        return self._scene
-    
-    def remove_line_items_from_scene(self):
-        self.scene().removeItem(self._traceA)
-        self.scene().removeItem(self._traceB)
+from LayersItem import LayersEllipseItem, LayersLineItem
+from Via import Via
+from Ffline import Ffline
     
 class BoardScene(QGraphicsScene):
-    normalMode, addTraceMode, addViaMode, deleteTraceMode = range(4)
+    # normalMode, addTraceMode, addViaMode, deleteTraceMode = range(4)
 
     dpi = qApp.screens()[0].physicalDotsPerInch()
     dpmm = dpi / 25.4
     # * 1 bc IDK what the boardScene grid step should be, and * 1 makes for a 1mm grid step.
     grid_spacing_pixels=  dpi * Utils.gridPt1mm # the spacing at which to snap to. 
-    grid_spacing_mm = 1 # as in 1mm
+    gridSpacingMm = 1 # as in 1mm
     # print('MYBOARDSCENE.grid_spacing:', grid_spacing)
     tick_spacing = dpi / 25.4 # The spacing at which to draw tick marks 
     # filegrid_spacing = 1.27 # kicad symbols are designed on.05inche grid,  with metric mm measurements. .05inches = 1.27mm 
@@ -265,10 +64,11 @@ class BoardScene(QGraphicsScene):
         
         # print()
         # print("DPI:", self.dpi)
-        self.seekerRect = QRectF(-seeker_radius,-seeker_radius, seeker_radius*2 , seeker_radius*2)
+        self.seekerRect = QRectF(-seekerRadius,-seekerRadius, seekerRadius*2 , seekerRadius*2)
         # self.seeker   = QGraphicsEllipseItem(self.seekerRect)
-        self.seeker = LayersEllipseItem(None, self.seekerRect) # Scene has a item, to detect important points/items/to highlight/snap to points of interest on mouse over # Note that do not add it to scene until needed.
-        self._mode = self.normalMode 
+        # self.seeker = LayersEllipseItem(None, self.seekerRect) # Scene has a item, to detect important points/items/to highlight/snap to points of interest on mouse over # Note that do not add it to scene until needed.
+        self.seeker = QGraphicsEllipseItem(self.seekerRect) # Scene has a item, to detect important points/items/to highlight/snap to points of interest on mouse over # Note that do not add it to scene until needed.
+        self._mode = Utils.BoardSceneMode.NormalMode 
         self.ffline                     = None                      # ffline representing traces currently being drawn.
         self._line                      = None                      # Line from mouse position to position of last click. Usually not displayed but for debugging
         self.trace                      = None                      # Representing the trace user is currently adding to scene. May have many segments
@@ -287,33 +87,32 @@ class BoardScene(QGraphicsScene):
         origin_item.setPen(QPen(Qt.magenta, 1))
         origin_item.setBrush(Qt.NoBrush) 
         self.addItem(origin_item)
-        
-        # layer_items_button = QPushButton('Print scene.copperItems() & .layerItems()')
-        # layer_items_button.clicked.connect(self.copperItems)
-        # layer_items_button.clicked.connect(self.layerItems)
-        # self.addWidget(layer_items_button)
-        
-        # print('BOARDSCENE:')
-        # print('.TRACEWIDTH():', self.traceWidth())
-        # print('.ACTIVELAYER():', self.activeLayer())
-        # print()
-        # print('Drawing Board Dots')
-        # print(self.tick_spacing)
-        # print(self.sceneRect())
-        
+        self.setMode(Utils.BoardSceneMode.NormalMode)
 
-    # def mirror(self, footprint): # Flips footprints from front-to-back and vv. Updates all affected items too 
-    #     if footprint.layer() == 'F.Cu': 
-    #         footprint.setLayer('B.Cu')
-    #     elif footprint.layer() == 'B.Cu':
-    #         footprint.setLayer('F.Cu')
+    def collidingNets(self,layers, path=None , point = None): # Returns list of nets colliding with path, or empty list if no nets colliding with path 
+        
+        collidingNets = set() 
+        hitIds = [] 
+        hitItems = [] 
+        
+        if path: 
+            r = path.boundingRect()
+            bounds = (r.left() , r.top() , r.right() , r.bottom())
+
+        elif point: 
+            bounds = (point.x() , point.y() , point.x() , point.y()) 
             
-    #     # middle_layer = 
-    #     # self.layers
-    #     for item in footprint.childItems(): 
-    #         item.mirror()
-        
-
+            
+        for layer in layers: 
+            hitIds = self.rtrees[layer].intersection(bounds)
+            hitItems.extend( self.ids[hitId] for hitId in hitIds )
+            
+        for hitItem in hitItems: 
+            if hitItem.collidesWithPath(path):
+                print('HIT ITEM COLLIDES WITH PATH. NET:', hitItem.net() )
+                collidingNets.add(hitItem.net())
+        return collidingNets
+            
     def layers(self):
         return self._layers
         
@@ -327,7 +126,7 @@ class BoardScene(QGraphicsScene):
         self.tracingLaid.emit(self.activeNet()) 
         self.exitAddTraceMode()
         # print('addTraceModeMouseDoubleClickEvent')
-        # if self.mode() == MyBoardScene.addTraceMode:
+        # if self.mode() == MyUtils.BoardSceneMode.AddTraceMode:
         #     self.exitAddTraceMode()
         # elif self.mode() == MyBoardScene.normalMode:
         #     pass
@@ -400,63 +199,40 @@ class BoardScene(QGraphicsScene):
     def showLayer(self, layer):
             print('BOARDSCENE.SHOWLAYER()')
             for item in self.items(): 
+                if not isinstance(item, LayersItem):
+                    continue 
                 item.showLayer(layer)
                 
     def hideLayer(self, layer):
         print('BOARDSCENE.HIDELAYER()')
         for item in self.items(): 
+            if not isinstance(item, LayersItem):
+                continue 
             item.hideLayer(layer)
    
         
     def normalModeMouseMoveEvent(self, event): # Detect underlying items with .seeker. Move seeker accordingly; seeker ends up snapped to point of interest POI or grid.
         # print('normalModeMouseMoveEvent')
 
-        self.seeker.setPos(event.scenePos()) # Move the seeker to mouse event at first. seeker will move from here, snapping either to point of interest, or to the grid. Note this step is important when grid_step is huge
-        
-        items = self.items(self.seeker.mapToScene(self.seeker.shape())) # pass SCENE COORDS of seeker.shape(), a path, to items. Will return all visible items that intersect with path
-        self.seeker.setPos(self.snapToGrid(event.scenePos())) # after checking if any items beneath seeker @scenePos, we may now snap to grid, tho we may still decide to snap to point of interest 
-        
-        # for item in items:  # IDK what this is needed for
-        #     # if isinstance(item, CopperItem):
-        #     if isinstance(item, CopperItemContainer):
-        #         if isinstance(item, FootprintItem):
-        #             continue
-        #         print()
-        #         print("ITEM:", item) # ITEM: <FootprintItem.PadItem(0x28d6a794d40, parent=0x28d6a793640, pos=0,0, z=1) at 0x0000028D68F5E7C0>
-        #         print("ITEM.TERMINALS:", item.terminals())
-        #         for terminal in item.terminals():
-        #             terminalXY = terminal[0:2] # Just the x,y part of the full (x,y, layer) terminal
-        #             layer      = terminal[2] 
-        #             if layer != self.activeLayer():
-        #                 return 
-        #             if self.seeker.contains(self.seeker.mapFromScene(terminalXY)): 
-        #                 print('SEEKER CONTAINS TERMINAL')
-        #                 self.seeker.setPos(terminalXY)
-        #                 return
-                        
-                            
-                # if isinstance(item, Trace):
-                #     # print()
-                #     # print('Trace BENEATH MOVE')
-                #     # if self.seeker.contains(item.line().p1()): NO BAD (but why exactly)
-                #     if self.seeker.contains(self.seeker.mapFromScene(item.line().p1())): 
-                #         print('SEEKER CONTAINS P1')
-                #         self.seeker.setPos(item.line().p1())
-                #     elif self.seeker.contains(self.seeker.mapFromScene(item.line().p2())):
-                #         self.seeker.setPos(item.line().p2())
-                #         # item.grabMouse() If we are in moveEvent, item would already have become mouseGrabbber in PressEvent
-                #         print('SEEKER CONTAINS P2')
+        # self.seeker.setPos(event.scenePos()) # Move the seeker to mouse event at first. seeker will move from here, snapping either to point of interest, or to the grid. Note this step is important when grid_step is huge
+        # items = self.items(self.seeker.mapToScene(self.seeker.shape())) # pass SCENE COORDS of seeker.shape(), a path, to items. Will return all visible items that intersect with path
 
-                            
+        # set the scene's net (TODO AND activeLayer), based off the item currently beneath seeker pos. This is later used in pressEvent, 
+        self.setActiveNet()
+        
+        self.seeker.setPos(self.snapToGrid(event.scenePos())) # after checking if any items beneath seeker @scenePos, we may now snap to grid, tho we may still decide to snap to point of interest 
+        super().mouseMoveEvent(event) 
+
     def normalModeMousePressEvent(self, event):
         print('normalModeMousePressEvent')
-
+        super().mousePressEvent(event) # Call base implementation to forward event to any items beneath the press. Call base implementation to: fwd event to mousegrabber if there's a mousegrabber, OR fwd event to topmost item, if no mousegrabber, OR reset selections, then remove focus from any focused items, then ignore the event, if no item below event position. 
       
     def addItem(self, item): # QGraphicsScene.addItem reimplementation: Add (Trace,Via,Zone,Footprint) items to: the scene, scene.ids, scene.idx. If Footprint, +1 to reference_values. 
         super().addItem(item) # Add Item normally, which adds all childItems. We still have to add copperItems to their rtree.
+        print('ADDING ITEM OF TYPE:',type(item))
         
         if not isinstance(item, LayersItem):
-            # print(f'NONBOARDITEM {item}  ADDED TO BOARDSCENE')
+            print(f'NONLAYERSITEM {item}  ADDED TO BOARDSCENE')
             return         
         
         if isinstance( item, FootprintItem): # Footprint pads go in rtree, so call addItem again for each pad 
@@ -477,6 +253,7 @@ class BoardScene(QGraphicsScene):
             self.ids[item.id()] = item
             item.setSceneTerminals() # Note that because Traces have TWO terminals, we will use .setSceneTerminals, plural, which will .setTerminal singular for applicable copperItemContainers
             item.setSceneBounds()
+            
             item.setBufferDistance(self.traceWidth()) # Calls setBuffer & setSceneBuffer & setBufferedBounds & setSceneBufferedBounds
             item.insertIntoRtree()
 
@@ -643,7 +420,7 @@ class BoardScene(QGraphicsScene):
         print()
         print('MySCHEMATICSCENE.KEYPRESSEVENT')
         if event.key() == Qt.Key.Key_Escape: 
-            self.set_mode(self.normalMode)
+            self.set_mode(Utils.BoardSceneMode.NormalMode)
             self.exitAddTraceMode()
             print('ESCAPE KEY PRESSED. SET MODE TO NORMAL')
             
@@ -675,22 +452,28 @@ class BoardScene(QGraphicsScene):
         print(f"SET MODE TO {mode}")
 
     def addTraceModeMousePressEvent(self, event):
-        # print('MyBoardScene.addTraceModeMousePressEvent')
+        print()
+        print('ADDTRACEMODEMOUSEPRESSEVENT')
         if self.ffline is not None: # If there is an existing ffline, we are done with it, add it to scene
             self.ffline.finalize() # Remove traces from scene if any are of 0 length
 
-        self.startPosition = self.snapToGrid(self.seeker.scenePos()) # ffline begins wherever seeker(not mouse) is 
-        self.ffline = Ffline(QPointF(0,0), QPointF(0,0) , self) # Note 00 gets overwritten w/every mouseMove # This line is causing kernel crash
+        # self.startPosition = self.snapToGrid(self.seeker.scenePos()) # ffline begins wherever seeker(not mouse) is 
+        self.startPosition = self.seeker.scenePos() # ffline begins wherever seeker(not mouse) is 
+        print()
+        print('SELF.STARTPOSIITON:', self.startPosition) 
+        # self.ffline = Ffline(QPointF(0,0), QPointF(0,0) , self) 
+        self.ffline = Ffline(self.seeker.scenePos(), self.seeker.scenePos() , self)
         
  # A line drawn from position of click to current mouse position. 
-        self._line =  LayersLineItem(['F.Cu'], QLineF(self.seeker.scenePos(), self.seeker.scenePos()))
+        # self._line =  LayersLineItem(['F.Cu'], QLineF(self.seeker.scenePos(), self.seeker.scenePos()))
+        self._line =  QGraphicsLineItem( QLineF(self.seeker.scenePos(), self.seeker.scenePos()))
         self._line.setPen(QPen(Qt.GlobalColor.black , 0, s = Qt.PenStyle.DashLine))
         self.addItem(self._line)      
 
         self.octant = None 
         self.quadrant = None 
         self.startAngle = None # Traces can be hor, vert, or at 45 degrees. Mouse movement hints at initial direction trace should travel in
-        self.startAngleThreshold = self.grid_spacing_mm * self.dpi/25.4 # Conversion of mm to pixels # intial_direction may be set while within this circular threshold
+        self.startAngleThreshold = self.gridSpacingMm * self.dpi/25.4 # Conversion of mm to pixels # intial_direction may be set while within this circular threshold
     
     #             item.setPen(QPen(item.pen().color() , traceWidth)) # Preserve pen_color ( Due to qt quirks;cosmetic pen cannot change to non-zero width), we have to replace entire qpen)
     def queryRtrees(self, bounds, layer):
@@ -701,33 +484,40 @@ class BoardScene(QGraphicsScene):
     
     
     def addTraceModeMouseMoveEvent(self, event):
-        # print('ADDTRACEMODEMOUSEMOVEEVENT')
-# CAN WE MOVE SEEKER HERE? Query rtree
-
-        scenePos = event.scenePos()
-
-        self.seeker.setPos(self.snapToGrid(scenePos)) # snap seeker to grid to begin with. We'll move seeker elsewhere if we need to.
-
-        # seekerBounds =  ( self.seeker.boundingRect().left(), self.seeker.boundingRect().top() , self.seeker.boundingRect().right() , self.seeker.boundingRect().bottom() ) NO BAD this gives bounds based on .bR(), which is in local coords; does not reflect any set scene Position
-        r = self.seeker.mapToScene(self.seeker.boundingRect()).boundingRect()
-        seekerBounds = ( r.left(), r.top(), r.right() , r.bottom())
-        # print('SEEKER BOUNDS:', seekerBounds)
-        # rtrees = getRtrees()
-        hitItems = self.queryRtrees(seekerBounds , self.activeLayer())
-        # print('HITITEMS:', hitItems)
-        
-        for hitItem in hitItems: 
-            # print('HITITEM.NET():', hitItem.net())
-            if hitItem.net() == self.activeNet() or hitItem.net() == None : 
-                nearestSceneSnap = hitItem.nearestSceneSnap(self.seeker.scenePos())
-                self.seeker.setPos(nearestSceneSnap)
-                break
+        print() 
+        print('ADDTRACEMODEMOUSEMOVEEVENT')
+        if self._line : 
+            self._line.setLine(QLineF(self._line.line().p1() , event.scenePos())) # _line is drawn from SEEKER position of last click to current MOUSE position
+        # scenePos = event.scenePos() # EVIL EVIL BAD BAD HOURS OF BUGS BECAUSE THIS RETURNS A QPOINTF, OF AN INTEGERRRRRRR THIS IS WHERE IM GOING WRONG surely. probably.
+        print('ATMMMEVENT.SCENEPOS:', event.scenePos())
             
-        # print('SELF.STARTPOSITION:', self.startPosition)
+        # self.seeker.setPos(self.snapToGrid(scenePos)) 
+        self.seeker.setPos(self.snapToGrid(event.scenePos())) # snap seeker to grid to begin with. We'll move seeker elsewhere if we need to.
+        print('SEEKER.SCENEPOS', self.seeker.scenePos())
+        # # seekerBounds =  ( self.seeker.boundingRect().left(), self.seeker.boundingRect().top() , self.seeker.boundingRect().right() , self.seeker.boundingRect().bottom() ) NO BAD this gives bounds based on .bR(), which is in local coords; does not reflect any set scene Position
+        # r = self.seeker.mapToScene(self.seeker.boundingRect()).boundingRect()
+        # seekerBounds = ( r.left(), r.top(), r.right() , r.bottom())
+        # # print('SEEKER BOUNDS:', seekerBounds)
+        # # rtrees = getRtrees()
+        # hitItems = self.queryRtrees(seekerBounds , self.activeLayer())
+        # # print('HITITEMS:', hitItems)
+        
+        # for hitItem in hitItems:  
+        #     for terminal in hitItem.terminalsWithin(sceneBounds= seekerBounds):
+        #         # print('HITITEM.NET():', hitItem.net())
+        #             if hitItem.net() == self.activeNet() or hitItem.net() == None : 
+        #                 nearestSceneSnap = hitItem.nearestSceneSnap(self.seeker.scenePos())
+        #                 self.seeker.setPos(nearestSceneSnap)
+        #                 break
+            
+        print('SELF.STARTPOSITION:', self.startPosition)
         if self.startPosition is not None : # If we previously pressed mouse, we are drawing a trace. Use the mouse position to sense startAngle. Note is not None used because QPoint(0,0) evaluates False while QPoint(1,1) evaluates True; QPoint if testing shouldn't be used, so we compare against None.
-            dx = scenePos.x() - self.startPosition.x() # 
-            dy = scenePos.y() - self.startPosition.y() 
-            theta = BoardScene.normalize_angle( math.atan2( -dy, dx ) ) # Note y is flipped because in QT, positiveY is downwards while atan2 positiveY is upwards. Also, atan2 returns from -pi to 0 to pi, so normalize that angle 
+            # dx = scenePos.x() - self.startPosition.x() # NO BAD usage of event.scenePos() is an integer... want to use 
+            # dy = scenePos.y() - self.startPosition.y() 
+            dx = self.seeker.scenePos().x() - self.startPosition.x() # NO BAD usage of event.scenePos() is an integer... want to use 
+            dy = self.seeker.scenePos().y() - self.startPosition.y() 
+            # theta = BoardScene.normalize_angle( math.atan2( -dy, dx ) ) # Note y is flipped because in QT, positiveY is downwards while atan2 positiveY is upwards. Also, atan2 returns from -pi to 0 to pi, so normalize that angle 
+            theta = math.atan2( -dy, dx ) # Note y is flipped because in QT, positiveY is downwards while atan2 positiveY is upwards. Also, atan2 returns from -pi to 0 to pi, so normalize that angle 
             
             # print('THETA:', theta)
             startAngle= self.getStartAngle(theta) # 
@@ -748,10 +538,13 @@ class BoardScene(QGraphicsScene):
             # print('SELF.OCTANT:', self.octant)
             
             # ffline = Ffline((20,20) , (150, 200), scene) 
-            # self.ffline.setPoints(self.startPosition , scenePos) # NO BAD do not update to there: scenePos, rather use there: seeker.pos()
             
             # currentPosition = (self.ffline.here , self.ffline.there) # save cP in case revert needed 
-            self.ffline.setPoints(self.startPosition, self.seeker.pos()) # This will update the ffline from here to there, as long as no collisions are found, inwhich case the old ffline will persist
+            # self.ffline.setPoints(self.startPosition , scenePos) # NO BAD do not update to there: scenePos, rather use there: seeker.pos()
+            print('SELF.SEEKER.SCENEPOS():', self.seeker.scenePos())
+            self.ffline.setPoints(self.startPosition, self.seeker.scenePos()) # This will update the ffline from here to there, as long as no collisions are found, inwhich case the old ffline will persist
+            # self.ffline.setPoints(self.startPosition, event.scenePos()) # Testing
+            # self.ffline.setPoints(self.startPosition, self.seeker.pos()) # NO BAD use sceenPos(even tho should be same bc seeker has no parent item)
             # self.ffline.setConnectedNets()
             # if len(self.ffline.nonNoneNets ) > 1 : 
             #     self.ffline.
@@ -769,11 +562,15 @@ class BoardScene(QGraphicsScene):
         # if self._line: # If user is currently drawing _line, we are drawing a trace, use the aStar algorithm to pathfind trace
         #     self.a_star()
 
-    def addTraceModeMouseReleaseEvent(self, event):
-        print('AddTraceModeMouseReleaseEvent')
-        self.removeItem(self._line)
-        if self.ffline.here == self.ffline.there: 
-            self.removeItem(self.ffline) 
+    def mouseReleaseEvent(self, event): 
+        if self.mode() == Utils.BoardSceneMode.NormalMode: 
+            super().mouseReleaseEvent(event)
+        elif self.mode() == Utils.BoardSceneMode.AddTraceMode: 
+            # if self.ffline.here == self.ffline.there: 
+            #     self.removeItem(self.ffline) 
+            pass
+        elif self.mode() == Utils.BoardSceneMode.AddViaMode: 
+            pass 
           
     def a_star(self): # A* pathfinding: 
         pass
@@ -799,46 +596,29 @@ class BoardScene(QGraphicsScene):
                 self.removeItem(item) # or is it item.setParent(None) 
                 self.addItem(new_item)
 
-    def mousePressEvent(self, event): # ToDo: Only allow lines to move hor/vertically from their start point
+    def mousePressEvent(self, event): 
         # print()
         # print('MyBoardScene.MOUSEPRESSEVENT')
-        if self.mode() == BoardScene.addTraceMode: 
+        if self._mode == Utils.BoardSceneMode.NormalMode:
+            self.normalModeMousePressEvent(event) # this involves adjusting TraceItems & more
+        elif self.mode() == Utils.BoardSceneMode.AddTraceMode: 
             self.addTraceModeMousePressEvent(event)
-        if self._mode == BoardScene.normalMode:
-            self.normalModeMousePressEvent(event)
-        super().mousePressEvent(event) # Call base implementation to: fwd event to mousegrabber if there's a mousegrabber, OR fwd event to topmost item, if no mousegrabber, OR reset selections, then remove focus from any focused items, then ignore the event, if no item below event position. TLDR; Call base implementation to forward event to any items beneath the press.  
+        elif self.mode() == Utils.BoardSceneMode.AddViaMode: # In Scene.addViaModemousePressEvent, have the via take on nets below if appropriate 
+            if ( self.via.net() == None ) and (self.via.resolvedNet != 'unresolved'): # None nets take on other nets upon mouseRelease
+                self.via.setNet(self.via.resolvedNet)
+            self.setMode(Utils.BoardSceneMode.NormalMode)
+
                
     def mouseMoveEvent(self, event):
         # print('BOARDSCENE.MOUSEMOVEEVENT')
-        # self.seeker.setPos(self.snap_to_grid(event.scenePos())) # This could probably be moved here...?
-            
-        if self._line : 
-            self._line.setLine(QLineF(self._line.line().p1() , event.scenePos())) # _line is drawn from SEEKER position of last click to current MOUSE position
-            
-        # set the scene's net (TODO AND activeLayer), based off the item currently beneath seeker pos. This is later used in pressEvent, 
 
-        itemsBeneathSeeker = self.items(self.seeker.scenePos())
-        netsBeneath = set()
-        for item in itemsBeneathSeeker: 
-            if isinstance(item, CopperItemContainer):
-                if not isinstance(item, FootprintItem): # FPs make sense to have a net
-                    netsBeneath.add(item.net())
-        if len(netsBeneath) > 1 : 
-            self.setActiveNet('error')
-            print('ERROR: THERE ARE OVERLAPPING BOARD ITEMS WITH THE SAME NET. THIS NOT SUPPOSED TO HAPPEN')
-        elif len(netsBeneath) == 1:
-            self.setActiveNet(netsBeneath.pop()) # sets can't be indexed so pop
-        elif len(netsBeneath) == 0: 
-            self.setActiveNet(None)
-        # print()
-        # print('BOARDSCENE.ACTIVENET():', self.activeNet())
-            
-
-        if self.mode() == BoardScene.normalMode:
-            self.normalModeMouseMoveEvent(event)
-        elif self.mode() == BoardScene.addTraceMode:
+        if self.mode() == Utils.BoardSceneMode.NormalMode:
+           self.normalModeMouseMoveEvent(event)
+        elif self.mode() == Utils.BoardSceneMode.AddTraceMode:
             self.addTraceModeMouseMoveEvent(event)
-        super().mouseMoveEvent(event)
+        elif self.mode() == Utils.BoardSceneMode.AddViaMode:
+            self.addViaModeMouseMoveEvent(event)
+        # super().mouseMoveEvent(event)
         
         # print()
         # print('MOUSEGRABBERITEM:', self.mouseGrabberItem())
@@ -846,13 +626,38 @@ class BoardScene(QGraphicsScene):
             
             if isinstance(self.mouseGrabberItem(), FootprintItem):
                 self.footprintMoved.emit(self.mouseGrabberItem()) # MW.board.scene().footprintMoved.connect(updateRatsnest)
+                
+    def addViaModeMouseMoveEvent(self, event): 
+        print('MOUSEMOVEEVENT')
+        self.via.tentativeMove( Utils.snapToGrid(event.scenePos(), 20) )# MOve here, as long as no conflicts
+       
+    def setActiveNet(self):
+        itemsBeneathSeeker = self.items(self.seeker.scenePos())
+        netsBeneath = set()
+        for item in itemsBeneathSeeker: 
+            if isinstance(item, CopperItemContainer):
+                if not isinstance(item, FootprintItem): # FPs make sense to have a net
+                    netsBeneath.add(item.net())
+                    
+        if len(netsBeneath) == 0: 
+            self._activeNet = None 
             
+        elif len(netsBeneath) > 1 : 
+            print('NETSBENEATH:', netsBeneath)
+            self_activeNet = 'unresolved'
+            
+        elif len(netsBeneath) == 1:
+            self._activeNet = netsBeneath.pop() # sets can't be indexed so pop
+            
+        # print('BOARDSCENE.ACTIVENET():', self.activeNet())
+            
+
 
     def mouseDoubleClickEvent(self, event):
         # print('MyBoardScene MOUSEDOUBLECLICKEVENT')
-        if self._mode == BoardScene.addTraceMode: # Exit addTraceMode 
+        if self._mode == Utils.BoardSceneMode.AddTraceMode: # Exit addTraceMode 
            self.addTraceModeMouseDoubleClickEvent(event)
-        elif self._mode == BoardScene.deleteTraceMode:
+        elif self._mode == Utils.BoardSceneMode.DeleteMode:
             pass # 
         # super().mouseDoubleClickEvent(event) # The base implementation calls mousepressEvent. We don't need that here 
             
@@ -867,6 +672,55 @@ class BoardScene(QGraphicsScene):
             source_widget = MyWidgets.Board.value
             self.droppedPart.emit(part, event, source_widget) # We will .addItem from MyMainWindow, because we ALSO need to add corresponding part to sch. 
         # self.add_footprint(part,  event.scenePos()
+
+    def exitAddTraceMode(self):
+        print()
+        print('MYBOARDSCENE.exitAddTraceMode')
+        self.views()[0].setMouseTracking(False) # disable mouseMoveEvent from firing while no mouse button pressed down, which is default setting.    
+        self.setMode(Utils.BoardSceneMode.NormalMode) # restore default mode. But for real app, should stay in wiring_mode
+        self.removeItem(self._line) 
+        # self._traceA = None 
+        # self._traceB = None 
+        self.ffline = None 
+        self.startPosition = None 
+        # main_window = self.views()[0].parentWidget().parentWidget().parentWidget()# Get the main_window.( we need to uncheck add_traceAction). The view's parent is the schematic, schematic's parent is a stackedWidget, stackedWidget's parent is the QMainWindow. # This is bad practice bc so brittle but what way is better? HEY this is a good example of when we should start using SIGNALS/SLOTS rather than digging through parent objects (?)
+
+        
+    def setMode(self, mode):
+        self._mode = mode
+# Set seeker color depending on mode TODO should actually change seeker shape 
+        if self._mode == Utils.BoardSceneMode.NormalMode: 
+            self.seeker.setPen(QPen(Qt.green , 0))
+            # self.setCursor(Qt.CursorShape.ArrowCursor)
+        elif self._mode == Utils.BoardSceneMode.AddTraceMode:
+            self.seeker.setPen(QPen(Qt.red , 0))
+        elif mode == Utils.BoardSceneMode.AddViaMode: 
+            print('ENTERED ADD VIA MODE')
+            self.via = Via(60,30 , 10, ['F.Cu'])
+            self.addItem(self.via) 
+            self.via.setPos(-1e9,-1e9)
+            self.views()[0].setMouseTracking(True) # mouseMoveEvent fires while no mouse button pressed down 
+        print()
+        print(f"SET MODE TO {mode}")
+
+    def mode(self):
+        return self._mode
+                
+    def snapToGrid(self, point: QPointF ):
+        gridSpacing = self.gridSpacingMm * self.dpi/25.4 # Conversion of Xmm to pixels
+        return Utils.snapToGrid(point, gridSpacing)
+        
+    def setGridSpacingMm(self, gridSpacingMm):
+        print('GRIDSPACINGMM:', type(gridSpacingMm), gridSpacingMm)
+        if isinstance(gridSpacingMm , str): # Will be str coming from SpinBox widget
+            self.gridSpacingMm = float(gridSpacingMm)
+        elif  isinstance(gridSpacingMm, (float, int)):
+            self.gridSpacingMm = gridSpacingMm
+        else:
+            raise TypeError(f'grid_spacing_mm is type: {type(gridSpacingMm)} but expected str | int | float')
+        # self.update_tick_marks() 
+        
+            
         
     @staticmethod 
     def get_quadrant(theta):
@@ -933,72 +787,6 @@ class BoardScene(QGraphicsScene):
         # print('NORMALIZED THETA:', theta)
         return theta 
     
-
-    def exitAddTraceMode(self):
-        print()
-        print('MYBOARDSCENE.exitAddTraceMode')
-        
-#         if self.old_layer: 
-#             setlayercomboSignal.emit(self.old_layer)
-            
-
-# # in Board: 
-#     @Slot(str)
-#     def setLayerComboSlot(self, text)
-#         self.layer_combo.setCurrentText(text)
-#     self.board.scene.setLayerComboSignal.connect(self.setLayerComboSlot)
-
-#########################################
-
-        self.views()[0].setMouseTracking(False) # disable mouseMoveEvent from firing while no mouse button pressed down, which is default setting.    
-        self.setMode(BoardScene.normalMode) # restore default mode. But for real app, should stay in wiring_mode
-        self.removeItem(self._line) 
-        # self._traceA = None 
-        # self._traceB = None 
-        self.ffline = None 
-        self.startPosition = None 
-        self.goal_position = None
-        # self.seeker.setVisible(False)
-        # print("self.views()[0].parentWidget().", self.views()[0].parentWidget()) 
-        # print("self.views()[0].parentWidget().parentWidget()",self.views()[0].parentWidget().parentWidget())
-        # print("self.views()[0].parentWidget().parentWidget().parentWidget", self.views()[0].parentWidget().parentWidget().parentWidget()) 
-        # main_window = self.views()[0].parentWidget().parentWidget().parentWidget()# Get the main_window.( we need to uncheck add_traceAction). The view's parent is the schematic, schematic's parent is a stackedWidget, stackedWidget's parent is the QMainWindow. # This is bad practice bc so brittle but what way is better? HEY this is a good example of when we should start using SIGNALS/SLOTS rather than digging through parent objects 
-        # print('IS THIS THE MAIN WINDOW:', main_window)
-        # main_window.add_traceAction.setChecked(False) # uncheck add_traceAction
-        
-    def setMode(self, mode):
-        self._mode = mode
-# Set seeker color depending on mode TODO should actually change seeker shape 
-        if self._mode == self.normalMode: 
-            self.seeker.setPen(QPen(Qt.green , 0))
-            # self.setCursor(Qt.CursorShape.ArrowCursor)
-        if self._mode == self.addTraceMode:
-            self.seeker.setPen(QPen(Qt.red , 0))
-
-        print()
-        print(f"SET MODE TO {mode}")
-
-    def mode(self):
-        return self._mode
-                
-    def snapToGrid(self, point: QPointF | QPoint):
-        # print('SnapToBoardGrid')
-        grid_spacing_pixels = self.grid_spacing_mm * self.dpi/25.4 # Conversion of Xmm to pixels
-        pt = QPointF( round(point.x()/grid_spacing_pixels)*grid_spacing_pixels , round(point.y()/grid_spacing_pixels)*grid_spacing_pixels ) 
-        # print('SNAP POINT:', pt)
-        return pt
-        
-    def set_grid_spacing_mm(self, grid_spacing_mm):
-        print('GRID_SPACING_MM:', type(grid_spacing_mm), grid_spacing_mm)
-        if isinstance(grid_spacing_mm , str):
-            self.grid_spacing_mm = float(grid_spacing_mm)
-        elif  isinstance(grid_spacing_mm, (float, int)):
-            self.grid_spacing_mm = grid_spacing_mm
-        else:
-            raise TypeError(f'grid_spacing_mm is type: {type(grid_spacing_mm)} but expected str | int | float')
-        # self.update_tick_marks() 
-        
-            
     # def update_tick_marks(self, tick_spacing = None ): # default:  dpi * grid_1mm
     #     if tick_spacing: 
     #         self.tick_spacing = tick_spacing 

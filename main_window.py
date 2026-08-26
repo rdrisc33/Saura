@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QApplication, QDialog, QDockWidget,
                                QMessageBox, QTextEdit)
 
 
-from MyView import * 
+from View import * 
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -19,7 +19,7 @@ class MainWindow(QMainWindow):
         # DockWidgets may be stacked; a QTabBar will appear to select between stacked widgets
         # QMainWindow(save,restor)State(): 
         #However, QMainWindow and QDockWidget can only .setCentralWidget() and .setWidget() respectively; neither may .setLayout()... Oh but QWidget may .setLayout(), so you can make a centralwidget with a layout. 
-        self.my_view = MyView()
+        self.my_view = View()
         self.setCentralWidget(self.my_view)
         self.create_actions()
         self.create_menus()

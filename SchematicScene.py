@@ -31,7 +31,7 @@ class SchematicScene(QGraphicsScene):
         # self._labels = defaultdict(dict) 
 
 
-        self.seeker_rect = QRectF(-seeker_radius,-seeker_radius, seeker_radius*2 , seeker_radius*2)
+        self.seeker_rect = QRectF(-seekerRadius,-seekerRadius, seekerRadius*2 , seekerRadius*2)
         self._seeker  = QGraphicsEllipseItem(self.seeker_rect) # Scene has a item, to detect important points/items/to highlight/snap to points of interest on mouse over # Note that do not add it to scene until needed.
         # self.addItem(QGraphicsRectItem(self.sceneRect())) # draw the sceneRect
         # self.addItem(QGraphicsEllipseItem(Geometry.small_rect))# draw the origin 

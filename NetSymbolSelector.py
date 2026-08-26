@@ -1,5 +1,5 @@
 from utils import *
-from MyView import MyView 
+from View import View 
 from Symbol import Symbol
 
 class NetSymbolSelector(QWidget):
@@ -54,7 +54,7 @@ class ListWidget(QListWidget):
         self.start = event.position()
         super().mousePressEvent(event)# Enable base implementation to handle things like selecting & more.
 
-class ItemViewer(MyView):
+class ItemViewer(View):
     def __init__(self, *args, **kwargs):
         
         super().__init__(*args, **kwargs)

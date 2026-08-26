@@ -9,7 +9,7 @@ from PySide6.QtGui import *
 from FootprintItem import *
 from utils import * 
 from BoardScene import BoardScene
-from MyView import MyView
+from View import View
 from FootprintItem import FootprintItem
 
 o = ContainerItem() # No problems 
@@ -24,7 +24,7 @@ ti = TraceItem(l)
 print('TRACEITEM:' , ti)
 
 scene = BoardScene()
-view= MyView()
+view= View()
 view.setScene(scene)
 scene.addItem(ti)
 # scene.addItem(li)

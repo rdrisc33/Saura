@@ -2,6 +2,7 @@ import lxml.etree as etree
 from utils import *
 from Reference import Reference 
 from LayersItem import LayersItem
+from CopperItemContainer import CopperItemContainer
 # from Component import Component
 
 
@@ -18,9 +19,7 @@ from LayersItem import LayersItem
 
     
 
-# A note on stacking order. Items are stacked according to zValue, then insertion order. Default zValue is 0. zValue only works between sibling items; items that have the same parent.Thus I set the pad to have a z value of 1, so that default the pad appears on top of the Fab and other layers. Then I also set pad childrenItems zValue to make the different pad layers stack in different orders. Then, to make the pad._nameItem appear on top of the pad, I also set pad._nameItem.setZValue(1)
-# class FootprintItem(Component, CopperItemContainer, QGraphicsItem):
-# class FootprintItem( Reference, CopperItemContainer, QGraphicsItem):
+# Items are stacked according to zValue, then insertion order. Default zValue is 0. 
 class FootprintItem( LayersItem, Reference, QGraphicsItem):
     font = footprint_font
 
@@ -39,7 +38,10 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
         self.setFile(file)
         self.setLayer(layer)
         
-        self._referenceItem = LayersSimpleTextItem(self.layer(), self.reference(), self)
+        # self._referenceItem = LayersSimpleTextItem(self.layer(), self.reference(), self)
+        self._referenceItem = QGraphicsSimpleTextItem(self.reference(), self)
+        self._referenceItem.setZValue(2)
+        self._referenceItem.setBrush(QColor(0,0,0, 100))
         self._referenceItem.setFont(Utils.footprintFont)
 
         self._pads = []
@@ -47,7 +49,8 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
         self.drawGraphics()
         self.setNets()
         
-        self._nameItem = LayersSimpleTextItem(self.layer(), "", self)
+        self._nameItem = QGraphicsSimpleTextItem("", self)
+        # self._nameItem = LayersSimpleTextItem(self.layer(), "", self)
         self._nameItem.setFont(self.font)
         self._nameItem.setZValue(20)
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
@@ -82,7 +85,8 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
     def setNets(self):
         self._nets = set()
         for childItem in self.childItems(): 
-            # print('CHILDITEM:', childItem)
+            if not isinstance(childItem, LayerItem):
+                continue 
             self._nets.add(childItem.net())
             
         if None in self._nets: 
@@ -101,6 +105,8 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
 
     def updateRtrees(self): 
         for childItem in self.childItems(): 
+            if not isinstance(childItem, LayersItem): 
+                continue
             childItem.updateRtrees()
         # for pad in self.pads():
         #     pad.updateRtrees()
@@ -185,7 +191,8 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
     
             layer = line.get('layer')
             if layer:
-                lineItem = LayersLineItem([layer], x1, y1, x2, y2, self)
+                # lineItem = LayersLineItem([layer], x1, y1, x2, y2, self)
+                lineItem = QGraphicsLineItem(x1, y1, x2, y2, self)
                 lineItem.setPen(QPen(Utils.layerColors[layer] , stroke_width))
                 # self.addLayerItem(lineItem)
                 # self.copperItems()[layer] = lineItem NO BAD remember to extend the copperItems 
@@ -403,7 +410,8 @@ class Pad(PadBase, CopperItemContainer, QGraphicsItem):# CopperItem, PadBase):
 
         self._name = self.elem.get('name') 
         if self._name: 
-            self._nameItem = LayersSimpleTextItem(self.layers(), self._name, self) # _nameItem is parented on self, the container_item representing this pad 
+            self._nameItem = QGraphicsSimpleTextItem( self._name, self) # _nameItem is parented on self, the container_item representing this pad 
+            # self._nameItem = LayersSimpleTextItem(self.layers(), self._name, self) # _nameItem is parented on self, the container_item representing this pad 
             self._nameItem.setFont(footprint_font)
             self._nameItem.setPos(QPointF(self.left, self.top))
             self._nameItem.setZValue(2) # Stack pad_name atop the backgroundpads(z0) and topmostLayer(z1)

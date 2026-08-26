@@ -2,15 +2,20 @@ from PySide6.QtWidgets import *
 from PySide6.QtCore import *
 from PySide6.QtGui import * 
 
+from utils import LayerItem
+
 class LayersItem(): 
     def __init__(self, layers, *args, **kwargs):
         # print('BOARDITEM.KWARGS:', kwargs)
         # print('BOARDITEM.ARGS:', args)
         super().__init__(*args, **kwargs) # TypeError: ViaBase.__init__() missing 1 required positional argument: 'clearance'
 
-
-        # self._layer                 = None    
+        
+        # self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges) # Must enable to receive item position changes. 
+        # self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges) setting this flag in LayersItem has no effect, I think bc QGI comes after in MRO
+        self._net                   = None 
         self._layers                = layers
+        self._connectedNets         = []
         # print('LAYERS:', layers)
         self._terminals             = None 
         self._nonNoneNets           = None 
@@ -25,34 +30,93 @@ class LayersItem():
         self._id                    = None 
         self._net                   = None 
         
-    def connectedNets(self): 
-        self._connectedNets = [self.net()]
-        for child in self.childItems(): 
-            self._connectedNets.extend(child.connectedNets())
+        
+    # def connectedNets(self, proposedShape): 
+    #     self._connectedNets = [self.net()]
+    #     for child in self.childItems(): 
+    #         self._connectedNets.extend(child.connectedNets(proposedShape))
 
-    def resolveNets(self): 
-        self.connectedNets()
-        nonNoneNets = [net for net in self._connectedNets() if net is not None ]
-
-        if len(nonNoneNets) == 1: 
-            self.setNet(nonNoneNets[0])
-        elif len(nonNoneNets) > 1: 
-            self.setNet('unresolved')
+    def mousePressEvent(self, event): 
+        self._offset = self.scenePos() - event.scenePos()
 
     def mouseMoveEvent(self, event): 
-        self.resolveNets() 
-        
-        if self.net() == 'unresolved':
-            # do NOT move the item here / fill item background red w/alpha.5
-            pass 
-        elif self.net() != 'unresolved' : # None or '3V3' for example.  
-            # DO move the item here...  ONly not that simple. While a Via may simply move itself, a trace complicatedly moves itself, and two other lines, in specific ways ... 
-            pass
-            # left off here 
-        
+        self._previousPos = self.scenePos()     #Save the previous position
+        self._previousNet = self.net()          #Save the previous net 
+
+        self.setPos(self.scene().snapToGrid(event.scenePos() + self._offset))
+        nets = self.nets() 
+        self.resolveNets(nets)
+        if self.net() == 'unresolved': 
+            self.setPos(self._previousPos)
+            self.setNet(self._previousNet)
         
 
+    def nets(self): # collects the net of any items which collide with this item.
+        nets = set( [self.net()] ) 
+        
+        hitIds = [] 
+        hitItems = [] 
+        print('SELF.SCENEBOUNDS:', self.sceneBounds())
+        if not self.sceneBounds(): 
+            self.setSceneBounds
+        for layer in self.layers(): 
+            
+            hitIds.extend( self.scene().rtrees[layer].intersection(self.sceneBounds() ) ) 
+        hitItems = [self.scene().ids[hitId] for hitId in hitIds]
+        
+        for item in hitItems: 
+            if self.collidesWithItem(item):
+                nets.add(item.net())
+        return nets 
+            
+
+    # def resolveNets(self, nets ): # Given list of nets, return resolved net as a string, or 'unresolved' if unresolvable, or None if there are no nets 
+    #     nonNoneNets = [net for net in nets if net is not None ]
+
+    #     if len(nonNoneNets) == 0: 
+    #         self.setNet(None) 
+    #     if len(nonNoneNets) == 1: 
+    #         self.setNet(nonNoneNets[0])
+    #     elif len(nonNoneNets) > 1: 
+    #         self.setNet('unresolved')
+
+    # def mouseMoveEvent(self, event): 
+    #     super().mouseMoveEvent( event)
+
+    # def itemChange(self, change, value): 
+    #     # TODO: Confirm that ItemPositionChanges sends changes when sceneChanges
+    #     if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange: # If the item position has changed, we will check to see if there is a net conflict, and we will NOT MOVE HERE if there is one
+    #         print()
+    #         newPos = value # The value arguement is the new position, a QPointF 
+    #         delta = newPos - self.pos() 
+    #         print('DELTA:', delta) 
+            
+    #         proposedPath = self.mapToScene(self.shape().translated(delta)) 
+    #         print('PROPOSEDPATH:', proposedPath)
+    #         collidingNets = self.scene().collidingNets(self.layers(), path = proposedPath) # 
+    #         print('COLLIDINGNETS:', collidingNets) 
+    #         self.resolveNets(collidingNets)
+    #         print('SELF.NET:', self.net())
+
+    #         if self.net() == 'unresolved':
+    #             # do NOT move the item here / fill item background red w/alpha.5
+    #             print('DO NOT MOVE THE ITEM HERE') # We accomplish this by returning item's current .pos(), rather than the proposed newPos
+    #             return super().itemChange(change, self.pos())
+                
+    #         elif self.net() != 'unresolved' : # None or '3V3' for example.  
+    #             # DO move the item here...  ONly not that simple. While a Via may simply move its child Items, a trace complicatedly moves its childITems, and two other lines, in specific ways ... Focus on vias for now        
+    #             return super().itemChange(change, newPos)            
+
+    #     return super().itemChange( change, value) # handle all other changes 
+
     def showLayer(self, layer): 
+        for childItem in self.childItems(): 
+            if not isinstance(childItem, LayerItem): 
+                continue 
+            if childItem.layer() == layer: 
+                childItem.show()
+                childItem.setZValue(1)
+                
         return None 
     def showLayers(self, layer):
         return None 
@@ -67,11 +131,11 @@ class LayersItem():
     def removeFromRtree(self):
         return None        
 
-    def connectedNets(self): 
-        return self._connectedNets 
+    # def connectedNets(self): 
+    #     return self._connectedNets 
     def nonNoneNets(self):
         return None 
-    def connectsTo(self, other): # -> True if self is connected to other. Connected as in electrically connected.
+    def connectsToItem(self, other): # -> True if self is connected to other. Connected as in electrically connected.
         return None 
     def updateRtree(self):
         return None 
@@ -117,7 +181,10 @@ class LayersItem():
     def sceneBounds(self):
         return self._sceneBounds 
     def setSceneBounds(self):
-        return None         
+        return None 
+        # r = self.boundingRect() mapped to scene 
+        
+        # return ( r.left(), r.top(), r.right() , r.bottom() ) 
     def buffer(self):
         return self._buffer
     def setBuffer(self):#, bufferDistance = None): 

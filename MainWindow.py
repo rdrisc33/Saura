@@ -3,7 +3,7 @@ from utils import *
 from PySide6.QtCore import QModelIndex
 from SchematicScene import SchematicScene
 from Schematic import Schematic
-from Board import Board
+from board import Board
 from PySide6.QtWidgets import QFileDialog
 from Spreadsheet import Spreadsheet
 from MyCreatePartDialog import CreatePartDialog
@@ -1401,8 +1401,11 @@ class MainWindow(QMainWindow):
 
 #Board Actions 
     # Add Trace 
-        self.add_trace_action = QAction('Add Trace' , self, triggered = self.add_trace_action_triggered)
-    #Create Gerber 
+        self.addTraceAction = QAction('Add Trace' , self, triggered = self.addTraceActionTriggered)
+    # Add Via
+        self.addViaAction = QAction('Add Via' ,self, triggered = self.onAddViaActionTriggered)
+
+    # Create Gerber 
         self.create_gerbers_action = QAction('Create Gerber Files', self, triggered = self.create_gerbers)
     # Exit 
         self.exit_action = QAction("Exit", self, triggered = self.close)
@@ -1414,14 +1417,17 @@ class MainWindow(QMainWindow):
     # Assign Footprint to Part
         self.assign_footprint_action = QAction("Assign Footprint to Part")
 
-    def add_trace_action_triggered(self):
-        print('add_trace_action_triggered')
-        if self.board.scene().mode() != self.board.scene().addTraceMode:
-            self.board.scene().setMode(self.board.scene().addTraceMode)
+    def addTraceActionTriggered(self):
+        print('addTraceActionTriggered')
+        if self.board.scene().mode() != Utils.BoardSceneMode.AddTraceMode:
+            self.board.scene().setMode(Utils.BoardSceneMode.AddTraceMode)
         else: 
-            self.board.scene().setMode(self.board.scene().normalMode)
+            self.board.scene().setMode(Utils.BoardSceneMode.NormalMode)
             self.board.scene().exitAddTraceMode() # Delete currently drawing scene._line & more if exiting
 
+
+    def onAddViaActionTriggered(self): 
+        self.board.scene().setMode(Utils.BoardSceneMode.AddViaMode)
     # def on_create_footprint_action_triggered(self):
     #     print('on_create_footprint_action_triggered')
     #     create_footprint_dialog = MyCreateDialog('footprint', self)
@@ -1492,8 +1498,8 @@ class MainWindow(QMainWindow):
         board_grid_spacing_options = [.1, .2 , .25, .5, 1, 2, 4, 5, 10]
         board_grid_spacing_combo = QComboBox()
         board_grid_spacing_combo.addItems(map(str , board_grid_spacing_options))
-        board_grid_spacing_combo.setCurrentText(str(self.board.scene().grid_spacing_mm))
-        board_grid_spacing_combo.currentTextChanged.connect(self.board.scene().set_grid_spacing_mm )
+        board_grid_spacing_combo.setCurrentText(str(self.board.scene().gridSpacingMm))
+        board_grid_spacing_combo.currentTextChanged.connect(self.board.scene().setGridSpacingMm )
         board_grid_spacing_label = QLabel('Grid Spacing')
         board_grid_spacing_widget = QWidget()
         board_grid_spacing_widget.setLayout(QHBoxLayout())
@@ -1521,10 +1527,11 @@ class MainWindow(QMainWindow):
         
         self.board_toolbar.addAction(self.show_schematic_action)
         self.board_toolbar.addAction(self.create_gerbers_action)
-        self.board_toolbar.addAction(self.add_trace_action)
+        self.board_toolbar.addAction(self.addTraceAction)
+        self.board_toolbar.addAction(self.addViaAction)
         self.board_toolbar.addWidget(self.trace_width_widget)
         self.board_toolbar.addWidget(board_grid_spacing_widget)
-        
+
 
 
 

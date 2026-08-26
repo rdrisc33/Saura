@@ -1,7 +1,7 @@
-from MyView import MyView 
+from View import View 
 from utils import * 
 
-class SchematicView(MyView):
+class SchematicView(View):
     # gridSpacing = Utils.schematicGridSpacing
     # tickSpacing = Utils.schematicTickSpacing 
     def __init__(self, *args, **kwargs):
