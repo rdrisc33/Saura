@@ -456,7 +456,9 @@ class BoardScene(QGraphicsScene):
         print('ADDTRACEMODEMOUSEPRESSEVENT')
         if self.ffline is not None: # If there is an existing ffline, we are done with it, add it to scene
             self.ffline.finalize() # Remove traces from scene if any are of 0 length
-
+        if self._line : 
+            self.removeItem(self._line)
+            
         # self.startPosition = self.snapToGrid(self.seeker.scenePos()) # ffline begins wherever seeker(not mouse) is 
         self.startPosition = self.seeker.scenePos() # ffline begins wherever seeker(not mouse) is 
         print()

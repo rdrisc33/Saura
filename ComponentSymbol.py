@@ -7,7 +7,7 @@ class ComponentSymbol(Symbol):
     def __init__(self, referenceDesignator, referenceNumber, file, *args, **kwargs): # 
         super().__init__(referenceDesignator=referenceDesignator, referenceNumber=referenceNumber, file=file, *args, **kwargs)
 
-        self.nameItem().hide() # default hide Symbol names( ex 'STM32C06F6T-R' , we don't want to see that on the schematic )
+        # self.nameItem().hide() # default hide Symbol names( ex 'STM32C06F6T-R' , we don't want to see that on the schematic ) # Except IF we hide symbol, then it will still be included in .childrenBOundingRect, so show for now 
         
         for pin in self.pins(): 
             pin.nameItem().show()

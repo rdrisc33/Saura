@@ -20,6 +20,7 @@ class Symbol(Reference, QGraphicsItem):
         self.setFile(file)
 
         self._nameItem = QGraphicsSimpleTextItem('', self) 
+        
         dpi = qApp.screens()[0].physicalDotsPerInch() # dpi relies on the qApp instance; you have to already have instantiated QApplication()
         kicad_symbol_scale_factor = dpi * Utils.grid4mm / Utils.fileGridStep  # scale_factor = 1/1.27 * 50 
         self.setScale(kicad_symbol_scale_factor) # scale item so it fits on the scene's grid
@@ -36,7 +37,21 @@ class Symbol(Reference, QGraphicsItem):
 
 
     def boundingRect(self):
-        return self.childrenBoundingRect() or QRectF(0,0,0,0)
+        return self.childrenBoundingRect() or QRectF(0,0,0,0) # Note .cBR will include .bR of hidden childrenItems. 
+
+    def shape(self): # the default of returning a rect based on boundingRect dnw bc a Symbol has simple text items, and pins, and neither of these should be part of hit area, but they are in the .bR
+        path = QPainterPath()
+        for child in self.childItems(): # Collect paths of all childItems, except for pins, text, and terminals 
+            if not isinstance(child, (PinItem, QGraphicsSimpleTextItem, TerminalItem)): 
+                print('CHILD:', type(child))
+                path.addPath(child.shape())
+        r = path.boundingRect()
+        print('R:', r)
+        p = QPainterPath()
+        p.addRect(r)
+        print('P:', p)
+        return p
+    
 
     def paint(self, painter, option, widget):
        pass# Child Items will draw themselves
@@ -125,15 +140,12 @@ class Symbol(Reference, QGraphicsItem):
             if not (int(u) in self.units): # Goddam be careful with your boolean assigments
                 break  # Stop drawing 
             
-            
             for pin_elem in graphic_elem.findall('pin'):
                 pin = PinItem.fromElem(pin_elem , self)
                 self.pins().append(pin)
                 pin.nameItem().hide() 
-                pin.numberItem().hide()
+                pin.numberItem().hide() # Base symbol hides pin info bc netSymbols should have those hidden TODO move this to netSymbols
                 
-                
-            # self.draw_pins(graphic_elem)
             self.draw_polylines(graphic_elem)
             self.draw_rectangles(graphic_elem)
 
@@ -194,12 +206,14 @@ class PinItem( QGraphicsItem):
         self._nameItem = QGraphicsSimpleTextItem(name, parent) # appears at origin of MySymbolItem-- not line_item-- oh bc line_item uses parent coordinates, &child items are placed at origin of parent
 
         # LINE
-        self.lineItem = QGraphicsLineItem(x1, y1, x2, y2, parent )  # Create each pin as a QGraphicsself.lineItem under parent=self.
+        # self.lineItem = QGraphicsLineItem(x1, y1, x2, y2, parent )  # Create each pin as a QGraphicsself.lineItem under parent=parent. (While this is OK, if we parent under PinItem, we can take advantage of that for our .shape())
+        self.lineItem = QGraphicsLineItem(x1, y1, x2, y2, self )  # Create each pin as a QGraphicsself.lineItem under parent=self.Note most others are parented under parent=parent. This is because we want PinItem objects which are NOT to be included in our .shape, to be housed under PinItem, while 
         self.lineItem.setPen(QPen(Qt.blue, 0))
             
         # TERMINAL
         r = self.terminalRadius
-        self._terminalItem = TerminalItem(QRectF(-r,-r, 2*r, 2*r) , parent) # Could parent=line_item but a flat hierarchy is more useful
+        # self._terminalItem = TerminalItem(QRectF(-r,-r, 2*r, 2*r) , parent) # Could parent=line_item but a flat hierarchy is more useful. Sign. But then again, no, 
+        self._terminalItem = TerminalItem(QRectF(-r,-r, 2*r, 2*r) , self) # Could parent=line_item but a flat hierarchy is more useful. Sign. But then again, no, 
         self._terminalItem.setPos(x1,y1) # Note that (pin (at xy) ) according to kicad standard defines connection point (terminal) of the pin: https://dev-docs.kicad.org/en/file-formats/sexpr-intro/index.html#_symbol_graphic_items
         # self._terminals[(x1,y1)] = {'priority': Utils.NetPriority.Pin, 'number':number} # Track position of all terminals 
         self._terminalItem.setPen(QPen(Qt.red, 0)) # keep the left& right topmost pins @same location
@@ -209,7 +223,7 @@ class PinItem( QGraphicsItem):
         #     # print('SELF.OFFSET:', self.offset)
         # NAME 
         self._nameItem.setFont(self.font)
-        self._nameItem.setBrush(QBrush(Qt.black)) # Text brush is text color. Text 'pen' is an outline around text((not needed nor wanted; visually cocnfusing)
+        # self._nameItem.setBrush(QBrush(Qt.black)) Default brush is solid black. Text brush is text color. Text 'pen' is an outline around text((not needed nor wanted; visually cocnfusing)
 
         #NUMBER
         self._numberItem = QGraphicsSimpleTextItem(number, parent)

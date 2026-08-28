@@ -23,9 +23,9 @@ class Ffline:
         self.scene().addItem(self._traceA)
         self.scene().addItem(self._traceB)
         
-        self._lineItem = QGraphicsLineItem(QLineF(here, there) ) # Debugging. A dashed line item going start to finish
-        self._lineItem.setPen(QPen(Qt.black, 0 , s = Qt.PenStyle.DashLine))
-        self.scene().addItem(self._lineItem)
+        # self._lineItem = QGraphicsLineItem(QLineF(here, there) ) # Debugging. A dashed line item going start to finish
+        # self._lineItem.setPen(QPen(Qt.black, 0 , s = Qt.PenStyle.DashLine))
+        # self.scene().addItem(self._lineItem)
 
         self.setPoints(here, there)
         
@@ -89,8 +89,8 @@ class Ffline:
 
     def setPoints(self, here , there): # Draw ffline from here to there, if no collisions. 
         # print('SETTING FFLINE POINTS:')
-        self._lineItem.setLine(QLineF(here, there))
-        print()
+        # self._lineItem.setLine(QLineF(here, there))
+        # print()
         if here == there: 
             # print('HERE==THERE; RETURNING')
             return # Both self.linea/b will be null
