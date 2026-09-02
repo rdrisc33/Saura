@@ -3,6 +3,7 @@ from utils import *
 from Reference import Reference 
 from LayersItem import LayersItem
 from CopperItemContainer import CopperItemContainer
+from Net import Net
 # from Component import Component
 
 
@@ -61,7 +62,7 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
         self.offset = event.scenePos() - self.scenePos()
         super().mousePressEvent(event)
         
-    def mouseMoveEvent(self, event): #QGI.mmE moves all child items, so would call super() for that-- if we didn't need custom snapping behavior. And, still have to update rtrees & sceneBounds & sceneTerminals etc of all descendant Items # Note that when parent footprint gets a moveEvent, parent footprint does NOT send that event to children# QGI.mmE moves all decendant items,but we need custom snapping behavior, so can't just call super(), AND still have to update rtrees & bounds of all descendant Items
+    def mouseMoveEvent(self, event): #QGI.mmE default moves all child items, so would call super() for that-- if we didn't need custom snapping behavior. And, still have to update rtrees & sceneBounds & sceneTerminals etc of all descendant Items # Note that when parent footprint gets a moveEvent, parent footprint does NOT send that event to children# QGI.mmE moves all decendant items,but we need custom snapping behavior, so can't just call super(), AND still have to update rtrees & bounds of all descendant Items
         # print()
         # print('COPPERITEMCONTAINER.MME')
         self.setPos(self.scene().snapToGrid(event.scenePos() - self.offset))
@@ -174,8 +175,10 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
             #         self.addCopperItem(layer, pad )
             self.pads().append(pad)# Note if p is not referenced by anything, p will be garbage collected; deallocated; deleted. When p is deallocated, its childrenItems are, too, so no more pads. To avoid this, maintain a reference to p; put p in a list
             pad.setZValue(1) 
-            
-            pad.setNet(pad.parentItem().reference() + '_' + pad.name()) # Ex 'C3_1' 
+            net = Net()
+            net.setNet(pad.parentItem().reference() + '_' + pad.name())# Ex 'C3_1' 
+            net.setPriority(Utils.NetPriority.Pad)
+            pad.setNet(net)
 
                 
         for line in line_elems: 
@@ -377,7 +380,7 @@ class PadBase():
 class Pad(PadBase, CopperItemContainer, QGraphicsItem):# CopperItem, PadBase):
 
     def __init__(self, elem, parent): # elem: xml describing this pad. parent: the Footprint to which this pad belongs 
-        
+
         layers = elem.get('layers')
         if layers == '': 
             layers = "F.Cu, F.Paste, F.Mask"
@@ -386,6 +389,7 @@ class Pad(PadBase, CopperItemContainer, QGraphicsItem):# CopperItem, PadBase):
         self.setLayers(layers)
             
         super().__init__( elem=elem, parent=parent, layers = layers) 
+        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton) # Turn off accepted mouse buttons so that Pads cannot get mouseMoveEvents;cannot become mouse grabber; cannot 'eat up' the mouse events for the pad's footprint
         self._terminal          = None 
         self._sceneTerminal     = None 
         self._terminals         = None 
@@ -404,6 +408,7 @@ class Pad(PadBase, CopperItemContainer, QGraphicsItem):# CopperItem, PadBase):
         self.setupNameItem()
         
         # print('LAYER:', layer)
+
 
 
     def setupNameItem(self ):
@@ -464,18 +469,7 @@ class Pad(PadBase, CopperItemContainer, QGraphicsItem):# CopperItem, PadBase):
     #     expandedPath = path.united(strokerPath) #Unite the fillable areas of the paths into one consolidated path
     #     self._buffer = expandedPath.toFillPolygon() # convert to a QPolygonF. 
 
-    def snap(self, seeker, net, layer):
-            
-        print('PADITEM.SNAP')
-        if self.net() == net or (self.net() == None) or (net == None):
-            # seeker.setPos(self.scenePos()) NO BAD the pad's .scenePos is offset from its centroid.
-            print('SELF.TERMINAL:', self.terminal())
-            seeker.setPos(self.terminal()[0:2]) # terminal() -> xylayer
-                
-            if self.net() == None: 
-                self.setNet(net) 
-            elif net == None: 
-                net = self.net() 
+
 
 #MRO: padItem, CopperItem, BoardItem, PadBase, QGI, object
 class PadItem(LayerItem, PadBase, QGraphicsItem):

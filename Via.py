@@ -1,6 +1,7 @@
 from utils import * 
 from CopperItemContainer import CopperItemContainer 
 from LayersItem import LayersItem
+from Net import Net 
 
 class ViaBase():#QGraphicsItem):
     def __init__(self, outerDiameter, innerDiameter, clearance, **kwargs):#,parent=None):
@@ -72,7 +73,7 @@ class ViaItem(LayerItem, ViaBase, QGraphicsItem):
 # class Via(LayersContainer, ViaBase): # A Via is made up of several childItem viaItems, one viaItem per layer. 
 class Via(ViaBase, CopperItemContainer, QGraphicsItem):
     
-    def __init__(self,  outerDiameter, innerDiameter, clearance=Utils.viaClearance, layers=Utils.CopperLayers, net=None): # layers : A via may exist on all or some layers, default all # clearance: default 1mm
+    def __init__(self,  outerDiameter, innerDiameter, clearance=Utils.viaClearance, layers=Utils.CopperLayers, net=Net()): # layers : A via may exist on all or some layers, default all # clearance: default 1mm
         # print('VIA.MRO:', Via.mro())
         super().__init__(outerDiameter=outerDiameter, innerDiameter=innerDiameter, clearance=clearance, layers = layers)
 
@@ -122,9 +123,8 @@ class Via(ViaBase, CopperItemContainer, QGraphicsItem):
         if (self.resolvedNet == 'unresolved'): # Then revert
             self.setPos(self._previousPos) 
         
-        elif ( (self.net() is not None) and (self.net() != self.resolvedNet ) ) : # then revert
+        elif ( (self.net() is not None) and (self.net() != self.resolvedNet ) ) : # If nets do not match, then revert
             self.setPos(self._previousPos)
-            return False
 
         else: # If we're staying here:
             self.setSceneTerminal()

@@ -12,14 +12,9 @@ class ComponentSymbol(Symbol):
         for pin in self.pins(): 
             pin.nameItem().show()
             pin.numberItem().show()
-
-    # def terminals(self): # IDT we ever need terminals in local coords....
-    #     return self._terminals 
-    # def setTerminals(self):
-    #     self._terminals = []
-    #     for pin in self.pins(): 
-    #         self._terminals.append(self.term)
-        
+            
+        moveShapePathItem = QGraphicsPathItem(self.moveShape() , self) # Make visible the move shape by putting it in a QGPI parented on self. Make pen red 0 width
+        moveShapePathItem.setPen(QPen(Qt.red, 0))
 
     def sceneTerminals(self):
         # keys = list(map(QPointF, [t[0] for t in self._sceneTerminals] , [ t[1] for t in self._sceneTerminals]))# Note self_sceneTerminals is keyed on tuples, not QPointF, use map() to revert back to QPointF

@@ -8,7 +8,7 @@ class LayersItem():
     def __init__(self, layers, *args, **kwargs):
         # print('BOARDITEM.KWARGS:', kwargs)
         # print('BOARDITEM.ARGS:', args)
-        super().__init__(*args, **kwargs) # TypeError: ViaBase.__init__() missing 1 required positional argument: 'clearance'
+        super().__init__(*args, **kwargs) 
 
         
         # self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges) # Must enable to receive item position changes. 
@@ -40,15 +40,19 @@ class LayersItem():
         self._offset = self.scenePos() - event.scenePos()
 
     def mouseMoveEvent(self, event): 
-        self._previousPos = self.scenePos()     #Save the previous position
-        self._previousNet = self.net()          #Save the previous net 
+        if (event.buttons() & Qt.MouseButton.LeftButton ) and (self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsSelectable): # Only move if the item is selectable, and the mouse left button is clicked. https://github.com/qt/qtbase/blob/dev/src/widgets/graphicsview/qgraphicsitem.cpp if ((event->buttons() & Qt::LeftButton) && (flags() & ItemIsMovable)) {
+            print('LAYERSITEM.MOUSEMOVEEVENT')
+            self._previousPos = self.scenePos()     #Save the previous position
+            self._previousNet = self.net()          #Save the previous net 
 
-        self.setPos(self.scene().snapToGrid(event.scenePos() + self._offset))
-        nets = self.nets() 
-        self.resolveNets(nets)
-        if self.net() == 'unresolved': 
-            self.setPos(self._previousPos)
-            self.setNet(self._previousNet)
+            self.setPos(self.scene().snapToGrid(event.scenePos() + self._offset))
+            nets = self.nets() 
+            self.resolveNets(nets)
+            if self.net() == 'unresolved': 
+                self.setPos(self._previousPos)
+                self.setNet(self._previousNet)
+        else: 
+            event.ignore() # This seems to do nothing 
         
 
     def nets(self): # collects the net of any items which collide with this item.

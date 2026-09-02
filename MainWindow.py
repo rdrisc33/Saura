@@ -36,6 +36,8 @@ import numpy as np
 from scipy.sparse import coo_array
 from scipy.spatial.distance import squareform, pdist
 import matplotlib.pyplot as plt
+
+from Net import Net 
         
 
 class MainWindow(QMainWindow):
@@ -116,7 +118,6 @@ class MainWindow(QMainWindow):
         print('setVeinNets')
         
         highestPriority = max(vein)# ValueError: max() iterable argument is empty
-        print('VEIN:', vein)
         print('HIGHESTPRIORITY:', highestPriority)
         
         if highestPriority == Utils.SchematicItemKinds.Wire.value: # .value!!
@@ -133,7 +134,9 @@ class MainWindow(QMainWindow):
             
             pins = sorted(pins, key = lambda pin: pin.name()+str(pin.number())) # pin.id is unique integer assigned during brdScene.addItem. TODO: confirm pin.id is deterministic way for sorting pins. Could also sort by pin name ('C3-1') since we need it for the net anyway
             pin = pins[0]
-            net = pin.parentItem().reference() + '_' + pin.number()
+            net = Net()
+            net.setNet( pin.parentItem().reference() + '_' + pin.number())
+            net.setPriority(Utils.NetPriority.Pad) # Note schematic PIN links to a board PAD 
             vein['nets'].append(net)
 
         elif highestPriority == Utils.SchematicItemKinds.LocalLabel.value: 
@@ -183,6 +186,7 @@ class MainWindow(QMainWindow):
         xYLayerQueue = [xYLayer]
         visitedItems = set()
         visitedxYLayers = set()
+        propagatedItems=  set()
         while xYLayerQueue: 
             xYLayer = xYLayerQueue.pop(0)
             visitedxYLayers.add(xYLayer)
@@ -193,18 +197,21 @@ class MainWindow(QMainWindow):
                 for hitItem2 in self.queryRtrees(item=hitItem, layer=xYLayer[2]):
                     if hitItem2 in visitedItems: continue 
                     elif hitItem2 == hitItem: continue 
-                    if hitItem2.connectsTo(hitItem):
-                        # xYLayerQueue.extend(hitItem2.sceneTerminals()) # not enough
+                    if hitItem2.connectsToItem(hitItem): # Note .connectsToItem() has no layer checking; structure of .propagations() is such that we already know hitItem & hitItem2 are on the same layer 
+                        propagatedItems.add(hitItem)
+                        propagatedItems.add(hitItem2)
                         for layer in hitItem2.copperLayers():
                             for terminal in hitItem2.sceneTerminals():
-                                
-                                xYLayerQueue.append( (*terminal.toTuple(), layer) )
+                                xYLayer = (*terminal.toTuple(), layer)
+                                if (xYLayer not in visitedxYLayers) and (xYLayer not in xYLayerQueue): 
+                                    xYLayerQueue.append( xYLayer )
+                                    
                 # if not isinstance(hitItem ,FootprintItem):
                 #     if hitItem.net() != None and  hitItem.net() != net: 
                 #         raise ValueError(f'HITITEM.NET(): {hitItem.net()} AND TRACE NET: {net} DO NOT MATCH')
                 #     hitItem.setNet(net) # Set net on every BoardItem, (but not here-- done before) so that brdScene knows net info w/o relying on MW.nets, which it cannot ez access.  
         print(f'xYLayer {startxYLayer} PROPAGATED TO { len(visitedxYLayers) } POINTS:', list(visitedxYLayers)) 
-        return list(visitedxYLayers) 
+        return list(visitedxYLayers) , propagatedItems
         
     def queryRtrees(self, xYLayer=None , item=None, bounds=None, layer=None ): 
         """Query rtree for either pos, item&layer, or bounds&layer.
@@ -278,7 +285,7 @@ class MainWindow(QMainWindow):
             
             if any(pos in subgraph for subgraph in G):
                 continue
-            propagations = self.propagations(pos, net)
+            propagations = self.propagations(pos, net)[0]
             G.append(propagations) #  Accumulate all pad, trace, via, and zone terminals connected to pads. L8r, G used to disallow ratsnest lines intra-subgraph. Bc connected items dont get a ratsnest line.
 
         return G
@@ -601,7 +608,7 @@ class MainWindow(QMainWindow):
                 
                 # for item in self.schematic.scene().items(pos): #  Usage of WHILE loops not for loops, so as to be able to add split/merged wires a
                     print('ITEM IS:', type(item))
-                    if isinstance(item, Symbol): # Symbol includes ComponentSymbol, NetSymbol, label 
+                    if isinstance(item, Symbol): # Symbol includes ComponentSymbol, NetSymbol, Label 
                         # sceneTerminals = item.sceneTerminals() # For ComponentSymbol, sceneTerminals
                         if any(otherTerminal == pos for otherTerminal in item.sceneTerminals()): # If there is a symbol terminal at pos, we do not want to merge adjacent wires
                             _merge = False 
@@ -614,8 +621,7 @@ class MainWindow(QMainWindow):
                             # print('VEIN:', vein)
                             if isinstance(item, NetSymbol):
                                 vein[Utils.SchematicItemKinds.NetSymbol.value].append(item)
-                            if isinstance(item, LocalLabel):
-                                vein[Utils.SchematicItemKinds.LocalLabel.value].append(item)
+
 
                     if isinstance(item, WireItem): 
                         print('WIRE.SCENETERMINALS():', item.sceneTerminals())
@@ -669,8 +675,10 @@ class MainWindow(QMainWindow):
                         
                         # Reaching this point means wireNormal, and we want to add wire to our vein 
                         print('WIRENORMAL')
-                        vein[Utils.SchematicItemKinds.Wire.value].append(wire)
-
+                        if not (wire in vein[Utils.SchematicItemKinds.Wire.value]): 
+                            vein[Utils.SchematicItemKinds.Wire.value].append(wire)
+                        print()
+                        print('VEIN:', len(vein[Utils.SchematicItemKinds.Wire.value]), vein)
                         # if any(terminal == pos for terminal in wire.sceneTerminals()): # Then this wire is connected to this pos. 
                         if wire.veinId() is not None: 
                             self.connectedVeins.add(wire.veinId())
@@ -702,7 +710,6 @@ class MainWindow(QMainWindow):
                             # data.append(dist)
                         
             print('NORMALIZEWIRINGDONE')
-            print()
             # return points , row, col, data
             return None
 ### BEGIN UPDATEVEINS ###
@@ -727,15 +734,12 @@ class MainWindow(QMainWindow):
                 for line in ratsnest:  # Remove from scene each existing line in ratsnest, then, clear ratsnest
                     self.board.scene().removeItem(line)
                 self.ratsnests[net2Rm] = [] 
-
-
         
         veinId = max(self.veins) + 1 
         print('VEINID:', veinId)
         # Put vein in veins, nets, and ratsnest
         self.veins[veinId] = vein 
 
-        
         self.setVeinNets(vein) 
         
         if len(vein['nets']) == 1: # Then no DRC error; its good this vein has one net.
@@ -749,7 +753,8 @@ class MainWindow(QMainWindow):
         print('NETS:', nets)
         
         if not nets: 
-            net = None 
+            # net = None
+            net = Net() 
             
         if len(nets) == 1: 
             net = nets[0]
@@ -803,419 +808,6 @@ class MainWindow(QMainWindow):
         self.updateRatsnest(net)
         
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#         def wire1SplitBySymbolOrLabel(): # Split wire1 if a symbol or label terminal is on wire1  
-#             symbolsAndLabels    = [ item for item in self.schematic.scene().collidingItems(wire1) if isinstance(item, (ComponentSymbol, NetSymbol, Label) ) ]  # All symbols and labels intersecting wire1
-#             print('SYMBOLSANDLABELS:', symbolsAndLabels)
-#             # print('P1:', p1.toPoint()) 
-#             # print('P2:', p2.toPoint())
-#             for symbolOrLabel in symbolsAndLabels: # If symbolOrLabel terminal is ON wire1, then, split wire @ terminal, ignore cases where terminals exactly match; adjacency needs no split
-
-#                 print('SYMBOLORLABEL:', symbolOrLabel)
-#                 print('SOL.SCENETERMINALS:', symbolOrLabel.sceneTerminals())
-
-#                 for otherTerminalPos in symbolOrLabel.sceneTerminals():
-#                     # otherTerminalPos = QPointF(*otherTerminalPos)
-
-#                     if wire1.contains(otherTerminalPos): #Just bc schematicItem intersects wire, dont mean its terminals do. Check which schematicItem terminals intersect, ignoring terminals coincident with wire terminals #TODO change this to inbound collinear test? in-segment intersection test?
-
-#                         if otherTerminalPos == p1 or otherTerminalPos == p2: 
-#                             continue # if symbol or label terminates on wire terminal, no need to split
-#                         print('OTHERTERMINAL:', otherTerminalPos.toPoint()) # OTHERTERMINAL: (PySide6.QtCore.QPointF(232.186047, 482.232558), <SchematicSymbolItem.PinItem(0x171a1651980, parent=0x171a16513c0, pos=0,0) at 0x00000171A07C0080>)
-
-#                         orient = Utils.threePointOrientation(p1, p2, otherTerminalPos)        
-#                         if orient == 0: # Then pos collinear with p1p2 . Check if otherTerminalPos within segment p1p2
-#                             xOverlap = (p1.x(), p2.x(), otherTerminalPos.x(), otherTerminalPos.x())
-#                             yOverlap = (p1.y() , p2.y(), otherTerminalPos.y(), otherTerminalPos.y()) 
-#                             if xOverlap and yOverlap: # then split this wire 
-#                                 split1 = WireItem(QLineF(p1, otherTerminalPos))
-#                                 split2 = WireItem(QLineF(otherTerminalPos, p2))
-#                                 self.schematic.scene().removeItem(wire1)
-#                                 self.schematic.scene().addItem(split1)
-#                                 self.schematic.scene().addItem(split2)
-#                                 wires.append(split1)
-#                                 # wires.append(split2) Note we do NOT add split2 to wires when splitting by symbolOrLabel otherTerminalPos, bc split2 does not touch pos. split2 is on the scene, so it will be visited, but not 
-#                                 print('WIRE1 SPLIT BY SYMBOL OR LABEL')
-
-#                                 return True
-#             return False   
-
-#         def normalizeWires(): 
-    
-#             def rangesOverlap(a1,a2 , b1,b2) : 
-#                 # First, make sure that ranges are 'well ordered':  n1 < n2 
-#                 if a1 > a2: 
-#                     a1, a2 = a2, a1 # Switch 1&2
-#                 if b1 > b2: 
-#                     b1, b2 = b2, b1
-#                 # Its a mindfuck, but ranges overlap if the start of one range is <= end of the other AND vice versa
-#                 return a1 <= b2 and b1 <= a2
-            
-#             def junction(wire1, wire2): 
-#                 """Returns a tuple which differs depending on junction type between wire1 and wire2. 
-#                 Zeroeth index is junctionType, a Utils.JunctionType. 
-#                 If junctionType is Utils.JunctionType.Tee, this function will return a 2-tuple (junctionType, zero) where zero is orient1, orient2, orient3, or orient4, whichever one was zero. See three point orientation tutorial.
-#                 If junctionType is any other Utils.JunctionType, this function will return a 1-tuple (junctionType)
-#                 Note (5) is an int while (5,) is a tuple. This used in this functions return statements """
-                
-#                 orient1 = Utils.threePointOrientation(p1,p2,p3) 
-#                 orient2 = Utils.threePointOrientation(p1,p2,p4)
-#                 orient3 = Utils.threePointOrientation(p3,p4,p1)
-#                 orient4 = Utils.threePointOrientation(p3,p4,p2)
-                
-#                 numZeroes = [orient1, orient2, orient3, orient4].count(0)
-                
-#                 if numZeroes == 1: # Then this is a Tee intersection. Will split, if no 'L' @ split point 
-#                     zero = [orient1, orient2, orient3, orient4].index(0) # Find the index of the single zero. We can tell how we should split based on which orient is 0.
-#                     return ( Utils.JunctionType.Tee , zero )
-                
-#                 elif numZeroes == 2: # Then this is a L intersection. No action.
-#                     return ( Utils.JunctionType.L , ) 
-                
-#                 elif numZeroes == 4: #Then these lines are collinear. Check if they are adjacent collinear, or overlapping collinear, or nonintersecting
-#                     if p1 == p3 or p1 == p4 or p2 == p3 or p2 == p4: # Then these are adjacent collinear. 
-#                         return ( Utils.JunctionType.CollinearAdjacent , )
-#                     else: 
-#                         x1, y1 = p1.toTuple() 
-#                         x2, y2 = p2.toTuple()
-#                         x3, y3 = p3.toTuple()
-#                         x4, y4 = p4.toTuple()
-                
-#                         # Test if X range overlaps: 
-#                         xOverlap = rangesOverlap(x1, x2 , x3 , x4)
-#                         yOverlap =  rangesOverlap(y1,y2 , y3, y4) 
-#                         if xOverlap or yOverlap: # If x-rangesoverlap OR y-ranges overlap, these lines overlap
-#                             return ( Utils.JunctionType.CollinearOverlap ,)
-                        
-#                 elif orient1 != orient2 and orient3 != orient4: # Then these lines are intersecting. Note no action needed here(no split. intersecting lines in EDA SW are supposed to not connect
-#                     return ( Utils.JunctionType.Intersecting , )
-                
-#                 return ( Utils.JunctionType.NonIntersecting , )
-            
-#             def merge(): # merge does not take self as merge is a local function within normalizeWires
-#                 print('MERGE')
-#                 self.schematic.scene().removeItem(wire1)
-#                 self.schematic.scene().removeItem(wire2)
-                
-#                 x1, y1 = p1.toTuple() 
-#                 x2, y2 = p2.toTuple()
-#                 x3, y3 = p3.toTuple()
-#                 x4, y4 = p4.toTuple()
-                
-#                 xMax = max(x1, x2 , x3 , x4) 
-#                 yMax = max(y1, y2, y3, y4)
-#                 xMin = min(x1, x2 , x3 , x4) 
-#                 yMin = min(y1, y2, y3, y4)
-                
-#                 merged = WireItem(xMin, yMin, xMax, yMax) # Note this works bc previous checks ensure we're working with collinear lines & scene only allows hor/vert lines\
-#                 merged.setPen(QPen(Qt.darkCyan, 1 ))
-                
-#                 self.schematic.scene().addItem(merged)
-#                 wires.append(merged)
-#                 # There are already no mentions of wire1/2 anywhere, either already popped or not yet added(?)
-#                 if not merged.line().p1()  in visitedPositions:
-#                     positionQueue.append(merged.line().p1())
-#                 if not merged.line().p2()  in visitedPositions:
-#                     positionQueue.append(merged.line().p2())
-
-#             def split(junction):
-#                 print('SPLIT')
-#                 # pass # Know how to split wire by which orient1234 is 0. 
-#                 junctionId = junction[1]
-#                 if junctionId == 0: # Split line(p1,p2) @ p3. Remove wire1 from scene
-#                     split1 = (p1, p3) 
-#                     split2 = (p3, p2)
-#                     self.schematic.scene().removeItem(wire1)
-                    
-#                 elif junctionId == 1: # Split line(p1,p2) @ p4 
-#                     split1= (p1, p4) 
-#                     split2 = (p4, p2) 
-#                     self.schematic.scene().removeItem(wire1)
-#                 elif junctionId == 2: # Split line(p3, p4) @ p1 
-#                     split1 = (p3, p1) 
-#                     split2 = (p1, p4) 
-#                     self.schematic.scene().removeItem(wire2)
-#                 elif junctionId == 3: # Split line(p3, p4) @ p2
-#                     split1 = (p3, p2) 
-#                     split2 = (p2, p4)
-#                     self.schematic.scene().removeItem(wire2)
-
-#                 split1 = QLineF(*split1)
-#                 split2 = QLineF(*split2)
-                
-#                 # if not split1.p1() in visitedPositions: # Dont think this good
-#                 #     visitedPositions.append(split1.p1())
-                    
-#                 # if not split2.p2() in visitedPositions: 
-#                 #     visitedPositions.append(split2.p2())
-                    
-#                 split1 = WireItem(split1)
-#                 split2 = WireItem(split2)
-                
-#                 # Colors for debugging
-#                 split1.setPen(QPen(Qt.magenta, 1))
-#                 split2.setPen(QPen(Qt.darkMagenta, 1))
-
-#                 # self.schematic.scene().removeItem(wire1) 
-#                 self.schematic.scene().addItem(split1)
-#                 self.schematic.scene().addItem(split2)
-                
-
-            
-#             # def checkLs(pos): # Deprecated for checkOtherTerminals
-#             #     hitWires = [ hitWire for hitWire in self.schematic.scene().items(pos) if isinstance(hitWire, WireItem) ] 
-                
-#             #     for hitWire in hitWires: 
-#             #         if hitWire == wire1 or hitWire == wire2: 
-#             #             continue 
-#             #         if junction(wire1, hitWire)[0] == Utils.JunctionType.L:
-#             #             return True
-#             #     return False 
-            
-#             def checkOtherTerminals(pos): # Check if there is either an L-junction or a non-Wire terminal, like a label or ComponentSymbol terminal, at pos. If there is, then we would not want to merge collinear adjacent wires at pos. 
-#                 hitItems = [item for item in self.schematic.scene().items(pos) if isinstance(item, (WireItem, Symbol))]
-#                 for hitItem in hitItems: 
-#                     if hitItem == wire1 or hitItem == wire2: 
-#                         continue 
-#                     if isinstance(hitItem, WireItem):
-#                         if junction(wire1, hitItem)[0] == Utils.JunctionType.L:
-#                             return True 
-#                     for otherTerminalPos in hitItem.sceneTerminals(): 
-#                         if otherTerminalPos == pos:
-#                             return True
-                            
-#                 # hitWires = [ hitItem for hitItem in hitItems if isinstance(hitItem, WireItem) ]
-#                 # hitSymbolsAndLabels = [ hitItem for hitItem in hitItems if isinstance(hitItem, )]
-            
-#             def processJunction(junction):
-#                 wire1Normal = True
-                
-#                 junctionType = junction[0] 
-                
-#                 if  junctionType == Utils.JunctionType.Tee: 
-#                     split(junction)
-#                     wire1Normal = False
-#                 elif junctionType == Utils.JunctionType.CollinearOverlap: 
-#                     merge()
-#                     wire1Normal = False 
-#                 elif junctionType == Utils.JunctionType.CollinearAdjacent:# Check for L intersections @adjacent point. if None, merge 
-#                     if p1 == p3 or p1 == p4:
-#                         adjacentPoint = p1
-#                     if p2==p3 or p2==p4: 
-#                         adjacentPoint = p2 
-                
-#                     # if not checkLs(adjacentPoint) and not checkTerminals(adjacentPoint):
-#                     if not checkOtherTerminals(adjacentPoint):
-#                         merge()
-#                         wire1Normal = False 
-#                 return wire1Normal   
-                
-#             print('NORMALIZEWIRES')
-#             junc = Utils.junction(wire1.line() , wire2.line())
-#             print('JUNC:', junc)
-#             wire1Normal = processJunction(junc)
-#             return wire1Normal
-
-#         # def wirePropagations(pos): 
-#         visitedPositions = [] 
-#         visitedWires = []     
-#         visitedSymbolsAndLabels = []
-#         positionQueue = [pos] # To start, we know we want to look at pos. As we go, we'll add the distal coordinate of connected wires, expanding the vein
-#         self.connectedVeins = {}       
-#         vein = defaultdict(list)              
-
-#         while positionQueue: 
-#             pos = positionQueue.pop(0)
-#             if pos in visitedPositions: continue
-#             visitedPositions.append(pos) 
-#             print()
-#             print('POS:', pos.toPoint())
-#             # items = self.queryRtrees(pos)
-#             wires = [ item for item in self.schematic.scene().items(pos) if isinstance(item,  WireItem                 ) ]  # All wires intersecting pos
-#             print('WIRES:', wires)
-#             while wires: # inf refursion when lay wire over existing wire
-#                 print('WHILE WIRES')
-#                 print('WIRES:', wires)
-#                 wire1 = wires.pop(0) 
-#                 wire1Normal = True 
-#                 if wire1 in visitedWires: 
-#                     continue
-#                 p1 = wire1.p1()
-#                 p2 = wire1.p2()
-#                 if pos == p1: 
-#                     distal = p2 
-#                 elif pos == p2: 
-#                     distal = p1 
-#                 print('DISTAL:', distal.toPoint())
-#                 # wire1: may be split by a connecting symbol or label
-#                 if wire1SplitBySymbolOrLabel(): 
-#                     continue # wire was split, no longer exists, move on
-#                 hitWires = [item for item in self.schematic.scene().collidingItems(wire1) if isinstance(item, WireItem)]
-
-#                 print('HITWIRES:', len(hitWires), hitWires)
-                
-#                 while hitWires: 
-#                     print('WHILE HITWIRES')
-#                     wire2 = hitWires.pop(0)
-#                     if wire2 in visitedWires : 
-#                         continue
-#                     if wire2 == wire1:
-#                         continue 
-
-#                     p3 = wire2.p1()
-#                     p4 = wire2.p2()   
-                    
-#                     wire1Normal = normalizeWires() # 'Normalize' wire1 and wire2: merge or split, if needed. If wire1 was abnormal -> False. If wire1 was normal -> True
-                    
-#                     if not wire1Normal: 
-                        
-#                         break # If wire1 was split or merged; abnormal, wire1 was no good for thevein, ditch all hitWires w/ break, and move to the next wire1 w/ continue
-        
-#                 if not wire1Normal: 
-#                     print('ONTOTHENEXTWIRE1')
-#                     continue # IF wire1 is abnormal, then it no longer exists, so stop processing it
-                
-#                 if wire1Normal:
-                    
-#                     vein[Utils.SchematicItemKinds.Wire.value].append(wire1) # wire was checked and was neither splittable nor mergeable; normal. Lets add it to the vein
-#                     positionQueue.append(distal)
-#                     visitedWires.append(wire1) 
-
-#                     # print('POSQ:', positionQueue)
-#                     if wire1.veinId is not None:
-#                         self.connectedVeins.add(wire1.veinId)
-# # collect pins/labels of normalized wires
-#                     symbolsAndLabels    = [ item for item in self.schematic.scene().collidingItems(wire1) if isinstance(item, (ComponentSymbol, NetSymbol, Label) ) ]  # All symbols and labels intersecting wire1
-#                     print('SYMBOLSANDLABELS:', symbolsAndLabels)
-#                     for symbolOrLabel in symbolsAndLabels: 
-#                         # for otherTerminalPos, pin in symbolOrLabel.sceneTerminals().items():
-#                         # for otherTerminalPos in symbolOrLabel.sceneTerminals():
-#                         for pin in symbolOrLabel.pins(): 
-                            
-#                             otherTerminalPos = pin.sceneTerminal()
-                        
-#                             # otherTerminalPos = QPointF(*otherTerminalPos) # QPoint is unhashable; cannot be dict keys, so I have to manually convert back to QPoint. Which I hate. TODO: change everything to tuple points? idk
-#                             if wire1.contains(otherTerminalPos): #Just bc schematicItem intersects wire, dont mean its terminals do. Check which terminals are contained by wire1,before checking which exactly match up #TODO change this to inbound collinear test? in-segment intersection test?
-
-#                                 if otherTerminalPos == p1 or otherTerminalPos == p2:  # Collect pins and symbols and labels into vein
-#                                     print('ADDING PINS')
-#                                     vein[Utils.SchematicItemKinds.Pin.value].append(pin)
-                                    
-#                                     print('VEIN:', vein)
-#                                     if isinstance(symbolOrLabel, NetSymbol):
-#                                         vein[Utils.SchematicItemKinds.NetSymbol.value].append(symbolOrLabel)
-#                                     if isinstance(symbolOrLabel, ComponentSymbol):
-#                                         vein[Utils.SchematicItemKinds.ComponentSymbol.value].append(symbolOrLabel)
-                
-#         print()
-#         print('PROPAGATEWIRESDONE')
-#         print('VEIN:', vein)
-#         if self.connectedVeins: # Kill any veins which were connected to. Remove that vein from vein, nets, & ratsnest. Connected-to veins will become absorbed into the vein we're currently laying
-#             for id in self.connectedVeins: 
-#                 net2Rm = self.veins.pop(id)['net']
-                
-#                 self.nets[net2Rm]['veinIds'].remove(id)
-                
-#                 ratsnest = self.ratsnests[net2Rm]
-#                 for line in ratsnest:  # Remove from scene each existing line in ratsnest, then, clear ratsnest
-#                     self.board.scene().removeItem(line)
-#                 self.ratsnests[net2Rm] = [] 
-
-
-#         net = self.setVeinNets(vein) 
-#         print('NET', net)
-        
-#         veinId = max(self.veins) + 1 
-#         print('VEINID:', veinId)
-#         # Put vein in veins, nets, and ratsnest
-#         self.veins[veinId] = vein 
-        
-#         if not self.nets[net]: 
-#             self.nets[net] = defaultdict(list) 
-            
-#         self.nets[net]['veinIds'].append(veinId)
-        
-#         veinPins =vein[Utils.SchematicItemKinds.Pin.value] 
-#         print()
-#         print('VEINPINS:' ,veinPins)
-#         if not veinPins: 
-#             print('NO veinPins')
-#             print('VEIN:', vein)
-#             for key, value in vein.items(): 
-#                 print('KEY:',key)
-#                 print('VALUE:', value)
-#             return 
-# # self.components holds caps, res, leds; ComponentSymbols, not NetSymbols. 
-# # but veinPins holds any pin, from a ComponentSymbol o NetSymbol or Label. 
-# # So 'for pin in veinPins' includes NetSymbol veinPins, but, these veinPins' reference DNE in components. 
-# # consistent api across NS, Label, CompSym... they don't really 
-# # implement SchScene.symbols
-# # for pin in veinPins: 
-# #     pads = self.schematic.scene().symbols[refDes][refNum].footprintItem()
-#         # print('SELF.COMPONENTS:', self.components)
-#         # for pin in veinPins :
-#         #     print('PIN.PARENTITEM():', pin.parentItem())
-#         #     print('PARENTITEM().REFERENCEDESIGNATOR()', pin.parentItem().referenceDesignator())
-#         #     print('PARENTITEM().REFERENCENUMBER()', pin.parentItem().referenceNumber())
-#         #     pads = self.components[pin.parentItem().referenceDesignator()][pin.parentItem().referenceNumber()].footprintItem().pads()
-#         #     print('PADS:', pads)
-#         #     # set net on every pad. So that brdScene knows net info of its own pads, w/o needing MW.nets, which brdScene cannot ez access. 
-
-#         for pin in veinPins: 
-#             refDes = pin.parentItem().referenceDesignator()
-#             refNum = pin.parentItem().referenceNumber() 
-            
-#             symbol = self.schematic.scene().symbols[refDes][refNum]
-#             if isinstance(symbol, ComponentSymbol): # CompSyms are the only symbols that have pads. NS and Labels have no pads. 
-#                 component = self.components[refDes][refNum]
-#                 pads = component.footprintItem().pads()
-
-#                 for pad in pads: 
-#                     if pad.name() == pin.number():  # Then this pin and pad are linked
-#                         print('PADNAME MATCHES PINNUMBER', pad, pin)
-#                         vein['pads'].append(pad) 
-#                         pad.setNet(net) # initial pad net is set in constructor, but pad nets may be overridden
-#                         self.nets[net][Utils.BoardItemKinds.Pad.value].append(pad)# update nets with pads whose pad.name() matches the pin.number(). 
-#                         # veinPins/pads are linked via their padName matching their pinNumber. Based on looking at 2 kicad files.
-#                 # self.nets[vein['net']][Utils.BoardItemKinds.Pad.value].extend(pinPads) NO BAD fetches all pads 
-
-#         # print('VEIN:', vein)
-#         for key, value in vein.items(): 
-#             print('KEY:',key)
-#             print('VALUE:', value)
-            
-#         self.updateRatsnest(net)
-                    
     def onAddNetSymbolActionTriggered(self):
 
         path = os.path.join(Utils.SauraPath, Utils.SymbolDirectoryName, Utils.NetSymbolDirectoryName)

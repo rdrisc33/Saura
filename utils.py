@@ -74,7 +74,7 @@ class Utils:
     boardTickSpacing = boardGridSpacing
     
     epsilon = 1e-9 # epsilon is a value used to compare floats against. 
-
+    
     class BoardSceneMode(Enum):
         NormalMode      = 0 
         AddTraceMode    = 1
@@ -298,15 +298,22 @@ class Utils:
         
     }
 
+    class NetPriority(Enum):
+        NoPriority              = 0
+        Pad                     = 1 
+        NetSymbol               = 2 
+        HierarchyLabel          = 3 
+        GlobalLabel             = 4
+        
     class SchematicItemKinds(Enum): # Used as keys in MW.veins[vein_id]
         Wire                                    = 0
         Pin                                     = 1
         ComponentSymbol                         = 2
         NetSymbol                               = 3
-        LocalLabel                              = 4
-        HierarchyLabel                          = 5
-        GlobalLabel                             = 6
-        Label                                   = 7 
+        HierarchyLabel                          = 4
+        GlobalLabel                             = 5
+        # LocalLabel                              = 4 
+        # Label                                   = 6 
         
         
     class BoardItemKinds(Enum): # Used in MW.nets as keys 

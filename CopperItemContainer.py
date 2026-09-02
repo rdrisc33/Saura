@@ -1,7 +1,7 @@
 from utils import * 
 from LayersItem import * 
 
-class CopperItemContainer(LayersItem): # Base class of FP TR ZN VA PD classes. Not useful by itself
+class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful by itself
     def __init__(self, layers, *args, **kwargs):
         # print('CUIC.LAYERS:', layers)
         # print('CUIC.ARGS:', args)
@@ -25,6 +25,15 @@ class CopperItemContainer(LayersItem): # Base class of FP TR ZN VA PD classes. N
         self._net                   = None 
         # self._copperItems           = phasing out defaultdict(list) # {'F.Cu': [PadItem , ViaItem] , 'Inr_1': [ZoneItem, ... }
 
+    def terminalsWithin(self, rect=None , sceneBounds=None): # Returns list of terminals found within rect|bounds in scene coordinates. If non found, returns an empty list. 
+        terminalsWithin = [] 
+        if sceneBounds: 
+            l , t , r , b = sceneBounds 
+            rect = QRectF( l ,t ,r-l , b-t) 
+        for terminal in self.sceneTerminals():
+            if rect.contains(terminal):
+                terminalsWithin.append(terminal)
+        return terminalsWithin 
 
     def queryRtrees(self):
         """query MainWindow.rtrees for self.sceneBufferedBounds() at each layer in self.layers """
@@ -53,9 +62,7 @@ class CopperItemContainer(LayersItem): # Base class of FP TR ZN VA PD classes. N
     def insertIntoRtree(self): 
         for layer in self.layers(): 
             self.scene().rtrees[layer].insert(self.id() , self.sceneBufferedBounds())
-        # for child in self.childItems(): 
-        #     if isinstance(child, LayerItem): 
-        #         child.insertIntoRtree()
+
                 
     def net(self):
         return self._net 
@@ -121,7 +128,7 @@ class CopperItemContainer(LayersItem): # Base class of FP TR ZN VA PD classes. N
         
         rect =self.mapToScene(self.boundingRect()).boundingRect()
         self._sceneBounds = ( rect.left() , rect.top() , rect.right() , rect.bottom() ) 
-        print('SET SCENE BOUNDS: ', self._sceneBounds)
+        # print('SET SCENE BOUNDS: ', self._sceneBounds)
         
     def buffer(self):
         return self._buffer
@@ -152,8 +159,13 @@ class CopperItemContainer(LayersItem): # Base class of FP TR ZN VA PD classes. N
     def sceneBufferedBounds(self):
         return self._sceneBufferedBounds
     def setSceneBufferedBounds(self):
-        rect = self.mapToScene(self.boundingRect().adjusted(-self._bufferDistance,-self._bufferDistance, self._bufferDistance,self._bufferDistance)).boundingRect() # 
-        self._sceneBufferedBounds = ( rect.left() , rect.top() , rect.right() , rect.bottom() ) 
+        # print('BR:', self.boundingRect())
+        rect = self.boundingRect().adjusted(-self._bufferDistance/2,-self._bufferDistance/2, self._bufferDistance, self._bufferDistance)
+        # print('RECT', rect)
+        bufferedBr = self.mapToScene(rect).boundingRect() # 
+        # print('BUFFEREDBR:', bufferedBr)
+        self._sceneBufferedBounds = ( bufferedBr.left() , bufferedBr.top() , bufferedBr.right() , bufferedBr.bottom() ) 
+        # print('SET SCENE BUFFERED BOUNDS: ', self._sceneBufferedBounds)
         
     def connectsToItem(self, item): # -> True if self is connected to other. Connected as in electrically connected.
 

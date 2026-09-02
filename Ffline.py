@@ -1,24 +1,27 @@
 from utils import * 
 from Trace import Trace 
+from Net import Net 
 
 class Ffline: 
     # Angles in radians. If angles in degrees, _degrees should be attached to variable name 
-    def __init__(self, here, there, scene):  # here,there: draw this ffline from here, to there. scene: need a reference to the scene, for scene.tracewidth, and scene.ids, and scene.rtrees( but we don't want to add fflines to the scene, until we know them and their connecteds are valid, so ffline is not a QGraphicsItem)
+    def __init__(self, here, there, scene, net=Net()):  # here,there: draw this ffline from here, to there. scene: need a reference to the scene, for scene.tracewidth, and scene.ids, and scene.rtrees( but we don't want to add fflines to the scene, until we know them and their connecteds are valid, so ffline is not a QGraphicsItem)
         # print('ADDING FFLINE')
         self.here = here
         self.there = there 
+
+        self._net = net 
         
         self._scene = scene
         self._octant = None 
         self._startAngle = 0 
-        self._startAngleThreshold = 20         
+        self._startAngleThreshold = 10 
         
         self._lineA = QLineF() # QLineF is used to do all maths, before it is set as Traces line 
         self._lineB = QLineF()
 
         layers = [ self.scene().activeLayer() ]
-        self._traceA = Trace.fromLine(self._lineA, self.scene().traceWidth(), layers )
-        self._traceB = Trace.fromLine( self._lineB, self.scene().traceWidth() , layers)         
+        self._traceA = Trace.fromLine(self._lineA, self.scene().traceWidth(), layers , self.net())
+        self._traceB = Trace.fromLine( self._lineB, self.scene().traceWidth() , layers, self.net())         
         self.traces = [self._traceA , self._traceB]
         self.scene().addItem(self._traceA)
         self.scene().addItem(self._traceB)
@@ -45,6 +48,11 @@ class Ffline:
         # self.lineItemB.setPen(QPen(Qt.darkBlue , .1 , s = Qt.PenStyle.DashDotLine))
         # self.scene().addItem(self.lineItemB)
         
+    def net(self):
+        return self._net 
+    def setNet(self, net):
+        self._net = net
+        
     def dx(self):
         return self._dx
     def setDx(self):
@@ -59,7 +67,7 @@ class Ffline:
         return self._theta
     def setTheta(self):
         self._theta = self.normalizeAngle( math.atan2( -self.dy(), self.dx() ) ) # Note y is flipped because in QT, positiveY is downwards while atan2 positiveY is upwards. Also, atan2 returns from -pi to 0 to pi, so normalize that angle to 0-2Pi
-        print('THETA(degrees):', self._theta * 180/math.pi)
+        # print('THETA(degrees):', self._theta * 180/math.pi)
             
     def withinThreshold(self): 
 
@@ -89,11 +97,6 @@ class Ffline:
 
     def setPoints(self, here , there): # Draw ffline from here to there, if no collisions. 
         # print('SETTING FFLINE POINTS:')
-        # self._lineItem.setLine(QLineF(here, there))
-        # print()
-        if here == there: 
-            # print('HERE==THERE; RETURNING')
-            return # Both self.linea/b will be null
 
         if isinstance(here, tuple):
             here = QPointF(*here)
@@ -109,22 +112,15 @@ class Ffline:
         self.setTheta()
 
         if self.withinThreshold(): 
-            print('WITHIN THRESHOLD')
+            # print('WITHIN THRESHOLD')
             self.setStartAngle()
-        # else:  
-        #     octant = self.getOctant(self.theta())
-        #     if octant != self.octant(): 
-        #         self.setOctant(octant)
-        #         self.setStartAngle()
-
-        # print('OCTANT:', self.octant())
 
         self._lineA.setP1(self.here)
         self._lineA.setP2(self.there) # This is gonna be overwritten; just need to ensure line is not null
 
         if (self.startAngle() + (math.pi/4) < self.theta() ) or  (self.startAngle() - (math.pi/4) > self.theta()):  # implement a sort of 'angle locking' thing that lets user draw traces more comfortably; we only want to change the start angle of our trace if its move 45degrees past current startangle 
             self.setStartAngle()
-        print('STARTANGLE:', self.startAngle())
+        # print('STARTANGLE:', self.startAngle())
         # print('SELF.HERE == LINEA.P1():', self.here == self._lineA.p1())
         self._lineA.setAngle(self.startAngle()*180/math.pi)
         # print('SELF.HERE == LINEA.P1():', self.here == self._lineA.p1())
@@ -139,59 +135,17 @@ class Ffline:
         # Depending on whether trace a is at an angle, or hor/vert, the distance varies:
 
         if self._lineA.angle() % 90 == 0: # If the angle is hor/vert, 
-            print('STARTING OUT HOR/VERT')
+            # print('STARTING OUT HOR/VERT')
             self._lineA.setLength( abs(abs(self.dx()) - abs(self.dy())) )
         else:
-            print('STARTING OUT FORTYFIVEN DEGREES')
+            # print('STARTING OUT FORTYFIVEN DEGREES')
             self._lineA.setLength( math.sqrt(2) * abs(min(abs(self.dx()) , abs(self.dy()))) ) # This is the fortyfivedegree distance component of our ffline. see ffline distance.
 
         self._lineB.setPoints( self._lineA.p2() , self.there )  # better be QPointFs
 
         self._traceA.setLine(self._lineA)
-        # print('SELF.HERE == LINEA.P1():', self.here == self._lineA.p1())
-        # # self.lineItemA.setLine(self._lineA)
-        # print('SELF.HERE == TRACEA.LINE().P1():', self.here == self._traceA.line().p1())
-
-
-        # self.lineItemB.setLine(self._lineB)
         self._traceB.setLine(self._lineB)
-        # print('SELF.THERE == TRACEB.P2():' ,self.there == self._traceB.line().p2())
-        # print(self._traceA.line())
-        # print(self._traceB.line())
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#
-        # if self.isColliding():
-        #     print('DETECTED COLLISION. TRY ALT ROUTE.')
-        #     self.altAttempt() # Try an alternate attempt: change the startAngle. If this one don't work, ffline.is_valid = False
-        #     if self.isColliding():
-        #         print("This ffline is colliding")
-        #         return False  # The ffline we drew from here to there collided with something
-
-        # # print('UPDATING RTREE')
-        # self._traceA.updateRtree() # If no collisions, update rtree
-        # self._traceB.updateRtree()
+        print('TRACEA.BR():', self._traceA.boundingRect())
 
         return True 
                 
@@ -212,8 +166,6 @@ class Ffline:
         
         return False # If we made it here, test traces did not collide
 
-    def connecteds(self, item):
-        pass
             
     def traceCollides(self, trace):
         # print('SELF.SCENE().ITEMS:', len(self.scene().items()), self.scene().items())
@@ -256,10 +208,11 @@ class Ffline:
     def finalize(self): # creates & adds to scene  self.trace_(a,b), based off line_item_(a,b)'s line, them removes line_item_n Should happen once, in Utils.BoardSceneMode.AddTraceModeDoubleClickEvent,  when our traces are finalized;not colliding; ready to be id'd and go into rtree.
         
         if self._traceA.line().isNull(): # null aka line of 0 length
-            print('TRACEA IS NULL')
+            print('TRACEA IS NULL, REMOVING')
             self.scene().removeItem(self._traceA) # standin QGLi no longer needed
 
         if self._traceB.line().isNull():
+            print('TRACEB IS NULL, REMOVING')
             self.scene().removeItem(self._traceB)
         
     def scene(self): # B/c this class takes a reference to a scene, 
@@ -308,9 +261,10 @@ class Ffline:
     #     elif 13*pi/8 < theta <= 15*pi/8:
     #         return 14*pi/8
         
-    def snapAngle(self , angle): # angle in radians. return angle snapped to nearest pi/4
-        angle = round(angle / (math.pi/4)) * math.pi/4 # pemdas 12/3/4 different 12/(3/4)
-        print('SNAPPED TO ANGLE(degrees):', angle *180/math.pi)
+    def snapAngle(self , angle, snapTo=math.pi/4): # angle in radians. return angle snapped to nearest multiple of snapTo, default pi/4
+        
+        angle = round(angle / (snapTo)) * snapTo # pemdas 12/3/4 different 12/(3/4)
+        # print('SNAPPED TO ANGLE(degrees):', angle *180/math.pi)
         return self.normalizeAngle(angle) 
     
     @staticmethod

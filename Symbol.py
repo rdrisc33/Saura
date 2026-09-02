@@ -39,19 +39,32 @@ class Symbol(Reference, QGraphicsItem):
     def boundingRect(self):
         return self.childrenBoundingRect() or QRectF(0,0,0,0) # Note .cBR will include .bR of hidden childrenItems. 
 
-    def shape(self): # the default of returning a rect based on boundingRect dnw bc a Symbol has simple text items, and pins, and neither of these should be part of hit area, but they are in the .bR
+    # the default of returning a rect based on boundingRect dnw bc a Symbol has simple text items, and pins, and neither of these should be part of hit area, but they are in the .bR
+    def shape(self): #
         path = QPainterPath()
-        for child in self.childItems(): # Collect paths of all childItems, except for pins, text, and terminals 
-            if not isinstance(child, (PinItem, QGraphicsSimpleTextItem, TerminalItem)): 
-                print('CHILD:', type(child))
+        for child in self.childItems(): # Collect paths of all childItems, except for text. So, pins, and lines & arcs & such
+            if not isinstance(child, QGraphicsSimpleTextItem): 
+                # print('CHILD:', type(child))
                 path.addPath(child.shape())
         r = path.boundingRect()
-        print('R:', r)
+        # print('R:', r)
         p = QPainterPath()
         p.addRect(r)
-        print('P:', p)
+        # print('P:', p)
         return p
     
+    def moveShape(self): # Return a shape consisting of the boundingRects of 'core' components; components to move by, such as lines and arcs, making up the actual symbol, no pins 
+        path = QPainterPath()
+        for child in self.childItems(): # Collect paths of all childItems, except for pins, and text. So, lines & arcs & such
+            if not isinstance(child, (PinItem, QGraphicsSimpleTextItem)): 
+                # print('CHILD:', type(child))
+                path.addPath(child.shape())
+        r = path.boundingRect()
+        # print('R:', r)
+        p = QPainterPath()
+        p.addRect(r)
+        # print('P:', p)
+        return p
 
     def paint(self, painter, option, widget):
        pass# Child Items will draw themselves
@@ -59,6 +72,10 @@ class Symbol(Reference, QGraphicsItem):
     def mousePressEvent(self, event):  # MOUSEGRABBER: User chooses mousegrabber by clicking on it(and item will stay mousegrabber(?) for ~.3s after the release event, enough time for it to register any incoming double click events. item has to be mouse grabber to process second mousePressEvent as a double click. Item becomes mousegrabber by .accept()ing initial press event. reimplements of QGItem.mouse(press,release,doubleclick)Event()s automatically accept their respective event, so reimplement QGraphicsItem.MusePressEvent() to accept the mousePressEvent, then do what you will with it
         # print("SCHEMATICSYMBOL.MousePressEvent")
         # print('ITEM IS MOUSEGRABBER') if self.scene().mouseGrabberItem() is self else print('ITEM IS NOT MOUSE GRABBER')
+        if not self.moveShape().contains(event.pos()) : 
+            event.ignore() # Loose the mouse grab, we don't want to receive future mouse press events if click not within move shape. 
+            return 
+        
         self.offset = self.scenePos() - event.scenePos()  # Could also utilize event.mouseDownPosition(no could not
         # self.p1_offset = event.scenePos() - p1
         # self.p2_offset = p2 - event.scenePos() #offsets must be recorded at mouse press location ( Hmm but we don't have p1/p2 here )(Gotta record connected wires upon mousePressEvent)
