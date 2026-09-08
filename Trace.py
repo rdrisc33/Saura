@@ -1,6 +1,7 @@
 from utils import * 
 from CopperItemContainer import CopperItemContainer
 from Net import Net 
+from LayerItem import LayerItem
 
 class TraceBase(): 
     def __init__(self, x1, y1, x2, y2, traceWidth, *args, **kwargs ): 
@@ -265,7 +266,7 @@ class Trace(TraceBase, CopperItemContainer, QGraphicsItem):
         # self.setPen(QPen(self._color, self._traceWidth, c=Qt.PenCapStyle.RoundCap))
         # print('ABOUT OT SET BUFFER DISTANCE')
         self.setBufferDistance(self._traceWidth)
-        print('SETTRACEWIDTH DONE')
+        # print('SETTRACEWIDTH DONE')
     
     def p1SceneBounds(self):
         x1,y1= self.mapToScene(self.line().p1()).toTuple() # Think this equivalent to below 

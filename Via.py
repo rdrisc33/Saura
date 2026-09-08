@@ -1,6 +1,8 @@
 from utils import * 
 from CopperItemContainer import CopperItemContainer 
+from LayerItem import LayerItem
 from LayersItem import LayersItem
+
 from Net import Net 
 
 class ViaBase():#QGraphicsItem):
@@ -44,12 +46,12 @@ class ViaBase():#QGraphicsItem):
 # class ViaItem(CopperItem, ViaBase):
 class ViaItem(LayerItem, ViaBase, QGraphicsItem):
         # def QGI.__init__(self, parent: PySide6.QtWidgets.QGraphicsItem | None= ...) -> None: ...
-    def __init__(self, layer, outerDiameter, innerDiameter, clearance, color , parent):
+    def __init__(self, layer, outerDiameter, innerDiameter, clearance , parent):
         # super().__init__(outerDiameter=outerDiameter, innerDiameter=innerDiameter, clearance=clearance, parent=parent)
         super().__init__( layer, outerDiameter=outerDiameter, innerDiameter=innerDiameter, clearance=clearance, parent=parent) # TypeError: ViaBase.__init__() takes 4 positional arguments but 5 were given
         # QGraphicsItem.__init__(self, parent)
         # print('VIAITEM.LAYER:', self.layer())
-        self._color = color
+        # self._color = Utils.layerColors[layer]
         # self._boundingRect = QRectF(-(outerDiameter+clearance)/2 , -(outerDiameter+clearance)/2 , outerDiameter+clearance , outerDiameter+clearance) # Must include clearance in BR so we can redraw the clearance w/o artifacts.
 
     # def boundingRect(self): # Belive this covered by super
@@ -82,7 +84,7 @@ class Via(ViaBase, CopperItemContainer, QGraphicsItem):
         # print('VIA.LAYERS():', self.layers())
         for layer in self.layers():
             # print('LAYER:', layer)
-            ViaItem(layer, outerDiameter, innerDiameter, clearance, Utils.layerColors[layer], self)
+            ViaItem(layer, outerDiameter, innerDiameter, clearance,  self)
             # self.copperItems()[layer].append(item) Phasing out# Track ViaItem as copperItems ( is this necessary? )
 
         self._netItem = QGraphicsSimpleTextItem(self)
@@ -126,8 +128,12 @@ class Via(ViaBase, CopperItemContainer, QGraphicsItem):
         elif ( (self.net() is not None) and (self.net() != self.resolvedNet ) ) : # If nets do not match, then revert
             self.setPos(self._previousPos)
 
-        else: # If we're staying here:
-            self.setSceneTerminal()
+        else: # If we're staying here, set all sceneStuff
+            self.setSceneTerminals()
+            self.setSceneBounds()
+            self.setSceneBuffer()
+            self.updateRtree()
+            
             
 
     def netsBeneath(self): # Return list of all nets beneath this item 

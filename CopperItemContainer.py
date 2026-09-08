@@ -35,6 +35,7 @@ class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful b
                 terminalsWithin.append(terminal)
         return terminalsWithin 
 
+
     def queryRtrees(self):
         """query MainWindow.rtrees for self.sceneBufferedBounds() at each layer in self.layers """
         # print('self.SceneBufferedBounds():', self.sceneBufferedBounds())
@@ -112,9 +113,15 @@ class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful b
     #     print('CUITEM.MOUSEMOVEEVENT:')
     #     self.updateRtree()
     #     self.setSceneBuffer()
-    #     self.setTerminals()
+    #     self.setSceneTerminals()
     #     self.setSceneBounds()
-    #     super().mouseMoveEvent(event)
+    
+            # # Also set sceneStuff every time we move 
+            # self.updateRtree()
+            # self.setSceneBuffer()
+            # self.setSceneTerminals()
+            # self.setSceneBounds()
+            
     
     def bounds(self): 
         return self._bounds
@@ -273,18 +280,18 @@ class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful b
 # setTerminals()
 # setSceneBounds()  
 
-    def updateRtrees(self):# Update an existing entry in rtree
-        self.removeFromRtrees() # rtree removal demands (id, bounds). Thus we must remove B4 .setSceneBufferedBounds()
-        self.setSceneBufferedBounds()
-        self.insertIntoRtrees()
+    # def updateRtrees(self):# Update an existing entry in rtree
+    #     self.removeFromRtrees() # rtree removal demands (id, bounds). Thus we must remove B4 .setSceneBufferedBounds()
+    #     self.setSceneBufferedBounds()
+    #     self.insertIntoRtrees()
         
-    def insertIntoRtrees(self):
-        for layer in self.layers(): 
-            self.scene().rtrees[layer].insert(self.id() , self.sceneBufferedBounds())
+    # def insertIntoRtrees(self):
+    #     for layer in self.layers(): 
+    #         self.scene().rtrees[layer].insert(self.id() , self.sceneBufferedBounds())
             
-    def removeFromRtrees(self): 
-        for layer in self.layers(): 
-            self.scene().rtrees[layer].delete(self.id() , self.sceneBufferedBounds())# rtree removal demands (id, bounds). Thus we must remove B4 .setSceneBufferedBounds()
+    # def removeFromRtrees(self): 
+    #     for layer in self.layers(): 
+    #         self.scene().rtrees[layer].delete(self.id() , self.sceneBufferedBounds())# rtree removal demands (id, bounds). Thus we must remove B4 .setSceneBufferedBounds()
     
     def containsTerminal(self, terminal): # returns true if layers match and terminal pos is contained within shape. terminal: (layer:str, pos:QPoint)
         terminalPos = terminal['pos']

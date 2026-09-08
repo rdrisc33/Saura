@@ -39,7 +39,7 @@ class Symbol(Reference, QGraphicsItem):
     def boundingRect(self):
         return self.childrenBoundingRect() or QRectF(0,0,0,0) # Note .cBR will include .bR of hidden childrenItems. 
 
-    # the default of returning a rect based on boundingRect dnw bc a Symbol has simple text items, and pins, and neither of these should be part of hit area, but they are in the .bR
+    # the default of returning a rect based on boundingRect dnw bc a Symbol has simple text items, which should not be part of hit area
     def shape(self): #
         path = QPainterPath()
         for child in self.childItems(): # Collect paths of all childItems, except for text. So, pins, and lines & arcs & such
@@ -53,7 +53,7 @@ class Symbol(Reference, QGraphicsItem):
         # print('P:', p)
         return p
     
-    def moveShape(self): # Return a shape consisting of the boundingRects of 'core' components; components to move by, such as lines and arcs, making up the actual symbol, no pins 
+    def moveShape(self): # Return a shape consisting of the boundingRects of 'core' components; components to move by, such as lines and arcs, making up the actual symbol, no pins. This shape is used in mousePressEvent to decide if item will become mouse grabber, thus receiving future mouse events 
         path = QPainterPath()
         for child in self.childItems(): # Collect paths of all childItems, except for pins, and text. So, lines & arcs & such
             if not isinstance(child, (PinItem, QGraphicsSimpleTextItem)): 
@@ -102,7 +102,6 @@ class Symbol(Reference, QGraphicsItem):
     def mouseMoveEvent(self, event): 
         # print("MOUSEMOVEEVENT")
         # print('EVENT.SCENEPOS:', event.scenePos())
-
         
         for wire in self.connected_wires: # I have to find offsets of connected_wires, in order to move connected wires when user moves item. Record connected_wire offsets in mousePress, and move the wires in mouseMove
             if self.connected_wires[wire]['point'] == 'p1': 

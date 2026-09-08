@@ -4,6 +4,7 @@ from Reference import Reference
 from LayersItem import LayersItem
 from CopperItemContainer import CopperItemContainer
 from Net import Net
+from LayerItem import LayerItem
 # from Component import Component
 
 
@@ -55,7 +56,7 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
         self._nameItem.setFont(self.font)
         self._nameItem.setZValue(20)
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
-        print('FOOTPRINTITEM CREATED') 
+        # print('FOOTPRINTITEM CREATED') 
         # print('FOOTPRINTITEM.COPPERITEMS:', self.copperItems()) # {'F.Cu': [<FootprintItem.PadItem(0x21be98e6b00, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE7617FC0>, <FootprintItem.PadItem(0x21be98e7400, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE8493D00>], 'F.Paste': [<FootprintItem.PadItem(0x21be98e7740, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE8493800>, <FootprintItem.PadItem(0x21be98e7440, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE8493FC0>], 'F.Mask': [<FootprintItem.PadItem(0x21be98e7380, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE8493A40>, <FootprintItem.PadItem(0x21be98e7b80, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE84A0200>]})
 
     def mousePressEvent(self, event): 
@@ -67,7 +68,24 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
         # print('COPPERITEMCONTAINER.MME')
         self.setPos(self.scene().snapToGrid(event.scenePos() - self.offset))
         self.updateRtrees()
-        # When footprint moves, need to update ratsnest. How do I run MainWindow.updateRatsnest from here? A: signals and slots. As QObjects have sig/slots, and QGraphicsItems are not Qobjects, we would need to subclass QObject to use signals/slots...
+        for child in self.childItems():
+            if not isinstance( child, CopperItemContainer):
+                continue 
+            child.setSceneBounds()
+            child.setSceneBuffer()
+            child.setSceneBufferedBounds()
+            child.setSceneTerminals()
+            child.updateRtree()
+
+
+        # # Also set sceneStuff every time we move 
+        # self.setSceneBounds()
+        # self.setSceneBuffer()
+        # self.setSceneBufferedBounds()
+        # self.setSceneTerminals()
+            
+
+        # When footprint moves, need to update ratsnest. How do I run MainWindow.updateRatsnest from here? A: signals and slots. As QObjects have sig/slots, and QGraphicsItems are not Qobjects, we would need to subclass QObject to use signals/slots... (Ended up emitting signal if scene.mouseGrabber is FootprintItem)
         # self.moved.emit()
         
 
@@ -81,13 +99,16 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
         self.copperItems()[layer].remove(copperItem)
         
     def nets(self):
-        print('FOOTPRINTITEM.COPPERITEMS():', self.copperItems()) # FOOTPRINTITEM.COPPERITEMS(): defaultdict(<class 'list'>, {})
+        # print('FOOTPRINTITEM.COPPERITEMS():', self.copperItems()) # FOOTPRINTITEM.COPPERITEMS(): defaultdict(<class 'list'>, {})
         return self._nets 
+    
     def setNets(self):
         self._nets = set()
+        print('FOOTPRINT CHILDITEMSATHAT ARE LAYERSITEMS:')
         for childItem in self.childItems(): 
-            if not isinstance(childItem, LayerItem):
+            if not isinstance(childItem, LayersItem):
                 continue 
+            print(childItem)
             self._nets.add(childItem.net())
             
         if None in self._nets: 
@@ -108,7 +129,8 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
         for childItem in self.childItems(): 
             if not isinstance(childItem, LayersItem): 
                 continue
-            childItem.updateRtrees()
+            childItem.updateRtree()
+            # childItem.updateRtrees()
         # for pad in self.pads():
         #     pad.updateRtrees()
                       

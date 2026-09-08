@@ -336,8 +336,8 @@ class SchematicScene(QGraphicsScene):
         # self.hor_wire = None  Don't just set to none. mousePress creates new ._line, .hor_wire and .vert_wire, so remove actually remove them from the scene
         # self.vert_wire = None# We are done drawing lines. # Note: Empty MyGraphicsWireItem()s are allowed. They evaluate to True. 
                 
-    def mousePressEvent(self, event): # ToDo: Only allow lines to move hor/vertically from their start point
-        # print('MYSCENE MOUSEPRESSEVENT')
+    def mousePressEvent(self, event): 
+        # print('SCHEMATICSCENE.MOUSEPRESSEVENT')
         
         if self._mode == SchematicScene.AddWireMode: # Add a new MyGraphicsWireItem() to the scene, with every click.
             self.AddWireModeMousePressEvent( event)
@@ -368,11 +368,11 @@ class SchematicScene(QGraphicsScene):
         pass
         
     def mouseReleaseEvent(self, event):
-        print("MYSCENE MOUSERELEASEEVENT")
+        # print("SCHEMATICSCENE MOUSERELEASEEVENT")
         super().mouseReleaseEvent(event) # 
 
     def mouseDoubleClickEvent(self, event):
-        print('MYSCENE MOUSEDOUBLECLICKEVENT')
+        # print('SCHEMATICSCENE MOUSEDOUBLECLICKEVENT')
         if self._mode == SchematicScene.AddWireMode: # Exit AddWireMode. normalizeWiring. 
             self.exitAddWireMode()
         elif self._mode == SchematicScene.DeleteWireMode:
@@ -384,7 +384,7 @@ class SchematicScene(QGraphicsScene):
     def setMode(self, mode):
         self._mode = mode
         print()
-        print(f"SET MODE TO {mode}")
+        print(f"SET SCHEMATICSCENE MODE TO {mode}")
 
     def mode(self):
         return self._mode

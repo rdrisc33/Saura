@@ -10,11 +10,12 @@ import numpy as np
 from MyAStar import *
 from Trace import * 
 from ZoneItem import * 
-from LayersItem import LayersEllipseItem, LayersLineItem
+# from LayersItem import LayersEllipseItem, LayersLineItem
 from Via import Via
 from Ffline import Ffline
+from DrawScene import DrawScene 
     
-class BoardScene(QGraphicsScene):
+class BoardScene( DrawScene, QGraphicsScene):
     # normalMode, addTraceMode, addViaMode, deleteTraceMode = range(4)
 
     dpi = qApp.screens()[0].physicalDotsPerInch()
@@ -212,9 +213,9 @@ class BoardScene(QGraphicsScene):
             item.hideLayer(layer)
    
 
-    def normalModeMousePressEvent(self, event):
-        print('normalModeMousePressEvent')
-        super().mousePressEvent(event) # Call base implementation to forward event to any items beneath the press. Call base implementation to: fwd event to mousegrabber if there's a mousegrabber, OR fwd event to topmost item, if no mousegrabber, OR reset selections, then remove focus from any focused items, then ignore the event, if no item below event position. 
+    # def normalModeMousePressEvent(self, event):
+    #     print('normalModeMousePressEvent')
+    #     super().mousePressEvent(event) # Call base implementation to forward event to any items beneath the press. Call base implementation to: fwd event to mousegrabber if there's a mousegrabber, OR fwd event to topmost item, if no mousegrabber, OR reset selections, then remove focus from any focused items, then ignore the event, if no item below event position. 
       
     def addItem(self, item): # QGraphicsScene.addItem reimplementation: Add (Trace,Via,Zone,Footprint) items to: the scene, scene.ids, scene.idx. If Footprint, +1 to reference_values. 
         super().addItem(item) # Add Item normally, which adds all childItems. We still have to add copperItems to their rtree.
@@ -440,6 +441,7 @@ class BoardScene(QGraphicsScene):
             print('HITITEM.NET:', hitItem.net())
             print('SCENE.ACTIVENET():', self.activeNet())
             for terminal in  hitItem.terminalsWithin(sceneBounds= seekerBounds): # We need to compare nets of currently drawing trace against terminal nets, to see if the trace net is compatible with the terminal net. For example a terminal with a net of 3V3 is not connectable to a trace of GND. # TODO: use sorted() to snap to the closest terminal, AND use cursor posiiton to somehow be able to choose between close terminals 
+                print('TERMINAL:', terminal)
                 if self.startPosition: 
                     print('SELF.FFLINE.NET():', self.ffline.net())
                     print('HITITEM.NET():', hitItem.net())
@@ -494,10 +496,12 @@ class BoardScene(QGraphicsScene):
                 self.addItem(new_item)
 
     def mousePressEvent(self, event): 
-        # print()
-        # print('MyBoardScene.MOUSEPRESSEVENT')
+        print()
+        print('BOARDSCENE.MOUSEPRESSEVENT')
+        super().mousePressEvent(event)
         if self._mode == Utils.BoardSceneMode.NormalMode:
-            self.normalModeMousePressEvent(event) # this involves adjusting TraceItems & more
+            super().mousePressEvent(event)
+            # self.normalModeMousePressEvent(event) # this involves adjusting TraceItems & more
         elif self.mode() == Utils.BoardSceneMode.AddTraceMode: 
             self.addTraceModeMousePressEvent(event)
         elif self.mode() == Utils.BoardSceneMode.AddViaMode: # In Scene.addViaModemousePressEvent, have the via take on nets below if appropriate 
@@ -507,8 +511,9 @@ class BoardScene(QGraphicsScene):
 
                
     def mouseMoveEvent(self, event):
-        # print('BOARDSCENE.MOUSEMOVEEVENT')
-
+        print('BOARDSCENE.MOUSEMOVEEVENT')
+        super().mouseMoveEvent(event) 
+        
         if self.mode() == Utils.BoardSceneMode.NormalMode:
            self.normalModeMouseMoveEvent(event)
         elif self.mode() == Utils.BoardSceneMode.AddTraceMode:
@@ -552,6 +557,7 @@ class BoardScene(QGraphicsScene):
 
     def mouseDoubleClickEvent(self, event):
         # print('MyBoardScene MOUSEDOUBLECLICKEVENT')
+        super().mouseDoubleClickEvent(event)
         if self._mode == Utils.BoardSceneMode.AddTraceMode: # Exit addTraceMode 
            self.addTraceModeMouseDoubleClickEvent(event)
         elif self._mode == Utils.BoardSceneMode.DeleteMode:
@@ -598,7 +604,7 @@ class BoardScene(QGraphicsScene):
             self.via.setPos(-1e9,-1e9)
             self.views()[0].setMouseTracking(True) # mouseMoveEvent fires while no mouse button pressed down 
         print()
-        print(f"SET MODE TO {mode}")
+        print(f"SET BOARDSCENE MODE TO {mode}")
 
     def mode(self):
         return self._mode

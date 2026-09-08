@@ -2,7 +2,7 @@ from PySide6.QtWidgets import *
 from PySide6.QtCore import *
 from PySide6.QtGui import * 
 
-from utils import LayerItem
+from LayerItem import LayerItem
 
 class LayersItem(): 
     def __init__(self, layers, *args, **kwargs):
@@ -29,7 +29,9 @@ class LayersItem():
         self._sceneBufferedBounds   = None      # ._bufferedBounds in scene coordinates
         self._id                    = None 
         self._net                   = None 
-        
+
+
+
         
     # def connectedNets(self, proposedShape): 
     #     self._connectedNets = [self.net()]
@@ -51,6 +53,7 @@ class LayersItem():
             if self.net() == 'unresolved': 
                 self.setPos(self._previousPos)
                 self.setNet(self._previousNet)
+
         else: 
             event.ignore() # This seems to do nothing 
         
@@ -141,14 +144,13 @@ class LayersItem():
         return None 
     def connectsToItem(self, other): # -> True if self is connected to other. Connected as in electrically connected.
         return None 
-    def updateRtree(self):
-        return None 
-    def updateRtrees(self):
-        return None 
-    def insertIntoRtrees(self):
-        return None 
-    def removeFromRtrees(self): 
-        return None 
+    # def updateRtree(self):
+    #     return None 
+
+    # def insertIntoRtrees(self):
+    #     return None 
+    # def removeFromRtrees(self): 
+    #     return None 
     def containsTerminal(self, terminal): 
         return None 
     def setShowingLayers(self, layers): 
@@ -222,41 +224,42 @@ class LayersItem():
     # def removeCopperItem(self, layer, copperItem):
     #     return None       
 
-# Excepting seeker and ratsnest lines, all LayerItems have layers. 
 
-class LayersSimpleTextItem(LayersItem, QGraphicsSimpleTextItem): 
-    def __init__(self, layers , text=None, *args, **kwargs):
-        super().__init__(layers, *args, **kwargs)
-        self.setLayers(layers)
-        self.setText(text)
+
+# class LayersSimpleTextItem(LayersItem, QGraphicsSimpleTextItem): 
+#     def __init__(self, layers , text=None, *args, **kwargs):
+#         super().__init__(layers, *args, **kwargs)
+#         self.setLayers(layers)
+#         self.setText(text)
+#         self.setPen(QPen(Utils.layerColors[layer], traceWidth , c = Qt.PenCapStyle.RoundCap))
         
-class LayersRectItem(LayersItem, QGraphicsRectItem ): 
-    def __init__(self, layers, *args, **kwargs):
-        super().__init__(layers, *args, **kwargs)
-        self.setLayers(layers)
+# class LayersRectItem(LayersItem, QGraphicsRectItem ): 
+#     def __init__(self, layers, *args, **kwargs):
+#         super().__init__(layers, *args, **kwargs)
+#         self.setLayers(layers)
 
-class LayersEllipseItem(LayersItem, QGraphicsEllipseItem): 
-    def __init__(self, layers, *args, **kwargs):
-        super().__init__(layers, *args, **kwargs)
-        self.setLayers(layers)
+# class LayersEllipseItem(LayersItem, QGraphicsEllipseItem): 
+#     def __init__(self, layers, *args, **kwargs):
+#         super().__init__(layers, *args, **kwargs)
+#         self.setLayers(layers)
 
-class LayersPathItem(LayersItem, QGraphicsPathItem): 
-    def __init__(self, layers, *args, **kwargs):
-        super().__init__(layers, *args, **kwargs)
-        self.setLayers(layers)
+# class LayersPathItem(LayersItem, QGraphicsPathItem): 
+#     def __init__(self, layers, *args, **kwargs):
+#         super().__init__(layers, *args, **kwargs)
+#         self.setLayers(layers)
 
-class LayersLineItem(LayersItem, QGraphicsLineItem): 
-    def __init__(self, layers, *args, **kwargs):
-        super().__init__( layers, *args, **kwargs )
-        self.setLayers(layers)
+# class LayersLineItem(LayersItem, QGraphicsLineItem): 
+#     def __init__(self, layers, *args, **kwargs):
+#         super().__init__( layers, *args, **kwargs )
+#         self.setLayers(layers)
 
-class LayersPixmapItem(LayersItem, QGraphicsPixmapItem): 
-    def __init__(self, layers, *args, **kwargs):
-        super().__init__(layers, *args, **kwargs)
-        self.setLayers(layers)
+# class LayersPixmapItem(LayersItem, QGraphicsPixmapItem): 
+#     def __init__(self, layers, *args, **kwargs):
+#         super().__init__(layers, *args, **kwargs)
+#         self.setLayers(layers)
 
-class LayersPolygonItem(LayersItem, QGraphicsPolygonItem): 
-    def __init__(self, layers, *args, **kwargs):
-        super().__init__(layers, *args, **kwargs)
-        self.setLayers(layers)
+# class LayersPolygonItem(LayersItem, QGraphicsPolygonItem): 
+#     def __init__(self, layers, *args, **kwargs):
+#         super().__init__(layers, *args, **kwargs)
+#         self.setLayers(layers)
 

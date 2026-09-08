@@ -108,9 +108,11 @@ class MainWindow(QMainWindow):
     def onFootprintMoved(self, footprint):
         footprint.setNets()
 
+        print()
         print('FOOTPRINT:', footprint)
         print('FOOTPRINT.NETS():', footprint.nets())
         for net in footprint.nets():
+            
             self.updateRatsnest(net)
 
     def setVeinNets(self, vein): # TODO more robust drc
@@ -289,7 +291,7 @@ class MainWindow(QMainWindow):
             G.append(propagations) #  Accumulate all pad, trace, via, and zone terminals connected to pads. L8r, G used to disallow ratsnest lines intra-subgraph. Bc connected items dont get a ratsnest line.
 
         return G
- 
+
     def ratsnestMST(self, G, flat ): 
         # Graph Theory: 
             # Tree: a graph. Vertices connected by 1 path. Undirected, acyclic.
@@ -304,6 +306,8 @@ class MainWindow(QMainWindow):
                 
         print()
         print('RATSNESTMST')
+        print('G:', G)
+        print('FLAT:', flat)
         
         def findSubgraph(index, G): # find the subgraph of G of the pos represented by index 
             pos  = flat[index] 
@@ -344,7 +348,8 @@ class MainWindow(QMainWindow):
             if (v,u,dist) in edges: 
                 edges.remove((v,u,dist))
         edges = sorted(edges, key= lambda x: x[2])
-        print('EDGES:', len(edges), edges)
+        print('EDGES:', len(edges), edges)# EDGES: 1 [(np.int32(0), np.int32(1), np.float64(1.8542000000000058))]
+
         
         for edge in edges[:]: # Remove intra-subgraph edges. Unlike kruskalMST, ratsnestMST disallows intra-subgraph connections, implemented by removing intra-subgraph edges. 
             u,v,dist = edge
@@ -428,7 +433,8 @@ class MainWindow(QMainWindow):
             print('FLAT[u]:', flat[u])
             line = QLineF(*flat[u], *flat[v])
             # line = QGraphicsLineItem(line)
-            line = BoardLineItem(None, line)
+            line = QGraphicsLineItem( line)
+            # line = BoardLineItem(None, line)
             line.setPen(QPen(Qt.blue, 0 ))
             self.board.scene().addItem(line)
             self.ratsnests[net].append(line) # Track ratsnest lines for later removal from scene
@@ -437,35 +443,33 @@ class MainWindow(QMainWindow):
 
         # def merge( pos, wire, otherWire, points, row, col, data ): 
         def merge( pos, wire, otherWire ): 
-            """Merge wires adjacent at pos
-            Checks to ensure existence of adjacent collinear wires with no Symbol terminals on pos, nor any orthagonal wires on pos, are implemented elsewhere"""
+            """Merge wires. Given wires must be adjacent at pos; Checks to ensure existence of adjacent collinear wires with no Symbol terminals on pos, nor any orthagonal wires on pos, are implemented elsewhere"""
 
-            if len(points <= 2): # Then not enough points to perform a merge
-                return
+            # if len(points <= 2): # Then not enough points to perform a merge
+            #     return
             
+            # index = points.index(pos) 
+            # points.pop(index)
+            # p1 = [wire.p1() , wire.p2()][wire.p2()==pos] 
+            # p2 = [otherWire.p1() , otherWire.p2()][otherWire.p2()==pos]
+            # index1 = points.index(p1)
+            # index2 = points.index(p2)
 
-            index = points.index(pos) 
-            points.pop(index)
-            p1 = [wire.p1() , wire.p2()][wire.p2()==pos] 
-            p2 = [otherWire.p1() , otherWire.p2()][otherWire.p2()==pos]
-            index1 = points.index(p1)
-            index2 = points.index(p2)
+            # upForMerge = {c for c,x in enumerate(row) if (x==index1) or (x==index2) } + { c for c,x in enumerate(col) if (x==index1) or (x==index2) }
+            # print('UPFORMERGE:', upForMerge)
+            # reversed = sorted(upForMerge , reverse=True)
+            # for l in [row, col, data]: 
+            #     for r in reversed:
+            #         l.pop(r) # This entry is merging; no longer exists 
 
-            upForMerge = {c for c,x in enumerate(row) if (x==index1) or (x==index2) } + { c for c,x in enumerate(col) if (x==index1) or (x==index2) }
-            print('UPFORMERGE:', upForMerge)
-            reversed = sorted(upForMerge , reverse=True)
-            for l in [row, col, data]: 
-                for r in reversed:
-                    l.pop(r) # This entry is merging; no longer exists 
-
-            dist = Utils.distance(points[index1] , points[index2])
-            row.append(index1)
-            col.append(index2) 
-            data.append( dist)
+            # dist = Utils.distance(points[index1] , points[index2])
+            # row.append(index1)
+            # col.append(index2) 
+            # data.append( dist)
             
-            row.append(index2)
-            col.append(index1)
-            data.append(dist)
+            # row.append(index2)
+            # col.append(index1)
+            # data.append(dist)
 
             
             # delete row and column 
@@ -488,8 +492,6 @@ class MainWindow(QMainWindow):
             # G[index1] [index2] = weight
 
 ### add/remove splits from scene 
-            self.schematic.scene().removeItem(wire)
-            self.schematic.scene().removeItem(otherWire)
 
             # p1, p2 = wire.line().toTuple()
             # p3, p4 = otherWire.line().toTuple
@@ -505,12 +507,17 @@ class MainWindow(QMainWindow):
             # yMin = min(y1, y2, y3, y4)
             
             # merged = WireItem(xMin, yMin, xMax, yMax) # Note this works bc previous checks ensure we're working with collinear lines & scene only allows hor/vert lines\
+            p1 = [wire.p1() , wire.p2()][wire.p2()==pos] 
+            p2 = [otherWire.p1() , otherWire.p2()][otherWire.p2()==pos]
+            self.schematic.scene().removeItem(wire)
+            self.schematic.scene().removeItem(otherWire)
             merged = WireItem(*p1, *p2)
             merged.setPen(QPen(Qt.darkCyan, 1 ))
             merged.setVeinId(wire.veinId())
             self.schematic.scene().addItem(merged)
+            return merged
 
-            return points , row, col, data , merged
+            # return points , row, col, data , merged
 
         # def split(pos , wire, points, row, col, data ): 
         def split(pos , wire): 
@@ -950,9 +957,9 @@ class MainWindow(QMainWindow):
         self._file_menu = self.menuBar().addMenu("&File") # -> QMenu, so we can add actions to file menu
         # self.menuBar().clear()
         self._file_menu.addAction(self.exit_action)
-        self._file_menu.addSeparator() # Aestheic line 
-        self._file_menu.addAction(self._addWireAction)
-        self._file_menu.addAction(self.delete_wire_action)
+        # self._file_menu.addSeparator() # Aestheic line 
+        # self._file_menu.addAction(self._addWireAction)
+        # self._file_menu.addAction(self.delete_wire_action)
         
         self._preferences_menu = self.menuBar().addMenu("&Preferences")
         
@@ -962,7 +969,12 @@ class MainWindow(QMainWindow):
         self.create_menu.addAction(self.create_part_action)
         # self._schematic_toolbar.addAction(self.create_footprint_action)
         # self._schematic_toolbar.addAction(self.create_part_action)
-        
+
+        self.drawMenu = self.menuBar().addMenu('Draw')
+        self.drawMenu.addAction(self.drawLineAction)
+        self.drawMenu.addAction(self.drawRectAction)
+        self.drawMenu.addAction(self.drawEllipseAction)
+
 # Actions are meant to be children of the application's main window, and live in menus, toolbars, and buttons. Actions shoiuld be connected to slots, which will execute the action
 
     def create_actions(self): # Later, Actions go on toolbar
@@ -989,7 +1001,11 @@ class MainWindow(QMainWindow):
         self.show_board_action = QAction('Show Board', self, triggered = self. on_show_board_action_triggered)
     # Show Schematic 
         self.show_schematic_action = QAction('Show Schematic', self, triggered = self.on_show_schematic_action_triggered)
-    
+
+
+        self.drawLineAction = QAction('Line', self, triggered = self.onDrawLineActionTriggered )
+        self.drawRectAction = QAction('Rectangle', self, triggered = self.onDrawRectActionTriggered)
+        self.drawEllipseAction = QAction('Ellipse', self, triggered = self.onDrawEllipseActionTriggered)
 
 #Board Actions 
     # Add Trace 
@@ -1017,6 +1033,17 @@ class MainWindow(QMainWindow):
             self.board.scene().setMode(Utils.BoardSceneMode.NormalMode)
             self.board.scene().exitAddTraceMode() # Delete currently drawing scene._line & more if exiting
 
+    def onDrawLineActionTriggered(self):
+        print('drawLine')
+        self.board.scene().setMode(Utils.BoardSceneMode.DrawLineMode)
+
+    def onDrawRectActionTriggered(self): 
+        print('drawRect')
+        self.board.scene().setMode(Utils.BoardSceneMode.DrawRectMode)
+
+    def onDrawEllipseActionTriggered(self):
+        print('drawEllipse')
+        self.board.scene().setMode(Utils.BoardSceneMode.DrawEllipseMode)
 
     def onAddViaActionTriggered(self): 
         self.board.scene().setMode(Utils.BoardSceneMode.AddViaMode)
@@ -1121,9 +1148,9 @@ class MainWindow(QMainWindow):
         self.board_toolbar.addAction(self.create_gerbers_action)
         self.board_toolbar.addAction(self.addTraceAction)
         self.board_toolbar.addAction(self.addViaAction)
+        self.board_toolbar.addSeparator()
         self.board_toolbar.addWidget(self.trace_width_widget)
         self.board_toolbar.addWidget(board_grid_spacing_widget)
-
 
 
 
@@ -1137,6 +1164,8 @@ class MainWindow(QMainWindow):
         self._schematic_toolbar.addAction(self.delete_wire_action)
         self._schematic_toolbar.addSeparator()
         self._schematic_toolbar.addAction(self.show_board_action)# May add toolbar buttons by adding actions 
+
+        
         # self._schematic_toolbar.addAction(self.create_symbol_action)          # Moved to menuBar
         # self._schematic_toolbar.addAction(self.create_footprint_action)       
         # self._schematic_toolbar.addAction(self.create_part_action)
@@ -1150,6 +1179,8 @@ class MainWindow(QMainWindow):
         # Toolbar hides overflowing items behind extension button if toolbar shrunk too small, clicking extension button will reveal a popup with hidden items( If QToolBar is not child of QMainWindow, popup doesn't work in all cases-- see docs )
 
     
+    # def drawAction(self): 
+        
     def contextMenuEvent(self, event): # RMB on a window to generate a contextMenuEvent, which is automatically passed to the widget beneath RMB. Default implementation will generates a menu with checkable actions from the DockWidgets & ToolBar(NotMenuBar). Reimplement to run your own code. Here, I make my own context menu for the MyMainWindow
         # context_menu= QMenu(self) # 
         # test_action = context_menu.addAction(QAction('TEST_ACTION', self)) # Add action to this menu. Save reference to action in test_action. 
