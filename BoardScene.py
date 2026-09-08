@@ -498,17 +498,20 @@ class BoardScene( DrawScene, QGraphicsScene):
     def mousePressEvent(self, event): 
         print()
         print('BOARDSCENE.MOUSEPRESSEVENT')
-        super().mousePressEvent(event)
-        if self._mode == Utils.BoardSceneMode.NormalMode:
-            super().mousePressEvent(event)
+        
+        # if self._mode == Utils.BoardSceneMode.NormalMode:
+        #     super().mousePressEvent(event)
             # self.normalModeMousePressEvent(event) # this involves adjusting TraceItems & more
-        elif self.mode() == Utils.BoardSceneMode.AddTraceMode: 
-            self.addTraceModeMousePressEvent(event)
+        if self.mode() == Utils.BoardSceneMode.AddTraceMode: 
+            return self.addTraceModeMousePressEvent(event)
+        
         elif self.mode() == Utils.BoardSceneMode.AddViaMode: # In Scene.addViaModemousePressEvent, have the via take on nets below if appropriate 
             if ( self.via.net() == None ) and (self.via.resolvedNet != 'unresolved'): # None nets take on other nets upon mouseRelease
                 self.via.setNet(self.via.resolvedNet)
             self.setMode(Utils.BoardSceneMode.NormalMode)
-
+            return 
+        
+        super().mousePressEvent(event)
                
     def mouseMoveEvent(self, event):
         print('BOARDSCENE.MOUSEMOVEEVENT')
@@ -530,7 +533,6 @@ class BoardScene( DrawScene, QGraphicsScene):
                 self.footprintMoved.emit(self.mouseGrabberItem()) # MW.board.scene().footprintMoved.connect(updateRatsnest)
                 
     def addViaModeMouseMoveEvent(self, event): 
-        print('MOUSEMOVEEVENT')
         self.via.tentativeMove( Utils.snapToGrid(event.scenePos(), 20) )# MOve here, as long as no conflicts
        
     # def setActiveNet(self):
@@ -556,7 +558,7 @@ class BoardScene( DrawScene, QGraphicsScene):
 
 
     def mouseDoubleClickEvent(self, event):
-        # print('MyBoardScene MOUSEDOUBLECLICKEVENT')
+        # print('BOARDSCENE.MOUSEDOUBLECLICKEVENT')
         super().mouseDoubleClickEvent(event)
         if self._mode == Utils.BoardSceneMode.AddTraceMode: # Exit addTraceMode 
            self.addTraceModeMouseDoubleClickEvent(event)
