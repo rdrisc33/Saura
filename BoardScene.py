@@ -120,7 +120,7 @@ class BoardScene( DrawScene, QGraphicsScene):
         
     def traceWidth(self):
         return self._traceWidth
-    def setTraceWidth(self,traceWidth):
+    def setTraceWidth(self, traceWidth):
         self._traceWidth = float(traceWidth)
         
     def addTraceModeMouseDoubleClickEvent(self, event):
@@ -132,7 +132,6 @@ class BoardScene( DrawScene, QGraphicsScene):
         #     self.exitAddTraceMode()
         # elif self.mode() == MyBoardScene.normalMode:
         #     pass
-
 
     def activeNet(self): # The net of the currently selected item. Is used to setActiveNet of None-net items and prevent items with unlike nets from connecting
         return self._activeNet 
@@ -154,32 +153,32 @@ class BoardScene( DrawScene, QGraphicsScene):
             # print('\t', layerItems)
         return self._layerItems
     
-    def addLayerItem(self, layerItem):
-        self.layerItems()[layerItem.layer()].append(layerItem)
+    # def addLayerItem(self, layerItem):
+    #     self.layerItems()[layerItem.layer()].append(layerItem)
         
-    def removeLayerItem(self, layerItem):
-        self.layerItems()[layerItem.layer()].remove(layerItem)
+    # def removeLayerItem(self, layerItem):
+    #     self.layerItems()[layerItem.layer()].remove(layerItem)
         
-    def copperItems(self):
-        # print()
-        # print('BOARDSCENE.COPPERITEMS():', self._copperItems)
-        return self._copperItems
+    # def copperItems(self):
+    #     # print()
+    #     # print('BOARDSCENE.COPPERITEMS():', self._copperItems)
+    #     return self._copperItems
     
-    def addCopperItem(self, copperItem):
-        self.copperItems()[copperItem.layer()].append(copperItem)
+    # def addCopperItem(self, copperItem):
+    #     self.copperItems()[copperItem.layer()].append(copperItem)
         
-    def removeCopperItem(self, copperItem):
-        self.copperItems()[copperItem.layer()].remove(copperItem)
+    # def removeCopperItem(self, copperItem):
+    #     self.copperItems()[copperItem.layer()].remove(copperItem)
         
     def setTopmostLayer(self, layer): # First, return the previous topmostLayer z value to zero, then, set new topmostLayer zValue to 1, bringing that layer above all other items.
-        for item in self.copperItems()[self.topmost_layer]: 
-            item.setZValue(0)
+        # for item in self.copperItems()[self.topmost_layer]: 
+        #     item.setZValue(0)
         for item in self.layerItems()[self.topmost_layer]:
             item.setZValue(0)
             
         self.topmost_layer = layer 
-        for item in self.copperItems()[self.topmost_layer]: 
-            item.setZValue(1)
+        # for item in self.copperItems()[self.topmost_layer]: 
+        #     item.setZValue(1)
         for item in self.layerItems()[self.topmost_layer]:
             item.setZValue(1)
             
@@ -189,6 +188,9 @@ class BoardScene( DrawScene, QGraphicsScene):
                 self.showLayer(layer)
             else: 
                 self.hideLayer(layer)
+                
+    def showAllLayers(self): 
+        self.showLayers(Utils.layers)
         
     def hideLayers(self, layers):
         for layer in layers: 
@@ -201,14 +203,14 @@ class BoardScene( DrawScene, QGraphicsScene):
     def showLayer(self, layer):
             print('BOARDSCENE.SHOWLAYER()')
             for item in self.items(): 
-                if not isinstance(item, LayersItem):
+                if not isinstance(item, LayerItem):
                     continue 
                 item.showLayer(layer)
                 
     def hideLayer(self, layer):
         print('BOARDSCENE.HIDELAYER()')
         for item in self.items(): 
-            if not isinstance(item, LayersItem):
+            if not isinstance(item, LayerItem):
                 continue 
             item.hideLayer(layer)
    
@@ -367,6 +369,8 @@ class BoardScene( DrawScene, QGraphicsScene):
     def addTraceModeMousePressEvent(self, event):
         print()
         print('ADDTRACEMODEMOUSEPRESSEVENT')
+
+        
         if self.ffline is not None: # If there is an existing ffline, we are done with it, add it to scene
             self.ffline.finalize() # Remove traces from scene if any are of 0 length
         if self._line : 

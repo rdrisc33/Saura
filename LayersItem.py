@@ -10,7 +10,6 @@ class LayersItem():
         # print('BOARDITEM.ARGS:', args)
         super().__init__(*args, **kwargs) 
 
-        
         # self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges) # Must enable to receive item position changes. 
         # self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges) setting this flag in LayersItem has no effect, I think bc QGI comes after in MRO
         self._net                   = None 
@@ -30,14 +29,6 @@ class LayersItem():
         self._id                    = None 
         self._net                   = None 
 
-
-
-        
-    # def connectedNets(self, proposedShape): 
-    #     self._connectedNets = [self.net()]
-    #     for child in self.childItems(): 
-    #         self._connectedNets.extend(child.connectedNets(proposedShape))
-
     def mousePressEvent(self, event): 
         self._offset = self.scenePos() - event.scenePos()
 
@@ -56,7 +47,6 @@ class LayersItem():
 
         else: 
             event.ignore() # This seems to do nothing 
-        
 
     def nets(self): # collects the net of any items which collide with this item.
         nets = set( [self.net()] ) 
@@ -75,56 +65,15 @@ class LayersItem():
             if self.collidesWithItem(item):
                 nets.add(item.net())
         return nets 
-            
 
-    # def resolveNets(self, nets ): # Given list of nets, return resolved net as a string, or 'unresolved' if unresolvable, or None if there are no nets 
-    #     nonNoneNets = [net for net in nets if net is not None ]
-
-    #     if len(nonNoneNets) == 0: 
-    #         self.setNet(None) 
-    #     if len(nonNoneNets) == 1: 
-    #         self.setNet(nonNoneNets[0])
-    #     elif len(nonNoneNets) > 1: 
-    #         self.setNet('unresolved')
-
-    # def mouseMoveEvent(self, event): 
-    #     super().mouseMoveEvent( event)
-
-    # def itemChange(self, change, value): 
-    #     # TODO: Confirm that ItemPositionChanges sends changes when sceneChanges
-    #     if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange: # If the item position has changed, we will check to see if there is a net conflict, and we will NOT MOVE HERE if there is one
-    #         print()
-    #         newPos = value # The value arguement is the new position, a QPointF 
-    #         delta = newPos - self.pos() 
-    #         print('DELTA:', delta) 
-            
-    #         proposedPath = self.mapToScene(self.shape().translated(delta)) 
-    #         print('PROPOSEDPATH:', proposedPath)
-    #         collidingNets = self.scene().collidingNets(self.layers(), path = proposedPath) # 
-    #         print('COLLIDINGNETS:', collidingNets) 
-    #         self.resolveNets(collidingNets)
-    #         print('SELF.NET:', self.net())
-
-    #         if self.net() == 'unresolved':
-    #             # do NOT move the item here / fill item background red w/alpha.5
-    #             print('DO NOT MOVE THE ITEM HERE') # We accomplish this by returning item's current .pos(), rather than the proposed newPos
-    #             return super().itemChange(change, self.pos())
-                
-    #         elif self.net() != 'unresolved' : # None or '3V3' for example.  
-    #             # DO move the item here...  ONly not that simple. While a Via may simply move its child Items, a trace complicatedly moves its childITems, and two other lines, in specific ways ... Focus on vias for now        
-    #             return super().itemChange(change, newPos)            
-
-    #     return super().itemChange( change, value) # handle all other changes 
-
-    def showLayer(self, layer): 
-        for childItem in self.childItems(): 
-            if not isinstance(childItem, LayerItem): 
-                continue 
-            if childItem.layer() == layer: 
-                childItem.show()
-                childItem.setZValue(1)
-                
-        return None 
+    # def showLayer(self, layer): 
+    #     for childItem in self.childItems(): 
+    #         if not isinstance(childItem, LayerItem): 
+    #             continue 
+    #         if childItem.layer() == layer: 
+    #             childItem.show()
+    #             childItem.setZValue(1)  
+        # return None 
     def showLayers(self, layer):
         return None 
     def hideLayer(self, layer): 
@@ -213,53 +162,3 @@ class LayersItem():
         return None        
     def removeLayer(self, layer):
         return None          
-    # def copperLayers(self):
-    #     return None        
-    # def copperItems(self):
-    #     return None
-    # def setCopperItems(self,copperItems):
-    #     return None
-    # def addCopperItem(self, layer, copperItem):
-    #     return None    
-    # def removeCopperItem(self, layer, copperItem):
-    #     return None       
-
-
-
-# class LayersSimpleTextItem(LayersItem, QGraphicsSimpleTextItem): 
-#     def __init__(self, layers , text=None, *args, **kwargs):
-#         super().__init__(layers, *args, **kwargs)
-#         self.setLayers(layers)
-#         self.setText(text)
-#         self.setPen(QPen(Utils.layerColors[layer], traceWidth , c = Qt.PenCapStyle.RoundCap))
-        
-# class LayersRectItem(LayersItem, QGraphicsRectItem ): 
-#     def __init__(self, layers, *args, **kwargs):
-#         super().__init__(layers, *args, **kwargs)
-#         self.setLayers(layers)
-
-# class LayersEllipseItem(LayersItem, QGraphicsEllipseItem): 
-#     def __init__(self, layers, *args, **kwargs):
-#         super().__init__(layers, *args, **kwargs)
-#         self.setLayers(layers)
-
-# class LayersPathItem(LayersItem, QGraphicsPathItem): 
-#     def __init__(self, layers, *args, **kwargs):
-#         super().__init__(layers, *args, **kwargs)
-#         self.setLayers(layers)
-
-# class LayersLineItem(LayersItem, QGraphicsLineItem): 
-#     def __init__(self, layers, *args, **kwargs):
-#         super().__init__( layers, *args, **kwargs )
-#         self.setLayers(layers)
-
-# class LayersPixmapItem(LayersItem, QGraphicsPixmapItem): 
-#     def __init__(self, layers, *args, **kwargs):
-#         super().__init__(layers, *args, **kwargs)
-#         self.setLayers(layers)
-
-# class LayersPolygonItem(LayersItem, QGraphicsPolygonItem): 
-#     def __init__(self, layers, *args, **kwargs):
-#         super().__init__(layers, *args, **kwargs)
-#         self.setLayers(layers)
-

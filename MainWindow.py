@@ -1029,6 +1029,11 @@ class MainWindow(QMainWindow):
         print('addTraceActionTriggered')
         if self.board.scene().mode() != Utils.BoardSceneMode.AddTraceMode:
             self.board.scene().setMode(Utils.BoardSceneMode.AddTraceMode)
+            if self.board.scene().activeLayer() not in Utils.CopperLayers: # Ensure we draw traces on a Copper Layer
+                self.board.scene().setActiveLayer('F.Cu')
+                self.board.lvwsw.layersVisibilityWidget.lvwiDict['F.Cu']._visibilityButton.setChecked(True)
+                self.board.lvwsw.layersVisibilityWidget.lvwiDict['F.Cu']._radioButton.setChecked(True)
+
         else: 
             self.board.scene().setMode(Utils.BoardSceneMode.NormalMode)
             self.board.scene().exitAddTraceMode() # Delete currently drawing scene._line & more if exiting

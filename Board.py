@@ -8,7 +8,8 @@ from BoardView import BoardView
 from FootprintItem import FootprintItem
 from BoardScene import BoardScene
 from utils import Utils 
-from LayersVisibilityControlWidget import LayersVisibilityControlWidget
+# from LayersVisibilityControlWidgetOld import LayersVisibilityControlWidget
+from LayersVisibilityWidget import LayersVisibilityWidgetScrollWindow
 
 import sys
 import os
@@ -40,39 +41,86 @@ class Board(QWidget): # Board goes in the stacked widget centralWidget of the Ma
 
         self.view.setScene(self._scene)
 
-        self.layersVisibilityControlWidget = LayersVisibilityControlWidget()
-        # self.layersVisibilityControlWidget.setTopmostLayer.connect(self._scene.setTopmostLayer)
-        self.layersVisibilityControlWidget.toggleLayerVisibility.connect(self.onVisibilityToggled)
-        self.layersVisibilityControlWidget.onlyShowCopperLayers.connect(self._scene.onlyShowCopperLayers)
+        # self.layersVisibilityControlWidget = LayersVisibilityControlWidget()
+        # # self.layersVisibilityControlWidget.setTopmostLayer.connect(self._scene.setTopmostLayer)
+        # self.layersVisibilityControlWidget.toggleLayerVisibility.connect(self.onVisibilityToggled)
+        # self.layersVisibilityControlWidget.onlyShowCopperLayers.connect(self._scene.onlyShowCopperLayers)
+        # self.layersVisibilityControlWidget.showAllLayers.connect(self._scene.showAllLayers)
+
+        self.lvwsw = LayersVisibilityWidgetScrollWindow()
+
+        self.lvwsw.layersVisibilityWidget.setActiveLayer.connect(self.setActiveLayer)
+        self.lvwsw.layersVisibilityWidget.setTopmostLayer.connect(self.setTopmostLayer)
+        self.lvwsw.layersVisibilityWidget.showLayer.connect(self.scene().showLayer )
+        self.lvwsw.layersVisibilityWidget.hideLayer.connect(self.scene().hideLayer )
+        
+        self.lvwsw.showAllLayersButton.clicked.connect(self.onShowAllLayersButtonClicked)
+        self.lvwsw.showCopperLayersButton.clicked.connect(self.onShowCopperLayersButtonClicked)
+        self.lvwsw.hideNonCopperLayersButton.clicked.connect(self.onHideNonCopperLayersButtonClicked)
         
         self.setLayout(QHBoxLayout())
         self.layout().addWidget(self.view)
-        self.layout().addWidget(self.layersVisibilityControlWidget)
-        
+        # self.layout().addWidget(self.layersVisibilityControlWidget)
+        self.layout().addWidget(self.lvwsw)
+
         
         # btn = QPushButton("Create Gerbers", self)
         # btn.clicked.connect(self.create_gerbers)
         # self.layout().addWidget(btn)
-    def scene(self):
-        return self._scene 
-    
-    def onVisibilityToggled(self, checkState , layer): # CheckState is an enum, Qt.CheckState, can be on/off/partial 
-        print()
-        print('LAYER:', layer)
-        print('CHECKSTATE', checkState)
-        if checkState == Qt.CheckState.Checked: 
-            self._scene.showLayer(layer)
-        elif checkState== Qt.CheckState.Unchecked: 
-            self._scene.hideLayer(layer)
+        
+
+    def setActiveLayer(self, layer): 
+        self.scene().setActiveLayer(layer)
+
+    def setTopmostLayer(self, layer):
+        self.scene().setTopmostLayer(layer)
+        
+    def onShowAllLayersButtonClicked(self):
+        for lvw in self.lvwsw.layersVisibilityWidget.lvwiList:
+            lvw.visibilityButton.setChecked(True)
+            self.setIcon(QIcon('images/visible.svg'))
+
+        self.showAllLayers()
+        
+    def onShowCopperLayersButtonClicked(self):
+        self.showCopperLayers()
+        
+    def onHideNonCopperLayersButtonClicked(self):
+        self.hideNonCopperLayers()
+
+
+
+    def showAllLayers(self):
+        for layer in Utils.layers: 
+            self.scene().showLayer(layer)
+            
+    def showCopperLayers(self): 
+        for layer in Utils.layers: 
+            if layer in Utils.CopperLayers:
+                self.scene().showLayer(layer)
+
+    def hideNonCopperLayers(self):
+        for layer in Utils.layers:
+            if layer not in Utils.CopperLayers: 
+                self.scene().hideLayer(layer)
+                
+    # def onVisibilityToggled(self, checkState , layer): # CheckState is an enum, Qt.CheckState, can be on/off/partial 
+    #     print()
+    #     print('LAYER:', layer)
+    #     print('CHECKSTATE', checkState)
+    #     if checkState == Qt.CheckState.Checked: 
+    #         self._scene.showLayer(layer)
+    #     elif checkState== Qt.CheckState.Unchecked: 
+    #         self._scene.hideLayer(layer)
 
             
-    def onlyShowCopperLayers(self):
-        print('SHOWING ONLY CU LAYERS')
-        for layer in Utils.layers: 
-            if layer in Utils.CopperLayers: 
-                self.showLayer(layer)
-            else: 
-                self.hideLayer(layer)
+    # def onlyShowCopperLayers(self):
+    #     print('SHOWING ONLY CU LAYERS')
+    #     for layer in Utils.layers: 
+    #         if layer in Utils.CopperLayers: 
+    #             self.showLayer(layer)
+    #         else: 
+    #             self.hideLayer(layer)
                 
     def create_gerbers(self):
         
@@ -114,6 +162,8 @@ class Board(QWidget): # Board goes in the stacked widget centralWidget of the Ma
         for layer_name, layer  in gerber_layers.items(): 
             layer.to_gerber(layer_name)
                 
+    def scene(self):
+        return self._scene 
 ###GERBER SPEC### 
 # One gerber file per layer; Each gerber file has a dedicated layer .
 # Layer0 DNE, starts at layer1

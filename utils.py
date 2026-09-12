@@ -383,26 +383,28 @@ class Utils:
         'F.Mask',
         'B.Mask',
         'F.Paste',
-        'B.Paste'
+        'B.Paste', 
+        'edge.cuts',
     ]
 
     layerColors = {
-        'F.Cu'      :       Qt.red                     ,
-        'B.Cu'      :       Qt.blue                    ,
+        'F.Cu'      :       QColor(Qt.red)                     ,
+        'B.Cu'      :       QColor(Qt.blue)                    ,
         # 'Inr.1'     :       QColor(255, 165,0)         ,                  # https://html-color.codes/orange
         # 'Inr.2'     :       QColor(127, 255, 0)        ,
         # 'Inr.3'     :       QColor(100,200,100)        ,
         # 'Inr.4'     :       QColor(50,200,200)         ,    
-        'F.Paste'   :       Qt.darkRed                 ,
-        'B.Paste'   :       Qt.darkBlue                ,
+        'F.Paste'   :       QColor(Qt.darkRed)                 ,
+        'B.Paste'   :       QColor(Qt.darkBlue)                ,
         'F.SilkS'   :       QColor(255,250,134)     ,    # Manilla
         'B.SilkS'   :       QColor(250,128,114)     ,    # Salmon
-        'F.Mask'    :       Qt.green                   ,
-        'B.Mask'    :       Qt.darkGreen               ,
-        'F.CrtYd'   :       Qt.magenta                 ,
-        'B.CrtYd'   :       Qt.cyan                    ,
-        'F.Fab'     :       Qt.gray                    ,  
-        'B.Fab'     :       QColor(65,65,100)               # darkish bluish                             ,
+        'F.Mask'    :       QColor(Qt.green)                   ,
+        'B.Mask'    :       QColor(Qt.darkGreen)               ,
+        'F.CrtYd'   :       QColor(Qt.magenta)                 ,
+        'B.CrtYd'   :       QColor(Qt.cyan)                    ,
+        'F.Fab'     :       QColor(Qt.gray)                    ,  
+        'B.Fab'     :       QColor(75,75,100)          ,     # darkish bluish       
+        'edge.cuts' :       QColor(200,200,200)         # Gray
     }
 
     CopperLayers = [ 'F.Cu', 'B.Cu' ,'Inr.1', 'Inr.2', 'Inr.3', 'Inr.4'] 
