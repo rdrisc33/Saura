@@ -20,8 +20,10 @@ class Ffline:
         self._lineB = QLineF()
 
         layers = [ self.scene().activeLayer() ]
-        self._traceA = Trace.fromLine(self._lineA, self.scene().traceWidth(), layers , self.net())
-        self._traceB = Trace.fromLine( self._lineB, self.scene().traceWidth() , layers, self.net())         
+        print()
+        print('TRACEWIDTH', self.scene().traceWidth())
+        self._traceA = Trace(layers, self.scene().traceWidth(),  self.net(), None, self._lineA )
+        self._traceB = Trace(layers, self.scene().traceWidth(),self.net(), None, self._lineB)
         self.traces = [self._traceA , self._traceB]
         self.scene().addItem(self._traceA)
         self.scene().addItem(self._traceB)
@@ -125,15 +127,7 @@ class Ffline:
         self._lineA.setAngle(self.startAngle()*180/math.pi)
         # print('SELF.HERE == LINEA.P1():', self.here == self._lineA.p1())
 
-
-
-
-
-
-# It seems this block is causing some problems 
-
         # Depending on whether trace a is at an angle, or hor/vert, the distance varies:
-
         if self._lineA.angle() % 90 == 0: # If the angle is hor/vert, 
             # print('STARTING OUT HOR/VERT')
             self._lineA.setLength( abs(abs(self.dx()) - abs(self.dy())) )
@@ -219,26 +213,26 @@ class Ffline:
         return self._scene
 
                 
-    @staticmethod
-    def getOctant(theta): # return 1-8 representing the octant we are in ( like a quadrant but there's eight sections )
-        pi = math.pi
-        theta = Ffline.normalizeAngle(theta)
-        if 0*pi/4 <= theta <= 1*pi/4:
-            return 1 # as in octant 1
-        if 1*pi/4 <  theta <= 2*pi/4:
-            return 2 # as in octant 2 
-        if 2*pi/4 <  theta <= 3*pi/4:
-            return 3
-        if 3*pi/4 <  theta <= 4*pi/4:
-            return 4
-        if 4*pi/4 <  theta <= 5*pi/4:
-            return 5
-        if 5*pi/4 <  theta <= 6*pi/4:
-            return 6
-        if 6*pi/4 <  theta <= 7*pi/4:
-            return 7
-        if 7*pi/4 <  theta <= 8*pi/4:
-            return 8
+    # @staticmethod
+    # def getOctant(theta): # return 1-8 representing the octant we are in ( like a quadrant but there's eight sections )
+    #     pi = math.pi
+    #     theta = Ffline.normalizeAngle(theta)
+    #     if 0*pi/4 <= theta <= 1*pi/4:
+    #         return 1 # as in octant 1
+    #     if 1*pi/4 <  theta <= 2*pi/4:
+    #         return 2 # as in octant 2 
+    #     if 2*pi/4 <  theta <= 3*pi/4:
+    #         return 3
+    #     if 3*pi/4 <  theta <= 4*pi/4:
+    #         return 4
+    #     if 4*pi/4 <  theta <= 5*pi/4:
+    #         return 5
+    #     if 5*pi/4 <  theta <= 6*pi/4:
+    #         return 6
+    #     if 6*pi/4 <  theta <= 7*pi/4:
+    #         return 7
+    #     if 7*pi/4 <  theta <= 8*pi/4:
+    #         return 8
 
     # @staticmethod
     # def getStartAngle(theta): 

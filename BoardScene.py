@@ -23,7 +23,7 @@ class BoardScene( DrawScene, QGraphicsScene):
     # * 1 bc IDK what the boardScene grid step should be, and * 1 makes for a 1mm grid step.
     grid_spacing_pixels=  dpi * Utils.gridPt1mm # the spacing at which to snap to. 
     gridSpacingMm = 1 # as in 1mm
-    # print('MYBOARDSCENE.grid_spacing:', grid_spacing)
+    # print('BOARDSCENE.grid_spacing:', grid_spacing)
     tick_spacing = dpi / 25.4 # The spacing at which to draw tick marks 
     # filegrid_spacing = 1.27 # kicad symbols are designed on.05inche grid,  with metric mm measurements. .05inches = 1.27mm 
     # dpi = app.instance().screens()[0].physicalDotsPerInch()  # app.instance() -> a global pointer to the application instance. Equivalent to 'qApp'. Must go AFTER app instance instantiation. 
@@ -32,8 +32,9 @@ class BoardScene( DrawScene, QGraphicsScene):
     # grid_spacing = ( ( dpi/25.4 ) * 1 ) # The default grid for the board should be ? mm 
     # dropped_part = Signal(dict)
     # added_footprint = Signal(dict, int) # (part, value) value as in reference_value as in "C3" "R1" "L2" etc. Note app crashed when Signal(MyFootprintItem)-- signals/slots Demand correct typing
+    activeNetSet = Signal(str) # activeNet:str
     droppedPart = Signal(dict, QGraphicsSceneDragDropEvent, int) # part, event, source_widget
-    deletePart = Signal(str , int) # reference, value . As in reference_value which was deleted. 
+    deleteComponent = Signal(str , int) # reference, value . As in reference_value which was deleted. 
     
     tracingLaid = Signal(str) # (net) net of the newly laid tracingTracing as in new traces were added to board
 
@@ -47,7 +48,7 @@ class BoardScene( DrawScene, QGraphicsScene):
         self.topmost_layer = 'F.Cu' # The layer which is drawn on top of all other layers. Selected via layerVisibilityControlWidget. Most of the time, will be same value as activeLayer. Default F.Cu
         self._activeLayer = 'F.Cu' # The currently selected layer; the layer the user is currently working on. F_Cu, Inr.3, B_Silk, etc # The layer to which Traces will be added. Selected via layerVisibilityControlWidget. Most of the time, will be same value as topmost_layer. Default F.Cu
         self._activeNet = None  # The currently selected net. gnd, Vcc, 3v3, signal_gnd, etc
-
+# active net is never actually set away from None SET ACTIVE NET CORRECTLY This is connected to the ratsnest wire not disappearing learn how to make active net show in the status bar 
         self.showing_layers = set(Utils.layers) # A set containing currently showing layers. Default show all layers 
         self.hidden_layers = []
         
@@ -80,6 +81,7 @@ class BoardScene( DrawScene, QGraphicsScene):
         self._graph                     = np.zeros( ( 10, 10) ) 
         self._copperItems               = defaultdict(list)
         self._layerItems                = defaultdict(list) 
+        self._showingLayers             = Utils.layers
         
         self.seeker.setPen(QPen(Qt.GlobalColor.green, 0)) 
         self.addItem(self.seeker)                     # Add seeker to scene.
@@ -91,6 +93,58 @@ class BoardScene( DrawScene, QGraphicsScene):
         self.addItem(origin_item)
         self.setMode(Utils.BoardSceneMode.NormalMode)
 
+        self.setActiveNet(self._activeNet)
+
+    def showingLayers(self): 
+        return self._showingLayers
+    def setShowingLayers(self, showingLayers):
+        self._showingLayers = showingLayers
+
+    # def updateVisibility(self, visibility): 
+    #     print()
+    #     print('UPDATE VISIBILITY')
+    #     print('VISIBILITY:', type(visibility) , visibility)
+    #     topmost = visibility.pop('topmost')
+        
+    #     for item in self.items(): 
+    #         if isinstance(item ,LayersItem): 
+    #             if topmost in item.layers(): 
+    #                 print('SHOWING TOPMOST')
+    #                 item.showLayer(topmost)
+    #             else: 
+    #                 for layer, vis in visibility.items(): 
+    #                     if layer in item.layers(): 
+    #                         if vis:
+    #                             item.showLayer(layer)
+    #                             break
+
+                    
+                        
+                    
+        
+    def netsBeneath(self, point):
+        nets = set()
+        for item in self.items(point): 
+            if isinstance(item, NonConnectivityItem): 
+                if item.layer() == self.activeLayer(): 
+                    nets.add(item.net())
+
+        print('NETSBENEATH:', nets)
+        return list(nets)
+
+    def resolveNets(self, nets): 
+        nonNoneNets = [net for net in nets if net is not None]
+
+        if len(nonNoneNets) == 0 :
+            return None 
+
+        elif len(nonNoneNets) == 1 : 
+            return nonNoneNets[0]
+
+        elif len(nonNoneNets) > 1: 
+            return 'unresolved'
+        
+            
     def collidingNets(self,layers, path=None , point = None): # Returns list of nets colliding with path, or empty list if no nets colliding with path 
         
         collidingNets = set() 
@@ -125,24 +179,24 @@ class BoardScene( DrawScene, QGraphicsScene):
         
     def addTraceModeMouseDoubleClickEvent(self, event):
         # self.tracing_laid.emit() # When new traces are added, need to update MW.ratsnest & MW.nets@ BoardItems, which is done @ MW level, so we emit a signal.
+        print('BOARD SCENE ACTIVE NET:', self.activeNet())
         self.tracingLaid.emit(self.activeNet()) 
         self.exitAddTraceMode()
-        # print('addTraceModeMouseDoubleClickEvent')
-        # if self.mode() == MyUtils.BoardSceneMode.AddTraceMode:
-        #     self.exitAddTraceMode()
-        # elif self.mode() == MyBoardScene.normalMode:
-        #     pass
+
 
     def activeNet(self): # The net of the currently selected item. Is used to setActiveNet of None-net items and prevent items with unlike nets from connecting
         return self._activeNet 
     
-    def setActiveNet(self, activeNet):
+    def setActiveNet(self, activeNet:str|None):
         self._activeNet = activeNet
+        self.activeNetSet.emit(str(self._activeNet)) # activeNet may be None so cast to str b4 sending
         
     def activeLayer(self): 
         return self._activeLayer
     def setActiveLayer(self, activeLayer):
         self._activeLayer = activeLayer
+        self.showLayer(activeLayer)
+        
         
         
     def layerItems(self):
@@ -170,21 +224,21 @@ class BoardScene( DrawScene, QGraphicsScene):
     # def removeCopperItem(self, copperItem):
     #     self.copperItems()[copperItem.layer()].remove(copperItem)
         
-    def setTopmostLayer(self, layer): # First, return the previous topmostLayer z value to zero, then, set new topmostLayer zValue to 1, bringing that layer above all other items.
-        # for item in self.copperItems()[self.topmost_layer]: 
-        #     item.setZValue(0)
-        for item in self.layerItems()[self.topmost_layer]:
-            item.setZValue(0)
+    # def setTopmostLayer(self, layer): # First, return the previous topmostLayer z value to zero, then, set new topmostLayer zValue to 1, bringing that layer above all other items.
+    #     # for item in self.copperItems()[self.topmost_layer]: 
+    #     #     item.setZValue(0)
+    #     for item in self.layerItems()[self.topmost_layer]:
+    #         item.setZValue(0)
             
-        self.topmost_layer = layer 
-        # for item in self.copperItems()[self.topmost_layer]: 
-        #     item.setZValue(1)
-        for item in self.layerItems()[self.topmost_layer]:
-            item.setZValue(1)
+    #     self.topmost_layer = layer 
+    #     # for item in self.copperItems()[self.topmost_layer]: 
+    #     #     item.setZValue(1)
+    #     for item in self.layerItems()[self.topmost_layer]:
+    #         item.setZValue(1)
             
     def onlyShowCopperLayers(self):
         for layer in Utils.layers: 
-            if layer in Utils.CopperLayers:
+            if layer in Utils.copperLayers:
                 self.showLayer(layer)
             else: 
                 self.hideLayer(layer)
@@ -203,16 +257,16 @@ class BoardScene( DrawScene, QGraphicsScene):
     def showLayer(self, layer):
             print('BOARDSCENE.SHOWLAYER()')
             for item in self.items(): 
-                if not isinstance(item, LayerItem):
+                if not isinstance(item, LayersItem):
                     continue 
                 item.showLayer(layer)
                 
-    def hideLayer(self, layer):
+    def hideLayer(self, layer, showingLayers):
         print('BOARDSCENE.HIDELAYER()')
         for item in self.items(): 
-            if not isinstance(item, LayerItem):
+            if not isinstance(item, LayersItem):
                 continue 
-            item.hideLayer(layer)
+            item.hideLayer(layer, showingLayers)
    
 
     # def normalModeMousePressEvent(self, event):
@@ -223,9 +277,10 @@ class BoardScene( DrawScene, QGraphicsScene):
         super().addItem(item) # Add Item normally, which adds all childItems. We still have to add copperItems to their rtree.
         # print('ADDING ITEM OF TYPE:',type(item))
         
-        if not isinstance(item, LayersItem):
-            # print(f'NONLAYERSITEM {item}  ADDED TO BOARDSCENE')
-            return         
+        if isinstance(item, LayersItem):
+            
+            item.showLayer(self.activeLayer())
+            # return         
         
         if isinstance( item, FootprintItem): # Footprint pads go in rtree, so call addItem again for each pad 
             # self.footprints[item.referenceDesignator()][item.referenceNumber()] = item
@@ -233,7 +288,7 @@ class BoardScene( DrawScene, QGraphicsScene):
                 self.addItem(pad)
             
         
-        if isinstance(item, CopperItemContainer): # Footprint, TraceViaZonePad, are all copperItemContainers: they track copperItems with their .copperItems() method. CopperItems include Trace, ViaItem, ZoneItem, PadItem. CopperItems support connectivity, and go in the rtree. CopperItems are also .childItems(). There are also layerItems. Think silkscreen doodles, user notes, and ratsnest lines. Layer items do not support connectivity. layerItems are tracked in .layerItems().
+        if isinstance(item, ConnectivityItem): # Footprint, TraceViaZonePad, are all copperItemContainers: they track copperItems with their .copperItems() method. CopperItems include Trace, ViaItem, ZoneItem, PadItem. CopperItems support connectivity, and go in the rtree. CopperItems are also .childItems(). There are also layerItems. Think silkscreen doodles, user notes, and ratsnest lines. Layer items do not support connectivity. layerItems are tracked in .layerItems().
             print(f'ADDING {type(item)} TO BOARDSCENE')
             item.setId(self.count)        # Count may differ between brd and sch
             self.count  += 1 
@@ -247,28 +302,18 @@ class BoardScene( DrawScene, QGraphicsScene):
     def removeItem(self, item): # QGraphicsScene.removeItem reimplementation : Remove item from rtree self.idx as well
             
         # print('BOARDSCENE.REMOVEITEM', item)
-        super().removeItem(item) # invoke super to remove from scene 
+        super().removeItem(item) # invoke super to remove item & all childrenItem from scene 
         
-        if isinstance(item, CopperItemContainer):
+        if isinstance(item, ConnectivityItem):
             self.ids.pop(item.id()) # Remove from ids 
             for layer in item.layers(): 
                 self.rtrees[layer].delete(item.id(), item.sceneBufferedBounds()) # Remove from idx. Index().delete(id, bounds) : Deletes an item from the index by id and coordinates. Note Index id uniqueness is up to the user to implement
-                
-
-            # for layer, items in item.copperItems().items():  # remove from copperItems() 
-            #     for i in items: 
-            #         self.copperItems()[layer].remove(i)
         
-        if isinstance(item, FootprintItem):
-            for pad in item.pads():
-                self.removeItem(pad)
-                
-            # self.footprints[item.referenceDesignator()].pop(item.referenceNumber())
-            # for layer, items in item.copperItems().items():  # remove from copperItems() 
-            #     for i in items: 
-                    
-                    # self.copperItems()[layer].remove(i) # Scene dont need to know all copperItems...
-                    # self.removeItem(i) # recusrively call removeItem to wipe i from rtrees
+        # if isinstance(item, FootprintItem):
+        #     for pad in item.pads():
+        #         self.removeItem(pad)
+
+
             
 
 # https://rtree.readthedocs.io/en/stable/tutorial.html
@@ -343,18 +388,9 @@ class BoardScene( DrawScene, QGraphicsScene):
             print('DELETE KEY PRESSED')
             for item in self.selectedItems(): 
                 
-                # # if item.copperItems(): # Moved to removeItems
-                # for layer, items in item.copperItems().items(): # Remove all copperItems()
-                #     for item in items: 
-                #         print('ITEM:', item)
-                #         self.copperItems()[layer].remove(item)
-
-#     self.copperItems()[layer].remove(item)
-# ValueError: list.remove(x): x not in list
- 
-                if item.reference(): # Then we are a footprint item, we should ALSO delete the SYMBOL w/ corresponding reference_value. Because we have to reach into schematic & delete that symbol, or board & delete footprint, mmw handles deletion of refVal items on both scene and sch, but trace zone via items can be removed wo/ MMW. Be sure to remove from: the scene, scene.ids, subtract one from reference_values, and remove from the scene.idx, & remove from scene.copperItems() 
+                if isinstance(item, FootprintItem): # If we are a footprint item, we should ALSO delete the SYMBOL w/ corresponding reference_value. Because we have to reach into schematic & delete that symbol, or board & delete footprint, mmw handles deletion of refVal items on both scene and sch, but trace zone via items can be removed wo/ MMW. Be sure to remove from: the scene, scene.ids, subtract one from reference_values, and remove from the scene.idx
                     print(f'ITEM: {item} IS A FOOTPRINT, deleting from both sch and brd')
-                    self.deletePart.emit(item.referenceDesignator(), item.referenceNumber()) # Let mmw handle footprint deletion: deleted_item.emit(reference, value).connect(MMW.delete_part) 
+                    self.deleteComponent.emit(item.referenceDesignator(), item.referenceNumber()) # Let mmw handle footprint deletion: deleted_item.emit(reference, value).connect(MMW.delete_part) 
                 else: 
                     self.removeItem(item)
                     item = None # What this do? 
@@ -365,7 +401,8 @@ class BoardScene( DrawScene, QGraphicsScene):
         self._mode = mode
         print()
         print(f"SET MODE TO {mode}")
-        
+
+
     def addTraceModeMousePressEvent(self, event):
         print()
         print('ADDTRACEMODEMOUSEPRESSEVENT')
@@ -421,7 +458,7 @@ class BoardScene( DrawScene, QGraphicsScene):
         self.seeker.setPos(event.scenePos()) 
         
         self.seeker.setPos(self.snapToGrid(event.scenePos())) # after checking if any items beneath seeker @scenePos, we may now snap to grid, tho we may still decide to snap to point of interest 
-        super().mouseMoveEvent(event) 
+        # super().mouseMoveEvent(event)
     
     def addTraceModeMouseMoveEvent(self, event):
         print() 
@@ -489,7 +526,7 @@ class BoardScene( DrawScene, QGraphicsScene):
     @Slot(dict) # (part) The name of the sql table which was changed
     def reload_part(self, part):
         print()
-        print('MYBOARDSCENE.RELOADPART')
+        print('BOARDSCENE.RELOADPART')
         for item in self.items():
             if isinstance(item, FootprintItem):
                 
@@ -520,17 +557,15 @@ class BoardScene( DrawScene, QGraphicsScene):
     def mouseMoveEvent(self, event):
         print('BOARDSCENE.MOUSEMOVEEVENT')
         super().mouseMoveEvent(event) 
-        
+
+
         if self.mode() == Utils.BoardSceneMode.NormalMode:
            self.normalModeMouseMoveEvent(event)
         elif self.mode() == Utils.BoardSceneMode.AddTraceMode:
             self.addTraceModeMouseMoveEvent(event)
         elif self.mode() == Utils.BoardSceneMode.AddViaMode:
             self.addViaModeMouseMoveEvent(event)
-        # super().mouseMoveEvent(event)
-        
-        # print()
-        # print('MOUSEGRABBERITEM:', self.mouseGrabberItem())
+
         if self.mouseGrabberItem(): 
             
             if isinstance(self.mouseGrabberItem(), FootprintItem):
@@ -538,31 +573,10 @@ class BoardScene( DrawScene, QGraphicsScene):
                 
     def addViaModeMouseMoveEvent(self, event): 
         self.via.tentativeMove( Utils.snapToGrid(event.scenePos(), 20) )# MOve here, as long as no conflicts
-       
-    # def setActiveNet(self):
-    #     itemsBeneathSeeker = self.items(self.seeker.scenePos())
-    #     netsBeneath = set()
-    #     for item in itemsBeneathSeeker: 
-    #         if isinstance(item, CopperItemContainer):
-    #             if not isinstance(item, FootprintItem): # FPs make sense to have a net
-    #                 netsBeneath.add(item.net())
-                    
-    #     if len(netsBeneath) == 0: 
-    #         self._activeNet = None 
-            
-    #     elif len(netsBeneath) > 1 : 
-    #         print('NETSBENEATH:', netsBeneath)
-    #         self._activeNet = 'unresolved'
-            
-    #     elif len(netsBeneath) == 1:
-    #         self._activeNet = netsBeneath.pop() # sets can't be indexed so pop
-            
-    #     print('BOARDSCENE.ACTIVENET():', self.activeNet())
-            
-
 
     def mouseDoubleClickEvent(self, event):
-        # print('BOARDSCENE.MOUSEDOUBLECLICKEVENT')
+        print()
+        print('BOARDSCENE.MOUSEDOUBLECLICKEVENT')
         super().mouseDoubleClickEvent(event)
         if self._mode == Utils.BoardSceneMode.AddTraceMode: # Exit addTraceMode 
            self.addTraceModeMouseDoubleClickEvent(event)
@@ -575,21 +589,18 @@ class BoardScene( DrawScene, QGraphicsScene):
         
     def dropEvent(self, event):   
         print() 
-        print('MyBoardScene.DROPEVENT')
+        print('BOARDSCENE.DROPEVENT')
         part = json.loads(event.mimeData().text()) # part will be in mimeData().text() as a json string representing a python dictionary
         if part:
             source_widget = MyWidgets.Board.value
             self.droppedPart.emit(part, event, source_widget) # We will .addItem from MyMainWindow, because we ALSO need to add corresponding part to sch. 
-        # self.add_footprint(part,  event.scenePos()
 
     def exitAddTraceMode(self):
         print()
-        print('MYBOARDSCENE.exitAddTraceMode')
+        print('BOARDSCENE.exitAddTraceMode')
         self.views()[0].setMouseTracking(False) # disable mouseMoveEvent from firing while no mouse button pressed down, which is default setting.    
         self.setMode(Utils.BoardSceneMode.NormalMode) # restore default mode. But for real app, should stay in wiring_mode
         self.removeItem(self._line) 
-        # self._traceA = None 
-        # self._traceB = None 
         self.ffline = None 
         self.startPosition = None 
         # main_window = self.views()[0].parentWidget().parentWidget().parentWidget()# Get the main_window.( we need to uncheck add_traceAction). The view's parent is the schematic, schematic's parent is a stackedWidget, stackedWidget's parent is the QMainWindow. # This is bad practice bc so brittle but what way is better? HEY this is a good example of when we should start using SIGNALS/SLOTS rather than digging through parent objects (?)
@@ -605,7 +616,7 @@ class BoardScene( DrawScene, QGraphicsScene):
             self.seeker.setPen(QPen(Qt.red , 0))
         elif mode == Utils.BoardSceneMode.AddViaMode: 
             print('ENTERED ADD VIA MODE')
-            self.via = Via(60,30 , 10, ['F.Cu'])
+            self.via = Via(10,4 , 1, ['F.Cu'])
             self.addItem(self.via) 
             self.via.setPos(-1e9,-1e9)
             self.views()[0].setMouseTracking(True) # mouseMoveEvent fires while no mouse button pressed down 
@@ -627,65 +638,7 @@ class BoardScene( DrawScene, QGraphicsScene):
             self.gridSpacingMm = gridSpacingMm
         else:
             raise TypeError(f'grid_spacing_mm is type: {type(gridSpacingMm)} but expected str | int | float')
-        # self.update_tick_marks() 
         
-            
-        
-    # @staticmethod 
-    # def get_quadrant(theta):
-    #     pi = math.pi 
-    #     if 0*pi/4 <= theta <= 2*pi/4:
-    #         return 1 # as in quadrant 1
-    #     if 2*pi/4 <  theta <= 4*pi/4:
-    #         return 2 # as in quadrant 2 
-    #     if 4*pi/4 <  theta <= 6*pi/4:
-    #         return 3
-    #     if 6*pi/4 <  theta <= 8*pi/4:
-    #         return 4
- 
-                
-    # @staticmethod
-    # def getOctant(theta): # return 1-8 representing the octant we are in ( like a quadrant but there's eight sections )
-    #     pi = math.pi
-    #     if 0*pi/4 <= theta <= 1*pi/4:
-    #         return 1 # as in octant 1
-    #     if 1*pi/4 <  theta <= 2*pi/4:
-    #         return 2 # as in octant 2 
-    #     if 2*pi/4 <  theta <= 3*pi/4:
-    #         return 3
-    #     if 3*pi/4 <  theta <= 4*pi/4:
-    #         return 4
-    #     if 4*pi/4 <  theta <= 5*pi/4:
-    #         return 5
-    #     if 5*pi/4 <  theta <= 6*pi/4:
-    #         return 6
-    #     if 6*pi/4 <  theta <= 7*pi/4:
-    #         return 7
-    #     if 7*pi/4 <  theta <= 8*pi/4:
-    #         return 8
-            
-    # @staticmethod
-    # def getStartAngle(theta): 
-    #     pi = math.pi
-    #     theta = BoardScene.normalize_angle(theta) # atan2 returns -pi<theta<=pi , so, you'll want to normalize the angle first 
-    #     if 0 <= theta <= pi/8 or 15*pi/8 < theta <= 2*pi: #  To determine which direction the user is trying to draw the line at initially, look in octants rotated 22.5 degrees ( pi/ 16) ( draw a picture to better understand)
-    #         return 0 # as in 0 degrees 
-    #     elif pi/8 < theta <= 3*pi/8: # 
-    #         return 2*pi/8 # as in 45 degrees 
-    #     elif 3*pi/8 < theta <= 5*pi/8:
-    #         return 4*pi/8
-    #     elif 5*pi/8 < theta <= 7*pi/8:
-    #         return 6*pi/8
-    #     elif 7*pi/8 < theta <= 9*pi/8:
-    #         return 8*pi/8
-    #     elif 9*pi/8 < theta <= 11*pi/8:
-    #         return 10*pi/8
-    #     elif 11*pi/8 < theta <= 13*pi/8:
-    #         return 12*pi/8
-    #     elif 13*pi/8 < theta <= 15*pi/8:
-    #         return 14*pi/8
-        
-
     @staticmethod
     def normalize_angle(theta): # Return an angle between 0 and 2 pi
         pi = math.pi 
@@ -704,7 +657,7 @@ class BoardScene( DrawScene, QGraphicsScene):
 # app = QApplication(sys.argv)
 # # print("Qapp:", qApp)
 
-# board_scene = MyBoardScene()
+# board_scene = BoardScene()
 # view = MyView()
 # view.setScene(board_scene)
 # view.show()

@@ -76,7 +76,7 @@ class LayersVisibilityControlWidget(QWidget):
     def only_show_cu_layers_btn_clicked(self):
         self.onlyShowCopperLayers.emit()
         for count, layer in enumerate(Utils.layers): 
-            if layer in Utils.CopperLayers: 
+            if layer in Utils.copperLayers: 
                 self.layout().itemAt(count).widget().visibilityButton.setChecked(True)
             else: 
                 self.layout().itemAt(count).widget().visibilityButton.setChecked(False)

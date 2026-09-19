@@ -2,8 +2,7 @@ from PySide6.QtWidgets import *
 from PySide6.QtCore import *
 from PySide6.QtGui import * 
 
-from LayerItem import LayerItem
-
+from utils import * 
 class LayersItem(): 
     def __init__(self, layers, *args, **kwargs):
         # print('BOARDITEM.KWARGS:', kwargs)
@@ -13,7 +12,7 @@ class LayersItem():
         # self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges) # Must enable to receive item position changes. 
         # self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges) setting this flag in LayersItem has no effect, I think bc QGI comes after in MRO
         self._net                   = None 
-        self._layers                = layers
+        self._layers                = None 
         self._connectedNets         = []
         # print('LAYERS:', layers)
         self._terminals             = None 
@@ -29,42 +28,90 @@ class LayersItem():
         self._id                    = None 
         self._net                   = None 
 
+        self.setLayers(layers)
+        
     def mousePressEvent(self, event): 
         self._offset = self.scenePos() - event.scenePos()
 
-    def mouseMoveEvent(self, event): 
-        if (event.buttons() & Qt.MouseButton.LeftButton ) and (self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsSelectable): # Only move if the item is selectable, and the mouse left button is clicked. https://github.com/qt/qtbase/blob/dev/src/widgets/graphicsview/qgraphicsitem.cpp if ((event->buttons() & Qt::LeftButton) && (flags() & ItemIsMovable)) {
-            print('LAYERSITEM.MOUSEMOVEEVENT')
-            self._previousPos = self.scenePos()     #Save the previous position
-            self._previousNet = self.net()          #Save the previous net 
-
-            self.setPos(self.scene().snapToGrid(event.scenePos() + self._offset))
-            nets = self.nets() 
-            self.resolveNets(nets)
-            if self.net() == 'unresolved': 
-                self.setPos(self._previousPos)
-                self.setNet(self._previousNet)
-
-        else: 
-            event.ignore() # This seems to do nothing 
-
-    def nets(self): # collects the net of any items which collide with this item.
-        nets = set( [self.net()] ) 
+    # def showLayer(self, layer): 
+    #     if layer in self.layers(): 
+    #         self.show()
+    #         self.setZValue(1)
+    #         self.setColor(Utils.layerColors[layer])
+    def showLayer(self, layer):
+        if layer not in self.layers(): 
+            return
         
-        hitIds = [] 
-        hitItems = [] 
-        print('SELF.SCENEBOUNDS:', self.sceneBounds())
-        if not self.sceneBounds(): 
-            self.setSceneBounds
-        for layer in self.layers(): 
+        self.show()
+        if self.scene().activeLayer() in self.layers(): 
+            self.setColor(Utils.layerColors[self.scene().activeLayer()])
+            return 
+        self.setColor(Utils.layerColors[layer])
+        # set color doesn't take effect until I mouse over the scene... whats up with that? 
+        # self.scene().update() # Nope No effect
+        # self.update() # Nope No effect 
+
+    def hideLayer(self, layer, showingLayers):
+        if layer not in self.layers(): 
+            return 
+        
+        # If there are other layers that are showing, I would show those layers... 
+        # if otherLayer in self.layers() is showing: 
+        #     self.ShowLayer(otherLayer)
+        for otherLayer in self.layers(): 
+            if otherLayer in showingLayers: 
+                self.showLayer(otherLayer)
+                return
+                        
+        self.hide() # Only hide, if ALL layers are hidden 
+        
+    # def hideLayer(self, layer):  # Note not good enough
+    #     if layer in self.layers(): 
+    #         self.hide()
+    #         self.setZValue(0)
+
+    def color(self):
+        return self._color
+    def setColor(self, color):
+        self._color = color
+        # self.scene().views()[0].viewport().repaint() No effect
+        # Reimplement in subclasses to do more; trace needs to setPen; pad & zone need to setBrush; via needs to (?)        
+        
+    # def mouseMoveEvent(self, event): 
+    #     if (event.buttons() & Qt.MouseButton.LeftButton ) and (self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsSelectable): # Only move if the item is selectable, and the mouse left button is clicked. https://github.com/qt/qtbase/blob/dev/src/widgets/graphicsview/qgraphicsitem.cpp if ((event->buttons() & Qt::LeftButton) && (flags() & ItemIsMovable)) {
+    #         print('LAYERSITEM.MOUSEMOVEEVENT')
+    #         self._previousPos = self.scenePos()     #Save the previous position
+    #         self._previousNet = self.net()          #Save the previous net 
+
+    #         self.setPos(self.scene().snapToGrid(event.scenePos() + self._offset))
+    #         nets = self.nets() 
+    #         self.resolveNets(nets)
+    #         if self.net() == 'unresolved': 
+    #             self.setPos(self._previousPos)
+    #             self.setNet(self._previousNet)
+
+    #     else: 
+    #         event.ignore() # This seems to do nothing 
+
+    # def nets(self): # collects the net of any items which collide with this item.
+    #     nets = set( [self.net()] ) 
+        
+    #     hitIds = [] 
+    #     hitItems = [] 
+    #     print('SELF.SCENEBOUNDS:', self.sceneBounds())
+    #     if not self.sceneBounds(): 
+    #         self.setSceneBounds
+    #     for layer in self.layers(): 
             
-            hitIds.extend( self.scene().rtrees[layer].intersection(self.sceneBounds() ) ) 
-        hitItems = [self.scene().ids[hitId] for hitId in hitIds]
+    #         hitIds.extend( self.scene().rtrees[layer].intersection(self.sceneBounds() ) ) 
+    #     hitItems = [self.scene().ids[hitId] for hitId in hitIds]
         
-        for item in hitItems: 
-            if self.collidesWithItem(item):
-                nets.add(item.net())
-        return nets 
+    #     for item in hitItems: 
+    #         if self.collidesWithItem(item):
+    #             nets.add(item.net())
+    #     return nets 
+
+
 
     # def showLayer(self, layer): 
     #     for childItem in self.childItems(): 
@@ -74,25 +121,25 @@ class LayersItem():
     #             childItem.show()
     #             childItem.setZValue(1)  
         # return None 
-    def showLayers(self, layer):
-        return None 
-    def hideLayer(self, layer): 
-        return None 
-    def hideLayers(self, layers):
-        return None 
+    # def showLayers(self, layer):
+    #     return None 
+    # def hideLayer(self, layer): 
+    #     return None 
+    # def hideLayers(self, layers):
+    #     return None 
 
-    def insertIntoRtree(self): 
-        return None 
+    # def insertIntoRtree(self): 
+    #     return None 
 
-    def removeFromRtree(self):
-        return None        
+    # def removeFromRtree(self):
+    #     return None        
 
-    # def connectedNets(self): 
-    #     return self._connectedNets 
-    def nonNoneNets(self):
-        return None 
-    def connectsToItem(self, other): # -> True if self is connected to other. Connected as in electrically connected.
-        return None 
+    # # def connectedNets(self): 
+    # #     return self._connectedNets 
+    # def nonNoneNets(self):
+    #     return None 
+    # def connectsToItem(self, other): # -> True if self is connected to other. Connected as in electrically connected.
+    #     return None 
     # def updateRtree(self):
     #     return None 
 
@@ -100,10 +147,10 @@ class LayersItem():
     #     return None 
     # def removeFromRtrees(self): 
     #     return None 
-    def containsTerminal(self, terminal): 
-        return None 
-    def setShowingLayers(self, layers): 
-        return None 
+    # def containsTerminal(self, terminal): 
+    #     return None 
+    # def setShowingLayers(self, layers): 
+    #     return None 
     
     def net(self):
         return self._net     
@@ -113,52 +160,56 @@ class LayersItem():
     def setBufferDistance(self, bufferDistance):
         self._bufferDistance = bufferDistance
         
-    def layer(self): 
-        # print('SELF:', self)
-        return self._layer
+    # def layer(self): 
+    #     # print('SELF:', self)
+    #     return self._layer
     
-    def setLayer(self, layer):
-        self._layer = layer        
+    # def setLayer(self, layer):
+    #     self._layer = layer        
         
     def layers(self):
         return self._layers
     def setLayers(self, layers):
         self._layers = layers 
         
-    def id(self):
-        return self._id 
-    def setId(self, id):
-        self._id = id 
+    # def id(self):
+    #     return self._id 
+    # def setId(self, id):
+    #     self._id = id 
     def bounds(self): 
         return self._bounds 
     def setBounds(self): # UNBUFFERED bounds. Local position. Used for .... ? 
         return None 
     def sceneBounds(self):
         return self._sceneBounds 
-    def setSceneBounds(self):
-        return None 
+    # def setSceneBounds(self):
+    #     return None 
         # r = self.boundingRect() mapped to scene 
         
         # return ( r.left(), r.top(), r.right() , r.bottom() ) 
-    def buffer(self):
-        return self._buffer
-    def setBuffer(self):#, bufferDistance = None): 
-        return None 
-    def sceneBuffer(self):
-        return self._sceneBuffer
-    def setSceneBuffer(self):
-        return None 
-    # def bufferedBounds(self):
-    #     return self._bufferedBounds  
-    def setBufferedBounds(self):#, self._bufferDistance=None): # calulate and set new bounds. Bounds describes a bounding rectangle around a shape, in the form of a 4-tuple (xmin ymin xmax ymax), aka (left top right bottom). Bounds is borrowed from how the the python modules Shapely/rtree use bounds; bounds is not from Qt. calculate_bufferedBounds returns the bounds, buffered by self._bufferDistance(most likely = currently selected scene.traceWidth()). The bounds 4-tuple is used bt the rtree module to describe rectangles. Note that, because Qt considers pen_width in .boundingRect, I have to manually set a 0 width pen away from the default width-of-1 pen, else the buffered bounds will be .5 wider than supposed to.
-        return None 
-    def sceneBufferedBounds(self):
-        return self._sceneBufferedBounds 
-    def setSceneBufferedBounds(self):
-        return None 
-    def setConnectedNets(self):
-        return None 
-    def addLayer(self, layer):
-        return None        
-    def removeLayer(self, layer):
-        return None          
+    # def buffer(self):
+    #     return self._buffer
+    # def setBuffer(self):#, bufferDistance = None): 
+    #     return None 
+    # def sceneBuffer(self):
+    #     return self._sceneBuffer
+    # def setSceneBuffer(self):
+    #     return None 
+    # # def bufferedBounds(self):
+    # #     return self._bufferedBounds  
+    # def setBufferedBounds(self):#, self._bufferDistance=None): # calulate and set new bounds. Bounds describes a bounding rectangle around a shape, in the form of a 4-tuple (xmin ymin xmax ymax), aka (left top right bottom). Bounds is borrowed from how the the python modules Shapely/rtree use bounds; bounds is not from Qt. calculate_bufferedBounds returns the bounds, buffered by self._bufferDistance(most likely = currently selected scene.traceWidth()). The bounds 4-tuple is used bt the rtree module to describe rectangles. Note that, because Qt considers pen_width in .boundingRect, I have to manually set a 0 width pen away from the default width-of-1 pen, else the buffered bounds will be .5 wider than supposed to.
+    #     return None 
+    # def sceneBufferedBounds(self):
+    #     return self._sceneBufferedBounds 
+    # def setSceneBufferedBounds(self):
+    #     return None 
+    # def setConnectedNets(self):
+    #     return None 
+    # def addLayer(self, layer):
+    #     return None        
+    # def removeLayer(self, layer):
+    #     return None          
+
+
+
+        

@@ -284,7 +284,7 @@ class Utils:
     HOST = QHostAddress.SpecialAddress.LocalHost # LocalHost equivalent to QHostAddress( '127.0.0.1' ) # The server's hostname or IP address
     PORT = 5000        # The port used by the server
 
-    symbolFont = QFont("Segoe UI", 2)
+    symbolFont = QFont("Segoe UI", 1)
     footprintFont = QFont("Segoe UI", 1) # Likely must change-- gerber only knows font as a path with stroke width
     footprint_placeholder_font = QFont("Segoe UI", 6) # for humans to read
 
@@ -367,25 +367,6 @@ class Utils:
     #     F_Paste         = 'F.Paste'
     #     B_Paste         = 'B.Paste'
         
-    layers = [
-        'F.Cu',
-        'B.Cu',
-        # 'Inr.1',
-        # 'Inr.2',
-        # 'Inr.3',
-        # 'Inr.4',
-        'F.CrtYd',
-        'B.CrtYd',
-        'F.Fab',
-        'B.Fab',
-        'F.SilkS',
-        'B.SilkS',
-        'F.Mask',
-        'B.Mask',
-        'F.Paste',
-        'B.Paste', 
-        'edge.cuts',
-    ]
 
     layerColors = {
         'F.Cu'      :       QColor(Qt.red)                     ,
@@ -406,8 +387,10 @@ class Utils:
         'B.Fab'     :       QColor(75,75,100)          ,     # darkish bluish       
         'edge.cuts' :       QColor(200,200,200)         # Gray
     }
+    
+    layers = list(layerColors)
 
-    CopperLayers = [ 'F.Cu', 'B.Cu' ,'Inr.1', 'Inr.2', 'Inr.3', 'Inr.4'] 
+    copperLayers = [ 'F.Cu', 'B.Cu' ,'Inr.1', 'Inr.2', 'Inr.3', 'Inr.4'] 
 
 
 

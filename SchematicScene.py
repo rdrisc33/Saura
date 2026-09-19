@@ -18,13 +18,16 @@ class SchematicScene(QGraphicsScene):
     tickSpacing = Utils.schematicTickSpacing
     # print()
     # print('GRID_STEP: ', gridSpacing)
+    
+    activeNetSet = Signal(str) # activeNet:str
+
     droppedPart = Signal(dict , QGraphicsSceneDragDropEvent, int) # part, event , source_widget . Where part is a dict representing a part, event is QGraphicsScene.dropEvent(event), source_widget is a Widget enum representing schematic or board.  event is needed to set QGrapicsItem.setPos(event.scenePos) Note when I add a part on the schematic's scene, I ALSO want to add a part on the board's scene -- the latter can't be done at schScene's level, so we have to do it at MW level. Plus, I have to assign the same value (for reference_value) to the symbol AND footprint -- may as well generate that once not twice. Plus, I have to support part deletion, and thus value reassignment, all of which may as well be done at a level where schScene AND brdScene are accessible( atm level is MyMainWindow)
-    deletePart = Signal(str , int) # reference, value . As in reference_value to be deleted 
+    deleteComponent = Signal(str , int) # reference, value . As in reference_value to be deleted 
     wiringLaid = Signal(QPointF) # Wiring as in new wires were just laid. pos: any terminal position in the wiring, choose first laid wire.p1() as pos. Emitted when: 1) User adds new wire 2) User edits existing wire 
     
     def __init__(self, parent = None, *args, **kwargs):
         super().__init__(parent, *args, **kwargs) 
-                
+
         self.symbols = defaultdict(defaultdict) # Track symbols. Symbols include ComponentSymbol , Label, and NetSymbol 
         
         # self._netSymbols = defaultdict(dict)
@@ -36,6 +39,7 @@ class SchematicScene(QGraphicsScene):
         # self.addItem(QGraphicsRectItem(self.sceneRect())) # draw the sceneRect
         # self.addItem(QGraphicsEllipseItem(Geometry.small_rect))# draw the origin 
         self._mode = self.NormalMode 
+        self._activeNet                     = None
         # self._currentlyAddingSymbolItem     = None # the symbolItem currently being added by user, if any
         self.moused_over_wire               = None # Representing any wire currently being moused over 
         self.terminal                       = None # Representing any terminal currently being moused over 
@@ -60,7 +64,8 @@ class SchematicScene(QGraphicsScene):
         calibation_square = QGraphicsRectItem(0,0,10,10)
         self.addItem(calibation_square)
         self.addItem(origin_item)
-        
+
+        self.setActiveNet(self._activeNet)
         # "qApp" is not defined: The qApp object exists only after you create a QApplication instance as in: app = QApplication(sys.argv) # qApp is a global pointer to the application instance. qApp keeps info on things like properties, palette, fonts, and settings. # qApp detects the OS it is running in and try to 'blend in' by matching palettes, etc. QApplication or QGuiApplication creates qApp. # Fetch DPI, aka the number of pixels per inch, of your screen with : qApp.screens()[0].physicalDotsPerInch()
         
         #How do i draw a grid every 17.84456 pixels? Like so: Use not the scene.sceneRect, but the view.viewport().rect(), so we lay dots over the whole viewport (But this needs to happen when we expand the viewport, how do i do that)
@@ -77,6 +82,12 @@ class SchematicScene(QGraphicsScene):
 
 
         
+    def activeNet(self):
+        return self._activeNet 
+    def setActiveNet(self, activeNet): 
+        self._activeNet = activeNet 
+        self.activeNetSet.emit(str(self._activeNet))
+
     def seeker(self):
         return self._seeker
     def setSeeker(self, seeker):
@@ -123,7 +134,7 @@ class SchematicScene(QGraphicsScene):
 
                 if item.reference(): # Then we are a item, we should ALSO delete the SYMBOL w/ corresponding reference_value. 
                     print(f'ITEM: {item} IS A SYMBOL, deleting from both sch and brd')
-                    self.deletePart.emit(item.referenceDesignator(), item.referenceNumber()) # Let MMW handle SymbolItem removal, bc we need to remove corresponding footprint too, and we can only reach boardScene through mmw. deleted_item.emit(reference, value).connect(MMW.delete_part) 
+                    self.deleteComponent.emit(item.referenceDesignator(), item.referenceNumber()) # Let MMW handle SymbolItem removal, bc we need to remove corresponding footprint too, and we can only reach boardScene through mmw. deleted_item.emit(reference, value).connect(MMW.delete_part) 
                 else: 
                     self.removeItem(item)
                     item = None

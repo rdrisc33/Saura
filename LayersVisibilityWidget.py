@@ -82,19 +82,24 @@ class LayersVisibilityWidgetItem(QWidget):
 class LayersVisibilityWidget(QWidget): 
     radioButtonClicked = Signal(str)
     VisibilityButtonClicked = Signal(str)
+    visibilityUpdated = Signal(dict)
 
     setActiveLayer = Signal(str)
-    setTopmostLayer = Signal(str)
+    # setTopmostLayer = Signal(str)
     showLayer = Signal(str)
-    hideLayer = Signal(str)
+    hideLayer = Signal(str, list) # hiddenLayer:str, showingLayers:list # Need both to implement sensible layer hiding
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        
         self.setLayout(QVBoxLayout())
         self.layout().setSpacing(0) 
 
         buttonGroup = QButtonGroup(self) 
         self.lvwiDict = {} # A dict to store layerVisWidItems 
+        self.visibility = dict(zip(Utils.layers , [True] * len(Utils.layers) )) 
+        self.visibility['topmost'] = 'F.Cu'
+        # print('VISIBILITY:', self.visibility)
         
         for layer in Utils.layerColors: 
             lvwi = LayersVisibilityWidgetItem(layer)
@@ -104,24 +109,35 @@ class LayersVisibilityWidget(QWidget):
             self.lvwiDict[layer] = lvwi
             self.layout().addWidget(lvwi)
 
-    
+        buttonGroup.buttons()[0].setChecked(True) # Check the first button
+        
     def onRadioButtonClicked(self, checked, layer):
         print('LAYER:', layer)
         print('CHECKED:', checked)
         self.setActiveLayer.emit(layer)
-        # self.setTopmostLayer.emit(layer)
         self.showLayer.emit(layer)
+
+        # self.visibility[layer] = True
+        # self.visibility['topmost'] = layer
+        # self.visibilityUpdated.emit(self.visibility)
         
     def onVisibilityButtonClicked(self, checked, layer):
         print('LAYER:', layer)
         print('CHECKED:', checked)
 
         if checked == True:
-            # self.setTopmostLayer.emit(layer)
             self.showLayer.emit(layer)
+            # self.visibility[layer] = True
 
         elif checked == False: 
-            self.hideLayer.emit(layer)
+            showingLayers = [layer for layer in self.lvwiDict if self.lvwiDict[layer]._visibilityButton.isChecked() ]
+            print('SHOWING LAYERS: ', showingLayers)
+            self.hideLayer.emit(layer, showingLayers)
+            # self.visibility[layer] = False
+            
+
+
+        # self.visibilityUpdated.emit(self.visibility)
 
     
     # Problem: The LVW is not scrollable, SO it takes up large vertical space... It needs to be scrollable. Utilizing a QScrollArea is easiest. Tried a QListWidget(Which is scrollable), but A QListView would be better suited, but that is an optimization.

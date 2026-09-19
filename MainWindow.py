@@ -70,11 +70,11 @@ class MainWindow(QMainWindow):
         self.spreadsheet = Spreadsheet() # MySchematic has self.spreadsheet and its visible while editing .brd and .sch
         
         self.spreadsheet.table.clicked.connect(self.onTableClicked)
+        self.setupStatusBars()
         self.create_actions()
-        self.create_menus()
+        self._create_menus()
         self.create_schematic_toolbar()
         self.create_board_toolbar()
-        
         
         database.changed.connect(self.reloadPart) # When the database changes, reload all parts on all scenes
         
@@ -84,8 +84,8 @@ class MainWindow(QMainWindow):
         self.board.scene().droppedPart.connect(self.placePart)
         
         
-        self.schematic.scene().deletePart.connect(self.deletePart)
-        self.board.scene().deletePart.connect(self.deletePart)
+        self.schematic.scene().deleteComponent.connect(self.deletePart)
+        self.board.scene().deleteComponent.connect(self.deletePart)
         
         self.board.scene().tracingLaid.connect(self.onTracingLaid)
         self.schematic.scene().wiringLaid.connect(self.onWiringLaid)
@@ -99,11 +99,32 @@ class MainWindow(QMainWindow):
         self.dock_spreadsheet.setWidget(self.spreadsheet)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea , self.dock_spreadsheet)
         self.dock_spreadsheet.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+        
+        # self.dock_standin = QDockWidget()
+        # self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock_standin)
+        
 # I need to be able to talk to the database 
         # database.changed.connect(self.spreadsheet.table.setTableName) TYPING MISMATCH: .changed emits DICT but .setTableName accepts STR # Now every time the database gets an update or insert, the table will refresh, w/ changes 
         # database.changed.connect(self.spreadsheet.reload_part)  #Every time the database gets an update or insert, the table will refresh, based on part.get('table_name')
         # database.changed.connect(self.schematic.scene().reload_part) #This belongs in scene() constructor # Refresh all the symbols belonging to 'table_name' when we update the db (Bc the symbols hold their own part record) This may not make any visiblie changes, unless you change the 'symbol' attribute 
         # database.changed.connect(self.board.scene().reload_part)  # This belongs in scene()'s constructor # Refresh all the footprints belonging to 'table_name' when we update the db( Bc the footprints also hold heir own part record) This may not make any visible changes, unless you change the 'footprint' attribute...
+        
+    def setupStatusBars(self): 
+        
+        self.schematicStatusBar = QStatusBar(self)
+        self.schematicStatusBar.showMessage('InitialSchematicStatusBarMessage', 10000)
+        self.schematicActiveNetStatusLabel = QLabel() 
+        self.schematic.scene().activeNetSet.connect(lambda activeNet : self.schematicActiveNetStatusLabel.setText(str(activeNet)))
+        self.schematicStatusBar.addPermanentWidget(self.schematicActiveNetStatusLabel)
+
+        self.boardStatusBar = QStatusBar(self)
+        self.boardStatusBar.showMessage('InitialBoardStatusBarMessage', 10000)
+        self.boardActiveNetStatusLabel = QLabel()
+        self.board.scene().activeNetSet.connect(lambda activeNet : self.boardActiveNetStatusLabel.setText(str(activeNet)))
+        self.boardStatusBar.addPermanentWidget(self.boardActiveNetStatusLabel)
+
+        self.setStatusBar(self.schematicStatusBar) 
+        self.boardStatusBar.hide()
         
     def onFootprintMoved(self, footprint):
         footprint.setNets()
@@ -233,15 +254,17 @@ class MainWindow(QMainWindow):
         return hitItems 
         
     def updateRatsnest(self, net): # Modified Kruskal Minimum Spanning Tree https://www.w3schools.com/dsa/dsa_algo_mst_kruskal.php  https://en.wikipedia.org/wiki/Kruskal's_algorithm#Pseudocode. Note uses indices of vertices as ordered in G, rather than vertices.
+        print()
+        print('UPDATE RATSNEST, NET:', str(net))
+        print('MW.RATSNESTS:', self.ratsnests)
+        
         G = [ [ [2,0,'F.Cu'] , [0,0,'F.Cu'],  [1,1,'F.Cu' ] , [1,3,'F.Cu'] ] , [ [3,2,'F.Cu'], [4,2,'F.Cu'] ] ]
         G = self.ratsnestGraph(net) 
         # print('G:', G) # G: [[(55.0, 55.0, 'F.Cu')], (55.0, 55.0, 'F.Cu')]
         if not G: 
             print('NO GRAPH WITH WHICH TO UPDATE RATSNEST')
-            return
 
         flat = [] 
-
         for subgraph in G: 
             for pos in subgraph: 
                 flat.append(pos[0:2]) # Flat doesn't have layer part
@@ -254,7 +277,7 @@ class MainWindow(QMainWindow):
         # self.subgraphs = [] # ratsnest lines arent wanted between connected items. Collect vertices of connected items in self.subgraphs  
         if verbose: 
             print()
-            print('RATSNESTGRAPH')
+            print('MW.RATSNESTGRAPH:')
             print('NET:', net)
             print('MW.NETS:')
             for k,v in self.nets.items(): 
@@ -265,13 +288,13 @@ class MainWindow(QMainWindow):
         if verbose: 
             print('PADS:', len(pads), pads)
         if not pads: 
-            return
+            return []
         # padTerminals = {pad.sceneTerminals(net) for pad in pads}         # padTerminals = [ [0,0, 'F.Cu'] , [2,0,'] , [3,0] , [0,2] ] 
         padTerminals = []
         for pad in pads :
             pad.setSceneTerminal()
             for layer in pad.layers(): 
-                if layer in Utils.CopperLayers: 
+                if layer in Utils.copperLayers: 
                     padTerminals.append( (*pad.sceneTerminal().toTuple() , layer) ) # xYLayer form
 
         if verbose: 
@@ -328,7 +351,9 @@ class MainWindow(QMainWindow):
         
         # sets = [ set([index]) for index in range(len(flat))]
         
-
+        if not G: 
+            return []
+        
         subsets = [] 
         count = 0
         for subgraph in G: 
@@ -419,14 +444,21 @@ class MainWindow(QMainWindow):
     #     print('SELF.MST:', type(self.mst))
     #     print(self.mst)
     
-    def addRatsnestToScene(self, G, flat, net):
-
+    def addRatsnestToScene(self, G, flat, net):            
         print()
         print('ADDRATSNESTTOSCENE')
+        print('NET:', str(net))
+        print('MW.RATSNESTS:', self.ratsnests)
+        
         ratsnest = self.ratsnests[net]
+        print('RATSNEST:', ratsnest) # [] 
         for line in ratsnest: # Remove from scene each existing line in ratsnest, then, clear ratsnest
             self.board.scene().removeItem(line)
         self.ratsnests[net] = []
+
+        # if G is None: 
+        #     print('G is None') # W/o G, we can just return immediately
+        #     return 
         
         for edge in self.ratsnestMST(G, flat): 
             u,v = list(edge)
@@ -953,9 +985,10 @@ class MainWindow(QMainWindow):
         super().dropEvent(event)   # Why call this?   
 
         
-    def create_menus(self): 
+    def _create_menus(self): 
         self._file_menu = self.menuBar().addMenu("&File") # -> QMenu, so we can add actions to file menu
         # self.menuBar().clear()
+        
         self._file_menu.addAction(self.exit_action)
         # self._file_menu.addSeparator() # Aestheic line 
         # self._file_menu.addAction(self._addWireAction)
@@ -963,14 +996,14 @@ class MainWindow(QMainWindow):
         
         self._preferences_menu = self.menuBar().addMenu("&Preferences")
         
-        self.create_menu = self.menuBar().addMenu("Create")
-        # self.create_menu.addAction(self.create_symbol_action)
-        # self.create_menu.addAction(self.create_footprint_action)
-        self.create_menu.addAction(self.create_part_action)
+        self._create_menu = self.menuBar().addMenu("Create")
+        # self._create_menu.addAction(self.create_symbol_action)
+        # self._create_menu.addAction(self.create_footprint_action)
+        self._create_menu.addAction(self.create_part_action)
         # self._schematic_toolbar.addAction(self.create_footprint_action)
         # self._schematic_toolbar.addAction(self.create_part_action)
 
-        self.drawMenu = self.menuBar().addMenu('Draw')
+        self.drawMenu = QMenu('Draw') # Create DrawMenu but don't add bc DrawMenu belongs to brd but start on sch
         self.drawMenu.addAction(self.drawLineAction)
         self.drawMenu.addAction(self.drawRectAction)
         self.drawMenu.addAction(self.drawEllipseAction)
@@ -978,6 +1011,7 @@ class MainWindow(QMainWindow):
 # Actions are meant to be children of the application's main window, and live in menus, toolbars, and buttons. Actions shoiuld be connected to slots, which will execute the action
 
     def create_actions(self): # Later, Actions go on toolbar
+        
     # Add Net Symbol
         self.add_net_symbol_action = QAction("Add Net Symbol", self, triggered = self.onAddNetSymbolActionTriggered)
     # Add Wire 
@@ -997,12 +1031,13 @@ class MainWindow(QMainWindow):
     # Create Part 
         self.create_part_action = QAction("Create Part", self, triggered = self.on_create_part_action_triggered)
         self.create_part_action.setShortcut(QKeySequence('P'))
-    # Show Board 
+    #Gerber 
+        self.gerberAction = QAction('Gerber', self, triggered = self.onGerberActionTriggered)
+    # Show Board
         self.show_board_action = QAction('Show Board', self, triggered = self. on_show_board_action_triggered)
-    # Show Schematic 
+    # Show Schematic
         self.show_schematic_action = QAction('Show Schematic', self, triggered = self.on_show_schematic_action_triggered)
-
-
+    #Draw Actions 
         self.drawLineAction = QAction('Line', self, triggered = self.onDrawLineActionTriggered )
         self.drawRectAction = QAction('Rectangle', self, triggered = self.onDrawRectActionTriggered)
         self.drawEllipseAction = QAction('Ellipse', self, triggered = self.onDrawEllipseActionTriggered)
@@ -1025,11 +1060,15 @@ class MainWindow(QMainWindow):
     # Assign Footprint to Part
         self.assign_footprint_action = QAction("Assign Footprint to Part")
 
+
+    def onGerberActionTriggered(self):
+        pass 
+    
     def addTraceActionTriggered(self):
         print('addTraceActionTriggered')
         if self.board.scene().mode() != Utils.BoardSceneMode.AddTraceMode:
             self.board.scene().setMode(Utils.BoardSceneMode.AddTraceMode)
-            if self.board.scene().activeLayer() not in Utils.CopperLayers: # Ensure we draw traces on a Copper Layer
+            if self.board.scene().activeLayer() not in Utils.copperLayers: # Ensure we draw traces on a Copper Layer
                 self.board.scene().setActiveLayer('F.Cu')
                 self.board.lvwsw.layersVisibilityWidget.lvwiDict['F.Cu']._visibilityButton.setChecked(True)
                 self.board.lvwsw.layersVisibilityWidget.lvwiDict['F.Cu']._radioButton.setChecked(True)
@@ -1102,16 +1141,64 @@ class MainWindow(QMainWindow):
         
     def on_show_schematic_action_triggered(self):    
         self.centralWidget().setCurrentIndex(0) # Schematic is at index 0
+        self.setupSchematicMenuBar()
+        
         self.board_toolbar.hide()
         self._schematic_toolbar.show()
+        self.setStatusBar(self.schematicStatusBar)
         # self.central_widget.setCurrentWidget(self.schematic)
         
     def on_show_board_action_triggered(self):
         self.centralWidget().setCurrentIndex(1) # Board is at index 1 
+        self.setupBoardMenuBar()
         self.board_toolbar.show()
         self._schematic_toolbar.hide()
+        self.boardStatusBar.show()
+        self.setStatusBar(self.boardStatusBar)
+        
+        # self.boardStatusBar.show()
+        # self.schematicStatusBar.hide()
         # self.central_widget.setCurrentWidget(self.board)
     
+    def setupSchematicMenuBar(self):
+        self.menuBar().clear()
+        self.menuBar().addMenu(self._file_menu)
+        self.menuBar().addMenu(self._preferences_menu)
+        self.menuBar().addMenu(self._create_menu)
+        
+    def setupBoardMenuBar(self):
+        self.menuBar().clear()
+        self.menuBar().addMenu(self._file_menu)
+        self.menuBar().addMenu(self._preferences_menu)
+        self.menuBar().addMenu(self._create_menu)
+        self.menuBar().addMenu(self.drawMenu)
+        
+
+
+        
+    # def _create_menus(self): 
+    #     self._file_menu = self.menuBar().addMenu("&File") # -> QMenu, so we can add actions to file menu
+    #     # self.menuBar().clear()
+        
+    #     self._file_menu.addAction(self.exit_action)
+    #     # self._file_menu.addSeparator() # Aestheic line 
+    #     # self._file_menu.addAction(self._addWireAction)
+    #     # self._file_menu.addAction(self.delete_wire_action)
+        
+    #     self._preferences_menu = self.menuBar().addMenu("&Preferences")
+        
+    #     self._create_menu = self.menuBar().addMenu("Create")
+        # self._create_menu.addAction(self.create_symbol_action)
+        # self._create_menu.addAction(self.create_footprint_action)
+    #     self._create_menu.addAction(self.create_part_action)
+    #     # self._schematic_toolbar.addAction(self.create_footprint_action)
+    #     # self._schematic_toolbar.addAction(self.create_part_action)
+
+    #     self.drawMenu = self.menuBar().addMenu('Draw')
+    #     self.drawMenu.addAction(self.drawLineAction)
+    #     self.drawMenu.addAction(self.drawRectAction)
+    #     self.drawMenu.addAction(self.drawEllipseAction)
+        
     def create_board_toolbar(self):
         self.board_toolbar = self.addToolBar("Board Toolbar")
         self.board_toolbar.setAllowedAreas(Qt.ToolBarArea.AllToolBarAreas)

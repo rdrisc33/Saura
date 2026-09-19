@@ -1,6 +1,6 @@
 from utils import * 
-from CopperItemContainer import CopperItemContainer 
-from LayerItem import LayerItem
+from ConnectivityItem import ConnectivityItem 
+from NonConnectivityItem import NonConnectivityItem
 from LayersItem import LayersItem
 
 from Net import Net 
@@ -11,10 +11,10 @@ class ViaBase():#QGraphicsItem):
         super().__init__(**kwargs)#parent) 
         # super().__init__(parent=parent) TypeError: NO BAD no keywords use positional: LayersContainer.__init__() got an unexpected keyword argument 'parent' # IDK why this happens-- could not replicate in simple example. Something about QGraphicsItem preferring positional args. But sometimes it can take kwargs. I always put classes, which inherit QGI, LAST, in the inheritance, because super() cannot propagate correctly after it hits QGI.
         
-        self._pen = Qt.NoPen 
+        self._pen = Qt.NoPen
         self._brush = Qt.NoBrush
-        self._outerDiameter = outerDiameter 
-        self._innerDiameter = innerDiameter 
+        self._outerDiameter = outerDiameter
+        self._innerDiameter = innerDiameter
         self._clearance = clearance
 
         self._boundingRect = QRectF(-(outerDiameter+clearance)/2 , -(outerDiameter+clearance)/2 , outerDiameter+clearance , outerDiameter+clearance) # Must include clearance in BR so we can redraw the clearance w/o artifacts.
@@ -44,7 +44,7 @@ class ViaBase():#QGraphicsItem):
         return self._clearance
             
 # class ViaItem(CopperItem, ViaBase):
-class ViaItem(LayerItem, ViaBase, QGraphicsItem):
+class ViaItem(NonConnectivityItem, ViaBase, QGraphicsItem):
         # def QGI.__init__(self, parent: PySide6.QtWidgets.QGraphicsItem | None= ...) -> None: ...
     def __init__(self, layer, outerDiameter, innerDiameter, clearance , parent):
         # super().__init__(outerDiameter=outerDiameter, innerDiameter=innerDiameter, clearance=clearance, parent=parent)
@@ -73,9 +73,9 @@ class ViaItem(LayerItem, ViaBase, QGraphicsItem):
 
 
 # class Via(LayersContainer, ViaBase): # A Via is made up of several childItem viaItems, one viaItem per layer. 
-class Via(ViaBase, CopperItemContainer, QGraphicsItem):
+class Via(ViaBase, ConnectivityItem, QGraphicsItem):
     
-    def __init__(self,  outerDiameter, innerDiameter, clearance=Utils.viaClearance, layers=Utils.CopperLayers, net=Net()): # layers : A via may exist on all or some layers, default all # clearance: default 1mm
+    def __init__(self,  outerDiameter, innerDiameter, clearance=Utils.viaClearance, layers=Utils.copperLayers, net=Net()): # layers : A via may exist on all or some layers, default all # clearance: default 1mm
         # print('VIA.MRO:', Via.mro())
         super().__init__(outerDiameter=outerDiameter, innerDiameter=innerDiameter, clearance=clearance, layers = layers)
 
@@ -136,15 +136,15 @@ class Via(ViaBase, CopperItemContainer, QGraphicsItem):
             
             
 
-    def netsBeneath(self): # Return list of all nets beneath this item 
+    def netsBeneath(self): # Return list of all nets beneath this item Note current imp not enough bc no distinction between layers
         netsBeneath = set([self.net()])
         for item in self.scene().items(): 
-            if not isinstance(item, LayersItem): 
+            if not isinstance(item, ConnectivityItem): 
                 continue 
-            if self.collidesWithItem(item): 
+            if self.connectsTo(item): 
                 netsBeneath.add(item.net())
         return netsBeneath
-    
+
     def resolveNets(self, nets): # Return True if a net is resolvable from given list of nets 
         nonNoneNets = [net for net in nets if net != None] 
         

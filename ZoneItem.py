@@ -1,10 +1,10 @@
 from utils import * 
-from CopperItemContainer import CopperItemContainer
+from ConnectivityItem import ConnectivityItem
 
 from shapely.ops import polylabel # polylabel aka pointOfInaccessibility aka centroid of freaky polygons 
 from shapely.geometry import Polygon
 
-class ZoneItem( CopperItemContainer, QGraphicsPathItem):
+class ZoneItem( ConnectivityItem, QGraphicsPathItem):
     def __init__(self, layer, *args, **kwargs ):
         super().__init__(layer, *args, **kwargs)
         self.setPen(QPen(self._color, 0))

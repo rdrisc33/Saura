@@ -86,7 +86,7 @@ class LayersVisibilityControlWidget(QWidget):
     def onlyShowCopperLayersBtnClicked(self):
         self.onlyShowCopperLayers.emit()
         for count, layer in enumerate(Utils.layers): 
-            if layer in Utils.CopperLayers: 
+            if layer in Utils.copperLayers: 
                 self.listWidget.item(count).setCheckState(Qt.CheckState.Checked)
                 # self.listWidget.item(count).setIcon(QIcon("images/visible.svg"))
             else: 

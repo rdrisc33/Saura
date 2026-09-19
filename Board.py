@@ -49,10 +49,11 @@ class Board(QWidget): # Board goes in the stacked widget centralWidget of the Ma
 
         self.lvwsw = LayersVisibilityWidgetScrollWindow()
 
-        self.lvwsw.layersVisibilityWidget.setActiveLayer.connect(self.setActiveLayer)
-        self.lvwsw.layersVisibilityWidget.setTopmostLayer.connect(self.setTopmostLayer)
+        self.lvwsw.layersVisibilityWidget.setActiveLayer.connect(self.scene().setActiveLayer)
         self.lvwsw.layersVisibilityWidget.showLayer.connect(self.scene().showLayer )
         self.lvwsw.layersVisibilityWidget.hideLayer.connect(self.scene().hideLayer )
+        # self.lvwsw.layersVisibilityWidget.setTopmostLayer.connect(self.setTopmostLayer)
+        # self.lvwsw.layersVisibilityWidget.visibilityUpdated.connect(self.scene().updateVisibility )
         
         self.lvwsw.showAllLayersButton.clicked.connect(self.onShowAllLayersButtonClicked)
         self.lvwsw.showCopperLayersButton.clicked.connect(self.onShowCopperLayersButtonClicked)
@@ -69,8 +70,8 @@ class Board(QWidget): # Board goes in the stacked widget centralWidget of the Ma
         # self.layout().addWidget(btn)
         
 
-    def setActiveLayer(self, layer): 
-        self.scene().setActiveLayer(layer)
+    # def setActiveLayer(self, layer): 
+    #     self.scene().setActiveLayer(layer)
 
     def setTopmostLayer(self, layer):
         self.scene().setTopmostLayer(layer)
@@ -96,12 +97,12 @@ class Board(QWidget): # Board goes in the stacked widget centralWidget of the Ma
             
     def showCopperLayers(self): 
         for layer in Utils.layers: 
-            if layer in Utils.CopperLayers:
+            if layer in Utils.copperLayers:
                 self.scene().showLayer(layer)
 
     def hideNonCopperLayers(self):
         for layer in Utils.layers:
-            if layer not in Utils.CopperLayers: 
+            if layer not in Utils.copperLayers: 
                 self.scene().hideLayer(layer)
                 
     # def onVisibilityToggled(self, checkState , layer): # CheckState is an enum, Qt.CheckState, can be on/off/partial 

@@ -1,7 +1,7 @@
 from utils import * 
 from LayersItem import * 
 
-class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful by itself
+class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRectItem, etc. Not useful by itself
     def __init__(self, layers, *args, **kwargs):
         # print('CUIC.LAYERS:', layers)
         # print('CUIC.ARGS:', args)
@@ -23,8 +23,40 @@ class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful b
         self._sceneBufferedBounds   = None      # ._bufferedBounds in scene coordinates
         self._id                    = None 
         self._net                   = None 
-        # self._copperItems           = phasing out defaultdict(list) # {'F.Cu': [PadItem , ViaItem] , 'Inr_1': [ZoneItem, ... }
+    def mouseMoveEvent(self, event): 
+        if (event.buttons() & Qt.MouseButton.LeftButton ) and (self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsSelectable): # Only move if the item is selectable, and the mouse left button is clicked. https://github.com/qt/qtbase/blob/dev/src/widgets/graphicsview/qgraphicsitem.cpp if ((event->buttons() & Qt::LeftButton) && (flags() & ItemIsMovable)) {
+            print('LAYERSITEM.MOUSEMOVEEVENT')
+            self._previousPos = self.scenePos()     #Save the previous position
+            self._previousNet = self.net()          #Save the previous net 
 
+            self.setPos(self.scene().snapToGrid(event.scenePos() + self._offset))
+            nets = self.nets() 
+            self.resolveNets(nets)
+            if self.net() == 'unresolved': 
+                self.setPos(self._previousPos)
+                self.setNet(self._previousNet)
+
+        else: 
+            event.ignore() # This seems to do nothing 
+
+    def nets(self): # collects the net of any items which collide with this item.
+        nets = set( [self.net()] ) 
+        
+        hitIds = [] 
+        hitItems = [] 
+        print('SELF.SCENEBOUNDS:', self.sceneBounds())
+        if not self.sceneBounds(): 
+            self.setSceneBounds
+        for layer in self.layers(): 
+            
+            hitIds.extend( self.scene().rtrees[layer].intersection(self.sceneBounds() ) ) 
+        hitItems = [self.scene().ids[hitId] for hitId in hitIds]
+        
+        for item in hitItems: 
+            if self.collidesWithItem(item):
+                nets.add(item.net())
+        return nets 
+    
     def terminalsWithin(self, rect=None , sceneBounds=None): # Returns list of terminals found within rect|bounds in scene coordinates. If non found, returns an empty list. 
         terminalsWithin = [] 
         if sceneBounds: 
@@ -34,7 +66,6 @@ class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful b
             if rect.contains(terminal):
                 terminalsWithin.append(terminal)
         return terminalsWithin 
-
 
     def queryRtrees(self):
         """query MainWindow.rtrees for self.sceneBufferedBounds() at each layer in self.layers """
@@ -46,19 +77,19 @@ class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful b
         hitItems = [self.scene().ids[hitId] for hitId in hitIds]
         return hitItems
     
-    def showLayer(self, layer): 
-        for childItem in self.childItems(): 
-            if not isinstance(childItem, LayerItem):
-                continue 
-            childItem.showLayer(layer)
+    # def showLayer(self, layer): 
+    #     for childItem in self.childItems(): 
+    #         if not isinstance(childItem, LayerItem):
+    #             continue 
+    #         childItem.showLayer(layer)
             
-    def hideLayer(self, layer):
-        for childItem in self.childItems():
-            if not isinstance(childItem, LayerItem):
-                continue 
-            if childItem.layer() == layer: 
-                childItem.hide()
-            # childItem.hideLayer(layer)
+    # def hideLayer(self, layer):
+    #     for childItem in self.childItems():
+    #         if not isinstance(childItem, LayerItem):
+    #             continue 
+    #         if childItem.layer() == layer: 
+    #             childItem.hide()
+    #         # childItem.hideLayer(layer)
             
     def insertIntoRtree(self): 
         for layer in self.layers(): 
@@ -84,6 +115,8 @@ class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful b
         
     def removeFromRtree(self):
         for layer in self.layers(): 
+            print('ID:', self.id() ) 
+            print('SBB:', self.sceneBufferedBounds())
             self.scene().rtrees[layer].delete(self.id() , self.sceneBufferedBounds())
         
     def updateRtree(self): # Update existing entry in rtree
@@ -102,7 +135,7 @@ class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful b
         self._layers = layers
         
     def copperLayers(self):
-        return [layer for layer in self.layers() if layer in Utils.CopperLayers]
+        return [layer for layer in self.layers() if layer in Utils.copperLayers]
         
     def id(self):
         return self._id 
@@ -173,23 +206,56 @@ class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful b
         # print('BUFFEREDBR:', bufferedBr)
         self._sceneBufferedBounds = ( bufferedBr.left() , bufferedBr.top() , bufferedBr.right() , bufferedBr.bottom() ) 
         # print('SET SCENE BUFFERED BOUNDS: ', self._sceneBufferedBounds)
-        
-    def connectsToItem(self, item): # -> True if self is connected to other. Connected as in electrically connected.
 
-        if  isinstance(item, CopperItemContainer): 
-            for t in item.sceneTerminals():  # Try cheap check: do terminal exact positions match 
-                print("SELF:", self)
-                print('SELF.SCENETERMINALS():', self.sceneTerminals())
-                if any(t == t2 for t2 in self.sceneTerminals()): 
-                    return True 
-            for t in item.sceneTerminals(): # Try cheap-ish check: does shape contain termianal
-                if self.contains(t): 
-                    return True
-            if self.collidesWithItem(item): # Try expensive check: do shapes collide at all
-                return True 
-            else: 
-                return False 
+
+    # def connectsTo(self, other): # -> True if self is connected to other. Connected as in electrically connected.
+
+    #     if  isinstance(other, CopperItemContainer): 
+    #         for t in other.sceneTerminals():  # Try cheap check: do terminal exact positions match 
+    #             print("SELF:", self)
+    #             print('SELF.SCENETERMINALS():', self.sceneTerminals())
+    #             if any(t == t2 for t2 in self.sceneTerminals()): 
+    #                 return True 
+    #         for t in other.sceneTerminals(): # Try cheap-ish check: does shape contain termianal
+    #             if self.contains(t): 
+    #                 return True
+    #         if self.collidesWithItem(other): # Try expensive check: do shapes collide at all
+    #             return True 
+    #         else: 
+    #             return False 
             
+    def connectsTo(self, other): # -> True if self is connected to other. Connected as in electrically connected.
+        print('CUIC.ConnectsToItem')
+        
+        if not isinstance(other, ConnectivityItem): # CUIC not LayersItem bc don't care if connect to Footprint--padsTracesZoneViasOtherCopperOnly
+            return False 
+
+        layerMatch = False
+        for layer in self.layers(): 
+            for otherLayer in other.layers(): 
+                if layer == otherLayer: 
+                    layerMatch = True 
+
+        if not layerMatch: 
+            return False 
+            
+        for t in self.sceneTerminals():  # Try cheap check: do terminal exact positions match 
+            print("SELF:", self)
+            print('SELF.SCENETERMINALS():', self.sceneTerminals())
+            if any(t == otherTerminal for otherTerminal in other.sceneTerminals()): 
+                return True 
+            
+        for otherTerminal in other.sceneTerminals(): # Try cheap-ish check: does shape contain termianal
+            if self.contains(otherTerminal): 
+                return True
+            
+        if self.collidesWithItem(other): # Try expensive check: do shapes collide at all
+            return True 
+        else: 
+            return False 
+        
+              
+
         # elif isinstance(other, QPoint): # idt this is used
         #     if any( t == other for t in self.terminals() ): # Initial fast check to see if terminals perfectly align
         #         return True 
@@ -197,8 +263,6 @@ class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful b
         #         return True 
         #     # elif self.collidesWithItem No such thing as cWI for a point
             
-        else: 
-            print('MW.connectsTo() SOMETHING WRONG ')
 
     # def connectedNets(self): 
     #     return self._connectedNets
@@ -312,15 +376,7 @@ class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful b
                 for layer_item in layer_items:
                     layer_item.hide()
             
-    def copperItems(self):
-        return self._copperItems 
-    def setCopperItems(self,copperItems):
-        self._copperItems = copperItems 
-    def addCopperItem(self, layer, copperItem):
-        self.copperItems()[layer].append(copperItem)
-    def removeCopperItem(self, layer, copperItem):
-        self.copperItems()[layer].remove(copperItem)
-        
+
     def addLayer(self, layer):
         self._layers.append(layer)
     def removeLayer(self, layer):
@@ -342,3 +398,23 @@ class CopperItemContainer(LayersItem): # Base class of TR ZN VA PD. Not useful b
     # def hoverLeaveEvent(self, event):
     #     self.setToolTip("")
     #     super().hoverLeaveEvent(event)
+
+class LayersRectItem(ConnectivityItem, QGraphicsRectItem): # Basically a doodle but with electrical connectivity...distinct from LayerRectItem, which has no connectivity
+    def __init__(self, layers, lineWidth, *args, **kwargs):
+        super().__init__( layers, *args, **kwargs)
+
+        self._lineWidth = lineWidth 
+
+        print()
+        print('SELF.RECT:', self.rect())
+        for layer in self.layers(): 
+            print('LAYER:', layer)
+            rectItem = QGraphicsRectItem(self, self.rect())
+            rectItem.setPen(QPen(Utils.layerColors[layer] , self._lineWidth))
+
+    def paint(self, painter, option, widget):
+        return None # Reimplement paint event to do nothing, so that only child items are shown
+
+    def setRect(self, rect): 
+        for childItem in self.childItems(): 
+            childItem.setRect(rect)

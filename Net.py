@@ -10,8 +10,19 @@ class Net():
         self._net = net 
         self._priority = priority 
 
+    def __eq__(self, other): 
+        if not isinstance(other, Net):
+            return NotImplemented 
+        return self._net == other._net
+
+    def __hash__(self): # https://stackoverflow.com/questions/1227121/compare-object-instances-for-equality-by-their-attributes
+        return hash( (self._net,) )
+    
     def __str__(self): 
         return f"{self._net} {self._priority}"
+
+    def __repr__(self):
+        return f"Net(net={self.net()}, priority={self.priority()}"
     
     def net(self):
         return self._net 

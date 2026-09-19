@@ -2,9 +2,9 @@ import lxml.etree as etree
 from utils import *
 from Reference import Reference 
 from LayersItem import LayersItem
-from CopperItemContainer import CopperItemContainer
+from ConnectivityItem import ConnectivityItem
 from Net import Net
-from LayerItem import LayerItem
+from NonConnectivityItem import NonConnectivityItem
 # from Component import Component
 
 
@@ -22,12 +22,12 @@ from LayerItem import LayerItem
     
 
 # Items are stacked according to zValue, then insertion order. Default zValue is 0. 
-class FootprintItem( LayersItem, Reference, QGraphicsItem):
+class FootprintItem(Reference, QGraphicsItem):
     font = footprint_font
 
 
     def __init__(self, referenceDesignator, referenceNumber, file, layer = "F.Cu"): # Note 'layer' argument: Footprints tend to (always?) exist on either F.Cu or B.Cu. (Don't think dual sided footprints exist nor would be supported by any pcb manufacture ). However , BoardItems take a 'layers' argument
-        super().__init__(referenceDesignator=referenceDesignator, referenceNumber=referenceNumber, layers = [layer]) 
+        super().__init__(referenceDesignator=referenceDesignator, referenceNumber=referenceNumber) 
         # print('FOOTPRINTITEM.INIT')
         self._file = None 
         self._layer = None 
@@ -59,6 +59,11 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
         # print('FOOTPRINTITEM CREATED') 
         # print('FOOTPRINTITEM.COPPERITEMS:', self.copperItems()) # {'F.Cu': [<FootprintItem.PadItem(0x21be98e6b00, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE7617FC0>, <FootprintItem.PadItem(0x21be98e7400, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE8493D00>], 'F.Paste': [<FootprintItem.PadItem(0x21be98e7740, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE8493800>, <FootprintItem.PadItem(0x21be98e7440, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE8493FC0>], 'F.Mask': [<FootprintItem.PadItem(0x21be98e7380, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE8493A40>, <FootprintItem.PadItem(0x21be98e7b80, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE84A0200>]})
 
+    def showLayer(self, layer): 
+        pass 
+    def hideLayer(self, layer): 
+        pass
+
     def mousePressEvent(self, event): 
         self.offset = event.scenePos() - self.scenePos()
         super().mousePressEvent(event)
@@ -69,7 +74,7 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
         self.setPos(self.scene().snapToGrid(event.scenePos() - self.offset))
         self.updateRtrees()
         for child in self.childItems():
-            if not isinstance( child, CopperItemContainer):
+            if not isinstance( child, ConnectivityItem):
                 continue 
             child.setSceneBounds()
             child.setSceneBuffer()
@@ -89,14 +94,14 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
         # self.moved.emit()
         
 
-    def copperItems(self):
-        return self._copperItems 
-    def setCopperItems(self,copperItems):
-        self._copperItems = copperItems 
-    def addCopperItem(self, layer, copperItem):
-        self.copperItems()[layer].append(copperItem)
-    def removeCopperItem(self, layer, copperItem):
-        self.copperItems()[layer].remove(copperItem)
+    # def copperItems(self):
+    #     return self._copperItems 
+    # def setCopperItems(self,copperItems):
+    #     self._copperItems = copperItems 
+    # def addCopperItem(self, layer, copperItem):
+    #     self.copperItems()[layer].append(copperItem)
+    # def removeCopperItem(self, layer, copperItem):
+    #     self.copperItems()[layer].remove(copperItem)
         
     def nets(self):
         # print('FOOTPRINTITEM.COPPERITEMS():', self.copperItems()) # FOOTPRINTITEM.COPPERITEMS(): defaultdict(<class 'list'>, {})
@@ -263,14 +268,6 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
         
     
 
-    
-
-    # def boundingRect(self):
-    #     return self.childrenBoundingRect() or QRectF()  
-    
-    # def paint(self, painter, option, widget):
-    #     pass
-            
     def mouseDoubleClickEvent(self, event): # If we double click on a footprint...
         # self.doubleClicked.emit(self.part) # self.footprint_assign = MyGraphicsAssign
         # part = self.data(PartData.PART.value)
@@ -306,26 +303,305 @@ class FootprintItem( LayersItem, Reference, QGraphicsItem):
 # Relase of drag sees BoardScenemouseReleaseEvent, but not itemmouseReleaseEvent
 
 
-# class PadBase(QGraphicsItem):
-class PadBase():
+# # class PadBase(QGraphicsItem):
+# class PadBase():
         
-    def __init__(self, elem,*args, **kwargs):#, parent): 
-        super().__init__(*args, **kwargs)#parent)
+#     def __init__(self, elem,*args, **kwargs):#, parent): 
+#         super().__init__(*args, **kwargs)#parent)
+#         self._centroid          = None 
+        
+#         self.elem = elem          
+#         self.setPadShape(elem.get('shape').lower().strip())
+#         self.setPath(self.createPath())        
+#         self.setCentroid()
+  
+#     def nearestSceneSnap(self, pos): 
+#         return self.mapToScene(self.centroid())
+    
+#     def boundingRect(self):
+#         return self._boundingRect
+        
+#     def paint(self, painter, option, widget):
+#             pass # To Be further reimplemented 
+    
+#     def name(self):
+#         return self._name 
+#     def setName(self, name):
+#         self._name = name 
+        
+#     def nameItem(self):
+#         return self._nameItem 
+#     def setNameItem(self, nameItem):
+#         self._nameItem = nameItem
+        
+        
+#     def padShape(self):
+#         return self._padShape
+#     def setPadShape(self, padShape):
+#         self._padShape = padShape
+        
+#     def createPath(self):
+#         path = QPainterPath()
+        
+#         if (self._padShape == 'rect') or (self._padShape == 'circle'): 
+#             self.left =          float(self.elem.get('left')) 
+#             self.top =           float(self.elem.get('top')) 
+#             self.width =         float(self.elem.get('width'))
+#             self.height=         float(self.elem.get('height'))
+#             # c_x =           float(elem.get('c_x'))
+#             # c_y =           float(elem.get('c_y'))
+#             self._boundingRect = QRectF(self.left, self.top, self.width, self.height)
+#             self.setCentroid()
+
+#             # self.setupNameItem(self.left, self.top) moved
+            
+#             if self._padShape == 'rect':
+#                 path.addRect(self.left, self.top, self.width, self.height)
+#             elif self._padShape == 'circle': 
+#                 path.addEllipse(self.left, self.top, self.width, self.height)
+                
+#         elif self._padShape == 'custom': 
+#             print('CUSTOM PADS NOT YET IMPLEMENTED')
+                
+#         return path
+              
+#     def path(self):
+#         return self._path
+#     def setPath(self, path):
+#         self._path = path 
+    
+#     def shape(self):
+#         return self.path() # default imp probably does the same thing 
+        
+#     # def setupNameItem(self, left , top ): This not part of padBase; part of Pad, not PadItem
+
+#     #     self._name = self.elem.get('name') 
+#     #     if self._name: 
+#     #         self._nameItem = LayersSimpleTextItem(self.layer(), self._name, self) # _nameItem is parented on self, the container_item representing this pad 
+#     #         self._nameItem.setFont(footprint_font)
+#     #         self._nameItem.setPos(QPointF(left, top))
+#     #         self._nameItem.setZValue(2) # Stack pad_name atop the backgroundpads(z0) and topmostLayer(z1)
+#     #     # print()
+#     #     # print("POSITION:", self._nameItem.pos())
+      
+#     def pointOfInaccessibility(self):
+#         pass # Need to implement POI for freaky shaped pads. NO simply demand that origin==terminal. See shapely.polylabel. POI guarantees centroid inside shape.
+    
+#     def centroid(self):
+#         return self._centroid 
+    
+#     def setCentroid(self): # Recalculate centroid 
+#         if (self._padShape == 'rect') or (self._padShape == 'circle'): 
+#             self._centroid = QPointF( self.left + self.width/2 , self.top + self.height/2 )
+#         elif self._padShape == 'custom': 
+#             self._centroid = self.pointOfInaccessibility()
+    
+# class Pad(PadBase, ConnectivityItem, QGraphicsItem):# CopperItem, PadBase):
+
+#     def __init__(self, elem, parent): # elem: xml describing this pad. parent: the Footprint to which this pad belongs 
+
+#         layers = elem.get('layers')
+#         if layers == '': 
+#             layers = "F.Cu, F.Paste, F.Mask"
+#         layers = [layer.strip() for layer in layers.split(',')] # Convert string into list 
+            
+#         self.setLayers(layers)
+            
+#         super().__init__( elem=elem, parent=parent, layers = layers) 
+#         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton) # Turn off accepted mouse buttons so that Pads cannot get mouseMoveEvents;cannot become mouse grabber; cannot 'eat up' the mouse events for the pad's footprint
+#         self._terminal          = None 
+#         self._sceneTerminal     = None 
+#         self._terminals         = None 
+#         self._sceneTerminals    = None 
+
+
+#         self.setRotation(float(elem.get('angle', 0)))
+
+       
+                    
+#         for layer in self.layers():
+#             PadItem(layer, elem, Utils.layerColors[layer], self)            # Create padItem
+# # AttributeError: 'PadItem' object has no attribute '_layer'
+
+#         self.setSceneTerminals() # Pad only has one terminal, but have the option of having it in a list, for a consistent api, with Trace, which has two terminals.
+#         self.setupNameItem()
+        
+#         # print('LAYER:', layer)
+
+
+
+#     def setupNameItem(self ):
+
+#         self._name = self.elem.get('name') 
+#         if self._name: 
+#             self._nameItem = QGraphicsSimpleTextItem( self._name, self) # _nameItem is parented on self, the container_item representing this pad 
+#             # self._nameItem = LayersSimpleTextItem(self.layers(), self._name, self) # _nameItem is parented on self, the container_item representing this pad 
+#             self._nameItem.setFont(footprint_font)
+#             self._nameItem.setPos(QPointF(self.left, self.top))
+#             self._nameItem.setZValue(2) # Stack pad_name atop the backgroundpads(z0) and topmostLayer(z1)
+#         # print()
+#         # print("POSITION:", self._nameItem.pos())
+        
+#     def sceneTerminal(self):
+#         return self._sceneTerminal
+#     def setSceneTerminal(self):# 
+#         self._sceneTerminal = self.mapToScene(self.centroid()) # (x,y layer)
+        
+#     def sceneTerminals(self):
+#         return self._sceneTerminals
+#     def setSceneTerminals(self):
+#         self.setSceneTerminal()        
+#         self._sceneTerminals = [self.sceneTerminal()]
+
+        
+#     def terminal(self):
+#         return self._terminal
+#     def terminals(self): # Via Item only has one terminal. Still, to keep the api consistent, reimplement .terminals 
+#         return self._terminals
+
+        
+#     # def boundingRect(self):
+#     #     return self._boundingRect or QRectF()
+    
+#     # def paint(self, painter, option, widget):
+#     #     painter.setPen(self.pen())
+#     #     painter.setBrush(self.brush())
+#     #     painter.drawPath(self.path())
+       
+        
+#     def brush(self):
+#         return self._brush
+#     def setBrush(self, brush):
+#         self._brush = brush
+        
+#     # def setBuffer(self, buffer_width = None ): # Returns a QPolygonF, representing the buffered shape
+#     #     # self.pad_template.shape() This would return path, of bR. No good.
+#     #     if buffer_width == None: 
+#     #         buffer_width = self.scene().traceWidth()
+#     #     stroker = QPainterPathStroker()
+#     #     stroker.setWidth(buffer_width)
+#     #     stroker.setJoinStyle(Qt.BevelJoin) 
+#     #     stroker.setCapStyle(Qt.FlatCap)
+        
+#     #     path = self.shape() # self.pad_template better be a QGraphicsPathItem to use .path()
+#     #     strokerPath = stroker.createStroke(path)
+#     #     expandedPath = path.united(strokerPath) #Unite the fillable areas of the paths into one consolidated path
+#     #     self._buffer = expandedPath.toFillPolygon() # convert to a QPolygonF. 
+
+
+
+# #MRO: padItem, CopperItem, BoardItem, PadBase, QGI, object
+# class PadItem(NonConnectivityItem, PadBase, QGraphicsItem):
+#     def __init__(self, layer, elem, color, parent):
+#         # print('PAD.MRO():', PadItem.mro())
+#         super().__init__(layer=layer,elem= elem, parent=parent)# Pad is parented on parent, a FootprintItem. # Its good to use keywords when passing args, when inheritance is at play, because you don't need to remember the order of arguments 
+#         self._terminals = []
+#         self.color = color
+#         self._net = None 
+        
+#     def paint(self, painter, option, widget):
+#         painter.setPen(Qt.NoPen)
+#         painter.setBrush(self.color)
+#         painter.drawPath(self.path())
+
+#     # def mouseMoveEvent(self, event): 
+#     #     print('PAD.MOUSEMOVEEVENT')
+#     #     super().mouseMoveEvent(event)
+        
+
+                
+
+# class PadBase():
+        
+#     def __init__(self, elem,*args, **kwargs):#, parent): 
+#         super().__init__(*args, **kwargs)#parent)
+
+        
+    # def setupNameItem(self, left , top ): This not part of padBase; part of Pad, not PadItem
+
+    #     self._name = self.elem.get('name') 
+    #     if self._name: 
+    #         self._nameItem = LayersSimpleTextItem(self.layer(), self._name, self) # _nameItem is parented on self, the container_item representing this pad 
+    #         self._nameItem.setFont(footprint_font)
+    #         self._nameItem.setPos(QPointF(left, top))
+    #         self._nameItem.setZValue(2) # Stack pad_name atop the backgroundpads(z0) and topmostLayer(z1)
+    #     # print()
+    #     # print("POSITION:", self._nameItem.pos())
+      
+    
+class Pad(ConnectivityItem, QGraphicsItem):# CopperItem, PadBase):
+
+    def __init__(self, elem, parent): # elem: xml describing this pad. parent: the Footprint to which this pad belongs 
+
+        layers = elem.get('layers')
+        if layers == '': 
+            layers = "F.Cu, F.Paste, F.Mask"
+        layers = [layer.strip() for layer in layers.split(',')] # Convert string into list 
+            
+        self.setLayers(layers)
+            
+        super().__init__(layers = layers, parent = parent) 
+        
+        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton) # Turn off accepted mouse buttons so that Pads cannot get mouseMoveEvents;cannot become mouse grabber; cannot 'eat up' the mouse events for the pad's footprint
+        self._terminal          = None 
+        self._sceneTerminal     = None 
         self._centroid          = None 
+        self._net = None 
+
+        self.setBrush(Qt.black)
+        self.setPen(Qt.NoPen)
         
         self.elem = elem          
+        self._terminals = []
         self.setPadShape(elem.get('shape').lower().strip())
         self.setPath(self.createPath())        
         self.setCentroid()
-  
+        # self.setColor(Utils.layerColors[self.layers()[0]]) # Set color to first layer
+        
+        self.setRotation(float(elem.get('angle', 0)))
+
+        self.setSceneTerminals() # Pad only has one terminal, but have the option of having it in a list, for a consistent api, with Trace, which has two terminals.
+        self.setupNameItem()
+
+    def boundingRect(self):
+        return self._boundingRect
+
+    def paint(self, painter, option, widget):
+        painter.setPen(self.pen())
+        painter.setBrush(self.brush())
+        painter.drawPath(self.path())
+    
+    def setColor(self, color): 
+        self._color = color 
+        self.setBrush(color)
+        self.update() # Manually update for an immediate color change. w/o, item won't update until mouse over scene 
+
+    def pen(self):
+        return self._pen 
+    def setPen(self, pen):
+        self._pen = pen
+    def brush(self):
+        return self._brush 
+    def setBrush(self, brush):
+        self._brush = brush
+        
+    def pointOfInaccessibility(self):
+        pass # Need to implement POI for freaky shaped pads. NO simply demand that origin==terminal. See shapely.polylabel. POI guarantees centroid inside shape.
+    
+    def centroid(self):
+        return self._centroid 
+    
+    def setCentroid(self): # Recalculate centroid 
+        if (self._padShape == 'rect') or (self._padShape == 'circle'): 
+            self._centroid = QPointF( self.left + self.width/2 , self.top + self.height/2 )
+        elif self._padShape == 'custom': 
+            self._centroid = self.pointOfInaccessibility()
+            
     def nearestSceneSnap(self, pos): 
         return self.mapToScene(self.centroid())
     
-    def boundingRect(self):
-        return self._boundingRect
-        
-    def paint(self, painter, option, widget):
-            pass # To Be further reimplemented 
+
+
     
     def name(self):
         return self._name 
@@ -345,7 +621,7 @@ class PadBase():
         
     def createPath(self):
         path = QPainterPath()
-        
+
         if (self._padShape == 'rect') or (self._padShape == 'circle'): 
             self.left =          float(self.elem.get('left')) 
             self.top =           float(self.elem.get('top')) 
@@ -375,62 +651,6 @@ class PadBase():
     
     def shape(self):
         return self.path() # default imp probably does the same thing 
-        
-    # def setupNameItem(self, left , top ): This not part of padBase; part of Pad, not PadItem
-
-    #     self._name = self.elem.get('name') 
-    #     if self._name: 
-    #         self._nameItem = LayersSimpleTextItem(self.layer(), self._name, self) # _nameItem is parented on self, the container_item representing this pad 
-    #         self._nameItem.setFont(footprint_font)
-    #         self._nameItem.setPos(QPointF(left, top))
-    #         self._nameItem.setZValue(2) # Stack pad_name atop the backgroundpads(z0) and topmostLayer(z1)
-    #     # print()
-    #     # print("POSITION:", self._nameItem.pos())
-      
-    def pointOfInaccessibility(self):
-        pass # Need to implement POI for freaky shaped pads. NO simply demand that origin==terminal. See shapely.polylabel. POI guarantees centroid inside shape.
-    
-    def centroid(self):
-        return self._centroid 
-    
-    def setCentroid(self): # Recalculate centroid 
-        if (self._padShape == 'rect') or (self._padShape == 'circle'): 
-            self._centroid = QPointF( self.left + self.width/2 , self.top + self.height/2 )
-        elif self._padShape == 'custom': 
-            self._centroid = self.pointOfInaccessibility()
-    
-class Pad(PadBase, CopperItemContainer, QGraphicsItem):# CopperItem, PadBase):
-
-    def __init__(self, elem, parent): # elem: xml describing this pad. parent: the Footprint to which this pad belongs 
-
-        layers = elem.get('layers')
-        if layers == '': 
-            layers = "F.Cu, F.Paste, F.Mask"
-        layers = [layer.strip() for layer in layers.split(',')] # Convert string into list 
-            
-        self.setLayers(layers)
-            
-        super().__init__( elem=elem, parent=parent, layers = layers) 
-        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton) # Turn off accepted mouse buttons so that Pads cannot get mouseMoveEvents;cannot become mouse grabber; cannot 'eat up' the mouse events for the pad's footprint
-        self._terminal          = None 
-        self._sceneTerminal     = None 
-        self._terminals         = None 
-        self._sceneTerminals    = None 
-
-
-        self.setRotation(float(elem.get('angle', 0)))
-
-       
-                    
-        for layer in self.layers():
-            PadItem(layer, elem, Utils.layerColors[layer], self)            # Create padItem
-# AttributeError: 'PadItem' object has no attribute '_layer'
-
-        self.setSceneTerminals() # Pad only has one terminal, but have the option of having it in a list, for a consistent api, with Trace, which has two terminals.
-        self.setupNameItem()
-        
-        # print('LAYER:', layer)
-
 
 
     def setupNameItem(self ):
@@ -455,62 +675,9 @@ class Pad(PadBase, CopperItemContainer, QGraphicsItem):# CopperItem, PadBase):
     def setSceneTerminals(self):
         self.setSceneTerminal()        
         self._sceneTerminals = [self.sceneTerminal()]
-
         
     def terminal(self):
         return self._terminal
     def terminals(self): # Via Item only has one terminal. Still, to keep the api consistent, reimplement .terminals 
         return self._terminals
-
-        
-    # def boundingRect(self):
-    #     return self._boundingRect or QRectF()
-    
-    # def paint(self, painter, option, widget):
-    #     painter.setPen(self.pen())
-    #     painter.setBrush(self.brush())
-    #     painter.drawPath(self.path())
-       
-        
-    def brush(self):
-        return self._brush
-    def setBrush(self, brush):
-        self._brush = brush
-        
-    # def setBuffer(self, buffer_width = None ): # Returns a QPolygonF, representing the buffered shape
-    #     # self.pad_template.shape() This would return path, of bR. No good.
-    #     if buffer_width == None: 
-    #         buffer_width = self.scene().traceWidth()
-    #     stroker = QPainterPathStroker()
-    #     stroker.setWidth(buffer_width)
-    #     stroker.setJoinStyle(Qt.BevelJoin) 
-    #     stroker.setCapStyle(Qt.FlatCap)
-        
-    #     path = self.shape() # self.pad_template better be a QGraphicsPathItem to use .path()
-    #     strokerPath = stroker.createStroke(path)
-    #     expandedPath = path.united(strokerPath) #Unite the fillable areas of the paths into one consolidated path
-    #     self._buffer = expandedPath.toFillPolygon() # convert to a QPolygonF. 
-
-
-
-#MRO: padItem, CopperItem, BoardItem, PadBase, QGI, object
-class PadItem(LayerItem, PadBase, QGraphicsItem):
-    def __init__(self, layer, elem, color, parent):
-        # print('PAD.MRO():', PadItem.mro())
-        super().__init__(layer=layer,elem= elem, parent=parent)# Pad is parented on parent, a FootprintItem. # Its good to use keywords when passing args, when inheritance is at play, because you don't need to remember the order of arguments 
-        self._terminals = []
-        self.color = color
-        self._net = None 
-        
-    def paint(self, painter, option, widget):
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(self.color)
-        painter.drawPath(self.path())
-
-    # def mouseMoveEvent(self, event): 
-    #     print('PAD.MOUSEMOVEEVENT')
-    #     super().mouseMoveEvent(event)
-        
-
-                
 
