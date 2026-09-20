@@ -45,6 +45,7 @@ class BoardScene( DrawScene, QGraphicsScene):
         self._layers = Utils.layers
         self.rtrees = defaultdict(rectangletree.index.Index) # {'F.Cu': rtree}
         # self.footprints = defaultdict(defaultdict) Not used for anything so commented  defaultdict of default dict  { 'C':{1: item , 2: item , 5: item} , 'R': {1:item , 2:item}}}Note Entries/Deletions to this dict managed by MainWindow, bc, parts, with reference_value, go on both schematic AND board, but cant  reach both schematic and board from here, so we pass up to MW.
+        self._showingLayers = self._layers
         self.topmost_layer = 'F.Cu' # The layer which is drawn on top of all other layers. Selected via layerVisibilityControlWidget. Most of the time, will be same value as activeLayer. Default F.Cu
         self._activeLayer = 'F.Cu' # The currently selected layer; the layer the user is currently working on. F_Cu, Inr.3, B_Silk, etc # The layer to which Traces will be added. Selected via layerVisibilityControlWidget. Most of the time, will be same value as topmost_layer. Default F.Cu
         self._activeNet = None  # The currently selected net. gnd, Vcc, 3v3, signal_gnd, etc
@@ -118,15 +119,11 @@ class BoardScene( DrawScene, QGraphicsScene):
     #                             item.showLayer(layer)
     #                             break
 
-                    
-                        
-                    
-        
     def netsBeneath(self, point):
         nets = set()
         for item in self.items(point): 
-            if isinstance(item, NonConnectivityItem): 
-                if item.layer() == self.activeLayer(): 
+            if isinstance(item, ConnectivityItem): 
+                if self.activeLayer() in item.layers():
                     nets.add(item.net())
 
         print('NETSBENEATH:', nets)
@@ -184,16 +181,17 @@ class BoardScene( DrawScene, QGraphicsScene):
         self.exitAddTraceMode()
 
 
-    def activeNet(self): # The net of the currently selected item. Is used to setActiveNet of None-net items and prevent items with unlike nets from connecting
+    def activeNet(self): # The net of the currently selected item. If no selected item, the net of the item beneath seeker center point. Is used to setActiveNet of None-net items and prevent items with unlike nets from connecting
         return self._activeNet 
     
     def setActiveNet(self, activeNet:str|None):
+        print('SETACTIVENET:', activeNet)
         self._activeNet = activeNet
-        self.activeNetSet.emit(str(self._activeNet)) # activeNet may be None so cast to str b4 sending
+        self.activeNetSet.emit(str(self._activeNet)) # Emit activeNet to display on statusBar. activeNet may be None so cast to str b4 sending
         
     def activeLayer(self): 
         return self._activeLayer
-    def setActiveLayer(self, activeLayer):
+    def setActiveLayer(self, activeLayer): # LayerVisibilityWidget's radio buttons drive calls to .setActiveLayer. 
         self._activeLayer = activeLayer
         self.showLayer(activeLayer)
         
@@ -255,18 +253,25 @@ class BoardScene( DrawScene, QGraphicsScene):
             self.showLayer(layer)
     
     def showLayer(self, layer):
-            print('BOARDSCENE.SHOWLAYER()')
-            for item in self.items(): 
-                if not isinstance(item, LayersItem):
-                    continue 
-                item.showLayer(layer)
-                
-    def hideLayer(self, layer, showingLayers):
-        print('BOARDSCENE.HIDELAYER()')
+        print('BOARDSCENE.SHOWLAYER()')
+        
+        if not layer in self._showingLayers: 
+            self._showingLayers.append(layer)
+            
         for item in self.items(): 
             if not isinstance(item, LayersItem):
                 continue 
-            item.hideLayer(layer, showingLayers)
+            item.showLayer(layer)
+                
+    def hideLayer(self, layer):
+        print('BOARDSCENE.HIDELAYER()')
+        if layer in self._showingLayers: 
+            self._showingLayers.remove(layer)
+            
+        for item in self.items(): 
+            if not isinstance(item, LayersItem):
+                continue 
+            item.hideLayer(layer)
    
 
     # def normalModeMousePressEvent(self, event):
@@ -278,8 +283,9 @@ class BoardScene( DrawScene, QGraphicsScene):
         # print('ADDING ITEM OF TYPE:',type(item))
         
         if isinstance(item, LayersItem):
+            if self.activeLayer() in self.showingLayers():
+                item.showLayer(self.activeLayer())
             
-            item.showLayer(self.activeLayer())
             # return         
         
         if isinstance( item, FootprintItem): # Footprint pads go in rtree, so call addItem again for each pad 
@@ -480,7 +486,6 @@ class BoardScene( DrawScene, QGraphicsScene):
         
         for hitItem in hitItems:  
             print('HITITEM.NET:', hitItem.net())
-            print('SCENE.ACTIVENET():', self.activeNet())
             for terminal in  hitItem.terminalsWithin(sceneBounds= seekerBounds): # We need to compare nets of currently drawing trace against terminal nets, to see if the trace net is compatible with the terminal net. For example a terminal with a net of 3V3 is not connectable to a trace of GND. # TODO: use sorted() to snap to the closest terminal, AND use cursor posiiton to somehow be able to choose between close terminals 
                 print('TERMINAL:', terminal)
                 if self.startPosition: 
@@ -502,6 +507,12 @@ class BoardScene( DrawScene, QGraphicsScene):
             if self.startPosition is not None : # If we previously pressed mouse, we are drawing a trace. Use the mouse position to sense startAngle. Note is not None used because QPoint(0,0) evaluates False while QPoint(1,1) evaluates True; QPoint if testing shouldn't be used, so we compare against None.
                 self.ffline.setPoints(self.startPosition, self.seeker.scenePos()) # This will update the ffline from here to there, as long as no collisions are found, inwhich case the old ffline will persist
 
+        print('SCENE.ACTIVENET():', self.activeNet())
+
+        activeNet = self.resolveNets(self.netsBeneath(self.seeker.scenePos()))
+        print('ACTIVENET:', activeNet)
+        self.setActiveNet(activeNet)
+        
     def mouseReleaseEvent(self, event): 
         if self.mode() == Utils.BoardSceneMode.NormalMode: 
             super().mouseReleaseEvent(event)
@@ -555,7 +566,7 @@ class BoardScene( DrawScene, QGraphicsScene):
         super().mousePressEvent(event)
                
     def mouseMoveEvent(self, event):
-        print('BOARDSCENE.MOUSEMOVEEVENT')
+        # print('BOARDSCENE.MOUSEMOVEEVENT')
         super().mouseMoveEvent(event) 
 
 
@@ -616,7 +627,7 @@ class BoardScene( DrawScene, QGraphicsScene):
             self.seeker.setPen(QPen(Qt.red , 0))
         elif mode == Utils.BoardSceneMode.AddViaMode: 
             print('ENTERED ADD VIA MODE')
-            self.via = Via(10,4 , 1, ['F.Cu'])
+            self.via = Via(10,4 , 1, Utils.copperLayers)
             self.addItem(self.via) 
             self.via.setPos(-1e9,-1e9)
             self.views()[0].setMouseTracking(True) # mouseMoveEvent fires while no mouse button pressed down 

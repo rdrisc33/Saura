@@ -22,7 +22,6 @@ class Schematic(QWidget): # Intended to be a stackedWidget in the mainwindows ce
         layout.addWidget(self._view)
         self.setLayout(layout)
         
-        
     def scene(self):
         return self._scene
     def view(self):

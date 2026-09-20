@@ -63,31 +63,31 @@ class NonConnectivityItem(LayersItem):
     #     self._net = net 
         
 
-# QGraphcisItems that have no connectivity, yet is on a layer, example shapes on the 'edge cuts' or 'Fab' layers. Note distinction between LayersRectItem, which DOES have connectivity
-class NonConnectivityRectItem(NonConnectivityItem, QGraphicsRectItem ): 
-    def __init__(self, layer, *args, **kwargs):
-        super().__init__(layer, *args, **kwargs)
-        self.setLayer(layer)
-        self.setPen(QPen(self._color, 0))
+# # QGraphcisItems that have no connectivity, yet is on a layer, example shapes on the 'edge cuts' or 'Fab' layers. Note distinction between LayersRectItem, which DOES have connectivity
+# class NonConnectivityRectItem(NonConnectivityItem, QGraphicsRectItem ): 
+#     def __init__(self, layer, *args, **kwargs):
+#         super().__init__(layer, *args, **kwargs)
+#         self.setLayer(layer)
+#         self.setPen(QPen(self._color, 0))
 
-class NonConnectivityEllipseItem(NonConnectivityItem, QGraphicsEllipseItem): 
-    def __init__(self, layer, *args, **kwargs):
-        super().__init__(layer, *args, **kwargs)
-        self.setLayer(layer)
-        self.setPen(QPen(self._color, 0))
+# class NonConnectivityEllipseItem(NonConnectivityItem, QGraphicsEllipseItem): 
+#     def __init__(self, layer, *args, **kwargs):
+#         super().__init__(layer, *args, **kwargs)
+#         self.setLayer(layer)
+#         self.setPen(QPen(self._color, 0))
 
-class NonConnectivityLineItem(NonConnectivityItem, QGraphicsLineItem): 
-    def __init__(self, layer, *args, **kwargs):
-        super().__init__( layer, *args, **kwargs )
-        self.setLayer(layer)
-        self.setPen(QPen(self._color, 0))
+# class NonConnectivityLineItem(NonConnectivityItem, QGraphicsLineItem): 
+#     def __init__(self, layer, *args, **kwargs):
+#         super().__init__( layer, *args, **kwargs )
+#         self.setLayer(layer)
+#         self.setPen(QPen(self._color, 0))
         
-class NonConnectivitySimpleTextItem(NonConnectivityItem, QGraphicsSimpleTextItem): 
-    def __init__(self, layer, text=None, *args, **kwargs):
-        super().__init__(layer, *args, **kwargs)
-        self.setLayer(layer)
-        self.setText(text)
-        self.setBrush(self._color)
+# class NonConnectivitySimpleTextItem(NonConnectivityItem, QGraphicsSimpleTextItem): 
+#     def __init__(self, layer, text=None, *args, **kwargs):
+#         super().__init__(layer, *args, **kwargs)
+#         self.setLayer(layer)
+#         self.setText(text)
+#         self.setBrush(self._color)
         
 
 # class LayerPathItem(LayerItem, QGraphicsPathItem): 
@@ -110,24 +110,28 @@ class NonConnectivitySimpleTextItem(NonConnectivityItem, QGraphicsSimpleTextItem
 
 
 
-class DrawnItem(): # Drawn items are drawn by the user, Ex a rectangle, a line, a text box. DrawnItems are selectable.
+class NonConnectivityItem(LayersItem): # Drawn items are drawn by the user, Ex a rectangle, a line, a text box. DrawnItems are selectable.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
+        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable | QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
     
-class DrawnLineItem(DrawnItem , NonConnectivityLineItem): # Note understanding of Inheritance needed here. Cant inherit QGraphicsItem twice, thus it has to come from LayerLineItem, which means LayerLineItem must go LAST else when .setFlags called, QGI hasn't been init'd yet and will get error
-    def __init__(self, layer, *args, **kwargs):
-        super().__init__( layer, *args, **kwargs )
+class NonConnectivityLineItem(NonConnectivityItem , QGraphicsLineItem): # Note understanding of Inheritance needed here. Cant inherit QGraphicsItem twice, thus it has to come from LayerLineItem, which means LayerLineItem must go LAST else when .setFlags called, QGI hasn't been init'd yet and will get error
+    def __init__(self, layers, *args, **kwargs):
+        super().__init__( layers, *args, **kwargs )
 
-    # def shape(self):# implement selection of drawnItems such that their outline is their hitbox
-    #     stroker = QPainterPathStroker()
-    #     stroker.set
+class NonConnectivityRectItem(NonConnectivityItem, QGraphicsRectItem): 
+    def __init__(self, layers, lineWidth,*args, **kwargs):
+        super().__init__( layers, *args, **kwargs )
+        self.lineWidth = lineWidth
+        self.setPen(QPen(self._color , self.lineWidth))
+
+    def shape(self): 
+        path = QPainterPath() 
+        path.addRect(self.boundingRect())
         
-class DrawnRectItem(DrawnItem, NonConnectivityRectItem): 
-    def __init__(self, layer, *args, **kwargs):
-        super().__init__( layer, *args, **kwargs )
-
-class DrawnEllipseItem(DrawnItem, NonConnectivityEllipseItem): 
-    def __init__(self, layer, *args, **kwargs):
-        super().__init__( layer, *args, **kwargs )
+        return path
+        
+class NonConnectivityEllipseItem(NonConnectivityItem, QGraphicsEllipseItem): 
+    def __init__(self, layers, *args, **kwargs):
+        super().__init__( layers, *args, **kwargs )
 

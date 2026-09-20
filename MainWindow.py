@@ -70,7 +70,7 @@ class MainWindow(QMainWindow):
         self.spreadsheet = Spreadsheet() # MySchematic has self.spreadsheet and its visible while editing .brd and .sch
         
         self.spreadsheet.table.clicked.connect(self.onTableClicked)
-        self.setupStatusBars()
+        self.setupStatusBar()
         self.create_actions()
         self._create_menus()
         self.create_schematic_toolbar()
@@ -109,22 +109,15 @@ class MainWindow(QMainWindow):
         # database.changed.connect(self.schematic.scene().reload_part) #This belongs in scene() constructor # Refresh all the symbols belonging to 'table_name' when we update the db (Bc the symbols hold their own part record) This may not make any visiblie changes, unless you change the 'symbol' attribute 
         # database.changed.connect(self.board.scene().reload_part)  # This belongs in scene()'s constructor # Refresh all the footprints belonging to 'table_name' when we update the db( Bc the footprints also hold heir own part record) This may not make any visible changes, unless you change the 'footprint' attribute...
         
-    def setupStatusBars(self): 
+    def setupStatusBar(self): 
+        self.activeNetLabel = QLabel('None')
+        self.workspaceLabel = QLabel('Schematic')
         
-        self.schematicStatusBar = QStatusBar(self)
-        self.schematicStatusBar.showMessage('InitialSchematicStatusBarMessage', 10000)
-        self.schematicActiveNetStatusLabel = QLabel() 
-        self.schematic.scene().activeNetSet.connect(lambda activeNet : self.schematicActiveNetStatusLabel.setText(str(activeNet)))
-        self.schematicStatusBar.addPermanentWidget(self.schematicActiveNetStatusLabel)
+        self.statusBar().addPermanentWidget(self.activeNetLabel)
+        self.statusBar().addPermanentWidget(self.workspaceLabel)
+        self.schematic.scene().activeNetSet.connect(lambda activeNet : self.activeNetLabel.setText(activeNet))
+        self.board.scene().activeNetSet.connect(lambda activeNet : self.activeNetLabel.setText(activeNet))
 
-        self.boardStatusBar = QStatusBar(self)
-        self.boardStatusBar.showMessage('InitialBoardStatusBarMessage', 10000)
-        self.boardActiveNetStatusLabel = QLabel()
-        self.board.scene().activeNetSet.connect(lambda activeNet : self.boardActiveNetStatusLabel.setText(str(activeNet)))
-        self.boardStatusBar.addPermanentWidget(self.boardActiveNetStatusLabel)
-
-        self.setStatusBar(self.schematicStatusBar) 
-        self.boardStatusBar.hide()
         
     def onFootprintMoved(self, footprint):
         footprint.setNets()
@@ -220,7 +213,7 @@ class MainWindow(QMainWindow):
                 for hitItem2 in self.queryRtrees(item=hitItem, layer=xYLayer[2]):
                     if hitItem2 in visitedItems: continue 
                     elif hitItem2 == hitItem: continue 
-                    if hitItem2.connectsToItem(hitItem): # Note .connectsToItem() has no layer checking; structure of .propagations() is such that we already know hitItem & hitItem2 are on the same layer 
+                    if hitItem2.connectsTo(hitItem): # Note .connectsToItem() has no layer checking; structure of .propagations() is such that we already know hitItem & hitItem2 are on the same layer 
                         propagatedItems.add(hitItem)
                         propagatedItems.add(hitItem2)
                         for layer in hitItem2.copperLayers():
@@ -1145,20 +1138,17 @@ class MainWindow(QMainWindow):
         
         self.board_toolbar.hide()
         self._schematic_toolbar.show()
-        self.setStatusBar(self.schematicStatusBar)
-        # self.central_widget.setCurrentWidget(self.schematic)
+
+        self.workspaceLabel.setText('Schematic')
         
     def on_show_board_action_triggered(self):
         self.centralWidget().setCurrentIndex(1) # Board is at index 1 
         self.setupBoardMenuBar()
         self.board_toolbar.show()
         self._schematic_toolbar.hide()
-        self.boardStatusBar.show()
-        self.setStatusBar(self.boardStatusBar)
-        
-        # self.boardStatusBar.show()
-        # self.schematicStatusBar.hide()
-        # self.central_widget.setCurrentWidget(self.board)
+
+        self.workspaceLabel.setText('Board')
+
     
     def setupSchematicMenuBar(self):
         self.menuBar().clear()

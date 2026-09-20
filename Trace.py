@@ -667,10 +667,10 @@ class Trace(ConnectivityItem, QGraphicsLineItem):
         print('TRACE.ARGS:', args)
         print('TRACE.KWARGS:', kwargs)
         print('TRACE.LAYERS:', layers)
-        super().__init__( layers, parent=parent, *args, **kwargs)
 # Trace(layers, traceWidth, )
-        self._traceWidth = None
-        self._net = None  
+        self._traceWidth = traceWidth
+        self._net = net
+        super().__init__( layers, parent=parent, *args, **kwargs)
         
         self.setLayers(layers)
         self.setTraceWidth(traceWidth)
@@ -716,11 +716,9 @@ class Trace(ConnectivityItem, QGraphicsLineItem):
         self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable) 
 
     def setColor(self, color): 
-# WHY is color changing, only after mouse over the scene? 
         self._color = color
         self.setPen(QPen(color, self.traceWidth(), c = self.pen().capStyle()))
         self.update() # Schedules a redraw of the area covered by rect in this item. You can call this function whenever your item needs to be redrawn, such as if it changes appearance or size.
-            
         
     def terminatesWithin(self, rect=None, sceneBounds= None ): # Returns first terminal found within rect|bounds. Returns false if no terminals within rect|bounds. All in scenecoordinates. 
         

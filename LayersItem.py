@@ -3,7 +3,7 @@ from PySide6.QtCore import *
 from PySide6.QtGui import * 
 
 from utils import * 
-class LayersItem(): 
+class LayersItem(): # Includes TraceViaZonePadConnectivity(RectEllipseEtc)ItemsNonConnectivity(RectEllipseEtcItems)
     def __init__(self, layers, *args, **kwargs):
         # print('BOARDITEM.KWARGS:', kwargs)
         # print('BOARDITEM.ARGS:', args)
@@ -29,29 +29,21 @@ class LayersItem():
         self._net                   = None 
 
         self.setLayers(layers)
+        self.setColor(Utils.layerColors[self.layers()[0]])
         
     def mousePressEvent(self, event): 
         self._offset = self.scenePos() - event.scenePos()
 
-    # def showLayer(self, layer): 
-    #     if layer in self.layers(): 
-    #         self.show()
-    #         self.setZValue(1)
-    #         self.setColor(Utils.layerColors[layer])
     def showLayer(self, layer):
         if layer not in self.layers(): 
             return
         
         self.show()
-        if self.scene().activeLayer() in self.layers(): 
-            self.setColor(Utils.layerColors[self.scene().activeLayer()])
-            return 
-        self.setColor(Utils.layerColors[layer])
-        # set color doesn't take effect until I mouse over the scene... whats up with that? 
-        # self.scene().update() # Nope No effect
-        # self.update() # Nope No effect 
 
-    def hideLayer(self, layer, showingLayers):
+        self.setColor(Utils.layerColors[layer])
+
+    def hideLayer(self, layer):
+        print('HIDE LAYER:', layer)
         if layer not in self.layers(): 
             return 
         
@@ -59,22 +51,22 @@ class LayersItem():
         # if otherLayer in self.layers() is showing: 
         #     self.ShowLayer(otherLayer)
         for otherLayer in self.layers(): 
-            if otherLayer in showingLayers: 
+            if otherLayer in self.scene()._showingLayers: 
                 self.showLayer(otherLayer)
                 return
                         
         self.hide() # Only hide, if ALL layers are hidden 
         
-    # def hideLayer(self, layer):  # Note not good enough
-    #     if layer in self.layers(): 
-    #         self.hide()
-    #         self.setZValue(0)
+    def layers(self):
+        return self._layers
+    def setLayers(self, layers):
+        self._layers = layers 
 
     def color(self):
         return self._color
     def setColor(self, color):
         self._color = color
-        # self.scene().views()[0].viewport().repaint() No effect
+        self.update()
         # Reimplement in subclasses to do more; trace needs to setPen; pad & zone need to setBrush; via needs to (?)        
         
     # def mouseMoveEvent(self, event): 
@@ -152,13 +144,6 @@ class LayersItem():
     # def setShowingLayers(self, layers): 
     #     return None 
     
-    def net(self):
-        return self._net     
-    def setNet(self, net):
-        self._net = net 
-                
-    def setBufferDistance(self, bufferDistance):
-        self._bufferDistance = bufferDistance
         
     # def layer(self): 
     #     # print('SELF:', self)
@@ -167,24 +152,25 @@ class LayersItem():
     # def setLayer(self, layer):
     #     self._layer = layer        
         
-    def layers(self):
-        return self._layers
-    def setLayers(self, layers):
-        self._layers = layers 
         
     # def id(self):
     #     return self._id 
     # def setId(self, id):
     #     self._id = id 
-    def bounds(self): 
-        return self._bounds 
-    def setBounds(self): # UNBUFFERED bounds. Local position. Used for .... ? 
-        return None 
-    def sceneBounds(self):
-        return self._sceneBounds 
+                
+    # def setBufferDistance(self, bufferDistance):
+    #     self._bufferDistance = bufferDistance
+    # def bounds(self): 
+    #     return self._bounds 
+    # def setBounds(self): # UNBUFFERED bounds. Local position. Used for .... ? 
+    #     return None 
+    # def sceneBounds(self):
+    #     return self._sceneBounds 
     # def setSceneBounds(self):
     #     return None 
-        # r = self.boundingRect() mapped to scene 
+    # def setSceneTerminals(self): # Note Connectivity(Rect,Ellipse, etc)Items have no sceneTerminals. Most other classes reimplement this function.
+    #     return None 
+    #     # r = self.boundingRect() mapped to scene 
         
         # return ( r.left(), r.top(), r.right() , r.bottom() ) 
     # def buffer(self):

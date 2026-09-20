@@ -86,8 +86,8 @@ class LayersVisibilityWidget(QWidget):
 
     setActiveLayer = Signal(str)
     # setTopmostLayer = Signal(str)
-    showLayer = Signal(str)
-    hideLayer = Signal(str, list) # hiddenLayer:str, showingLayers:list # Need both to implement sensible layer hiding
+    showLayer = Signal(str) # showLayer:str , showingLayers:list # Need both to implement
+    hideLayer = Signal(str) # hiddenLayer:str, showingLayers:list # Need both to implement sensible layer hiding
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -131,8 +131,8 @@ class LayersVisibilityWidget(QWidget):
 
         elif checked == False: 
             showingLayers = [layer for layer in self.lvwiDict if self.lvwiDict[layer]._visibilityButton.isChecked() ]
-            print('SHOWING LAYERS: ', showingLayers)
-            self.hideLayer.emit(layer, showingLayers)
+            # print('SHOWING LAYERS: ', showingLayers)
+            self.hideLayer.emit(layer)
             # self.visibility[layer] = False
             
 

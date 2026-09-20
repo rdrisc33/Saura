@@ -23,6 +23,22 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         self._sceneBufferedBounds   = None      # ._bufferedBounds in scene coordinates
         self._id                    = None 
         self._net                   = None 
+
+         
+    def setBufferDistance(self, bufferDistance):
+        self._bufferDistance = bufferDistance
+    def bounds(self): 
+        return self._bounds 
+    def setBounds(self): # UNBUFFERED bounds. Local position. Used for .... ? 
+        return None 
+    def sceneBounds(self):
+        return self._sceneBounds 
+    def setSceneBounds(self):
+        return None 
+    def setSceneTerminals(self): # Note Connectivity(Rect,Ellipse, etc)Items have no sceneTerminals. Most other classes reimplement this function.
+        return None 
+        # r = self.boundingRect() mapped to scene 
+        
     def mouseMoveEvent(self, event): 
         if (event.buttons() & Qt.MouseButton.LeftButton ) and (self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsSelectable): # Only move if the item is selectable, and the mouse left button is clicked. https://github.com/qt/qtbase/blob/dev/src/widgets/graphicsview/qgraphicsitem.cpp if ((event->buttons() & Qt::LeftButton) && (flags() & ItemIsMovable)) {
             print('LAYERSITEM.MOUSEMOVEEVENT')
@@ -31,7 +47,7 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
 
             self.setPos(self.scene().snapToGrid(event.scenePos() + self._offset))
             nets = self.nets() 
-            self.resolveNets(nets)
+            self.scene().resolveNets(nets)
             if self.net() == 'unresolved': 
                 self.setPos(self._previousPos)
                 self.setNet(self._previousNet)
@@ -39,6 +55,11 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         else: 
             event.ignore() # This seems to do nothing 
 
+    def net(self):
+        return self._net     
+    def setNet(self, net):
+        self._net = net 
+        
     def nets(self): # collects the net of any items which collide with this item.
         nets = set( [self.net()] ) 
         
@@ -399,22 +420,25 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
     #     self.setToolTip("")
     #     super().hoverLeaveEvent(event)
 
-class LayersRectItem(ConnectivityItem, QGraphicsRectItem): # Basically a doodle but with electrical connectivity...distinct from LayerRectItem, which has no connectivity
+class ConnectivityRectItem(ConnectivityItem, QGraphicsRectItem): # Basically a doodle but with electrical connectivity; is made of copper
     def __init__(self, layers, lineWidth, *args, **kwargs):
         super().__init__( layers, *args, **kwargs)
 
         self._lineWidth = lineWidth 
+        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable | QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
 
-        print()
-        print('SELF.RECT:', self.rect())
-        for layer in self.layers(): 
-            print('LAYER:', layer)
-            rectItem = QGraphicsRectItem(self, self.rect())
-            rectItem.setPen(QPen(Utils.layerColors[layer] , self._lineWidth))
+        self.setPen(QPen(Utils.layerColors[self.layers()[0]] , self._lineWidth))
+        # print()
+        # print('SELF.RECT:', self.rect())
+        # for layer in self.layers(): 
+        #     print('LAYER:', layer)
+        #     rectItem = QGraphicsRectItem(self, self.rect())
+        #     rectItem.setPen(QPen(Utils.layerColors[layer] , self._lineWidth))
 
-    def paint(self, painter, option, widget):
-        return None # Reimplement paint event to do nothing, so that only child items are shown
 
-    def setRect(self, rect): 
-        for childItem in self.childItems(): 
-            childItem.setRect(rect)
+    # def paint(self, painter, option, widget):
+    #     return None # Reimplement paint event to do nothing, so that only child items are shown
+
+    # def setRect(self, rect): 
+    #     for childItem in self.childItems(): 
+    #         childItem.setRect(rect)
