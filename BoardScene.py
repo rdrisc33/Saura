@@ -19,10 +19,12 @@ class BoardScene( DrawScene, QGraphicsScene):
     # normalMode, addTraceMode, addViaMode, deleteTraceMode = range(4)
 
     dpi = qApp.screens()[0].physicalDotsPerInch()
+    # print('DPI', dpi)
     dpmm = dpi / 25.4
+    # print('DPMM:', dpmm)
     # * 1 bc IDK what the boardScene grid step should be, and * 1 makes for a 1mm grid step.
     grid_spacing_pixels=  dpi * Utils.gridPt1mm # the spacing at which to snap to. 
-    gridSpacingMm = 1 # as in 1mm
+    gridSpacingMm = .1 # as in .1mm
     # print('BOARDSCENE.grid_spacing:', grid_spacing)
     tick_spacing = dpi / 25.4 # The spacing at which to draw tick marks 
     # filegrid_spacing = 1.27 # kicad symbols are designed on.05inche grid,  with metric mm measurements. .05inches = 1.27mm 
@@ -119,10 +121,13 @@ class BoardScene( DrawScene, QGraphicsScene):
     #                             item.showLayer(layer)
     #                             break
 
-    def netsBeneath(self, point):
+    def netsBeneathPoint(self, point):
         nets = set()
         for item in self.items(point): 
             if isinstance(item, ConnectivityItem): 
+                # print('BS.ACTIVELAYER:' , self.activeLayer())
+                print('ITEM.LAYERS:', item.layers())
+                print('ITEM.NET:', item.net())
                 if self.activeLayer() in item.layers():
                     nets.add(item.net())
 
@@ -424,7 +429,7 @@ class BoardScene( DrawScene, QGraphicsScene):
         print()
         print('SELF.STARTPOSIITON:', self.startPosition) 
         # self.ffline = Ffline(QPointF(0,0), QPointF(0,0) , self) 
-        self.ffline = Ffline(self.seeker.scenePos(), self.seeker.scenePos() , self)
+        self.ffline = Ffline(self.seeker.scenePos(), self.seeker.scenePos() , self, self.activeNet())
         
  # A line drawn from position of click to current mouse position. 
         # self._line =  LayersLineItem(['F.Cu'], QLineF(self.seeker.scenePos(), self.seeker.scenePos()))
@@ -509,7 +514,7 @@ class BoardScene( DrawScene, QGraphicsScene):
 
         print('SCENE.ACTIVENET():', self.activeNet())
 
-        activeNet = self.resolveNets(self.netsBeneath(self.seeker.scenePos()))
+        activeNet = self.resolveNets(self.netsBeneathPoint(self.seeker.scenePos()))
         print('ACTIVENET:', activeNet)
         self.setActiveNet(activeNet)
         
@@ -558,7 +563,7 @@ class BoardScene( DrawScene, QGraphicsScene):
             return self.addTraceModeMousePressEvent(event)
         
         elif self.mode() == Utils.BoardSceneMode.AddViaMode: # In Scene.addViaModemousePressEvent, have the via take on nets below if appropriate 
-            if ( self.via.net() == None ) and (self.via.resolvedNet != 'unresolved'): # None nets take on other nets upon mouseRelease
+            if ( self.via.net() == Net() ) and (self.via.resolvedNet != 'unresolved'): # None nets take on other nets upon mouseRelease
                 self.via.setNet(self.via.resolvedNet)
             self.setMode(Utils.BoardSceneMode.NormalMode)
             return 
@@ -583,7 +588,8 @@ class BoardScene( DrawScene, QGraphicsScene):
                 self.footprintMoved.emit(self.mouseGrabberItem()) # MW.board.scene().footprintMoved.connect(updateRatsnest)
                 
     def addViaModeMouseMoveEvent(self, event): 
-        self.via.tentativeMove( Utils.snapToGrid(event.scenePos(), 20) )# MOve here, as long as no conflicts
+        print('AVMMME')
+        self.via.tentativeMove( self.snapToGrid(event.scenePos()) )# MOve here, as long as no conflicts
 
     def mouseDoubleClickEvent(self, event):
         print()
@@ -629,7 +635,7 @@ class BoardScene( DrawScene, QGraphicsScene):
             print('ENTERED ADD VIA MODE')
             self.via = Via(10,4 , 1, Utils.copperLayers)
             self.addItem(self.via) 
-            self.via.setPos(-1e9,-1e9)
+            self.via.setPos(0,0)
             self.views()[0].setMouseTracking(True) # mouseMoveEvent fires while no mouse button pressed down 
         print()
         print(f"SET BOARDSCENE MODE TO {mode}")

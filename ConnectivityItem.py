@@ -1,18 +1,15 @@
 from utils import * 
 from LayersItem import * 
-
+from Net import Net
 class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRectItem, etc. Not useful by itself
     def __init__(self, layers, *args, **kwargs):
-        # print('CUIC.LAYERS:', layers)
-        # print('CUIC.ARGS:', args)
-        # print('CUIC.KWARGS:', kwargs)
         super().__init__(layers, *args, **kwargs)
         # print('COPPERITEMCONTAINER.INIT')
         # self._layer                 = None    Moved to BoardItem
         # self._layers                = layers  Moved to BoardItem
         # self._layerItems            = defaultdict(list) # { 'F.Cu': LineItem} Phasing out
         self._terminals             = None 
-        self._nonNoneNets           = None 
+        self._nonNullNets           = None 
         self._sceneTerminal         = None      # 3-Tuple (scenePosX,scenePosY,layer) 
         self._sceneTerminals        = None      # self.terminals are point(s) on a pad, via, which are connectable. Ex TraceItem self.terminals are p1,p1. Via self.terminals are center aka origin, pad self.terminals are pad origin(NOT necessarily pad centroid, think solder bridge pads), and Footprint self.terminals are pads/vias contained in the footprint
         self._buffer                = None      # QGraphicsPolygonItem representing item's shape, buffered by (mostLikely) scene.tracewidth
@@ -24,7 +21,74 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         self._id                    = None 
         self._net                   = None 
 
-         
+
+    def resolveNets(self, nets): # Return True if the given list of nets is resolvable with this item
+        nonNullNets = [net for net in nets if not net.isNull()] 
+        
+        if len(nonNullNets) == 0: # Then net was null, which is allowed
+            return Net() 
+                
+        elif len(nonNullNets) == 1: 
+            if ( not self.net().isNull()) and (self.net() != nonNullNets[0]): # If self.net() is something, but we found another net,  that is unresolvable
+                print(f'UNRESOLVABLE NETS: { nonNullNets[0], self.net()}')
+                return 'unresolved'
+            else: 
+                print('RESOLVED TO:', nonNullNets[0])
+                return nonNullNets[0] 
+            
+        elif len(nonNullNets) >1 : 
+            return 'unresolved'
+ 
+        
+    def mousePressEvent(self, event): 
+        print('CONNECTIVITYITEM.MPE')
+        self._offset = event.scenePos() - self.scenePos()
+        
+    def mouseMoveEvent(self, event): 
+        print('CONNECTIVITYITEM.MME')
+        
+        if (event.buttons() & Qt.MouseButton.LeftButton ) and (self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable): # Only move if the item is movable, and the mouse left button is clicked. https://github.com/qt/qtbase/blob/dev/src/widgets/graphicsview/qgraphicsitem.cpp if ((event->buttons() & Qt::LeftButton) && (flags() & ItemIsMovable)) {
+            pos = self.scene().snapToGrid(event.scenePos() - self._offset )
+            self.tentativeMove(pos) 
+            
+        # else: 
+        #     event.ignore() # This seems to do nothing 
+    
+    def tentativeMove(self, pos): # Move here but move back if there are obstructions 
+        self._previousPos = self.scenePos()  # Save the previous position 
+        
+        self.setPos(pos) # Move to proposed position
+        # nets = self.scene().netsBeneathItem(self)
+        nets = self.netsBeneath()  # Accumulate list of all nets beneath this item. # Are there net conflicts, if so, we do NOT want to move here. Did a None net collide with another net? If so, None net joins to other net 
+        self.resolvedNet = self.resolveNets(nets) # resolve nets into one net if possible, ex 'GND' or None. Else set net 'unresolved'
+        print('RESOLVEDNET:', self.resolvedNet)
+        print('SELF.NET:', self.net())
+        
+        if (self.resolvedNet == 'unresolved'): # Then revert
+            self.setPos(self._previousPos) 
+                    
+        # elif ( not self.net().isNull() ) and (self.net() != self.resolvedNet ) : # If nets do not match, then revert Oh this is detected by resolvedNets
+        #     self.setPos(self._previousPos)
+
+        elif ( self.net().isNull() ) : # If self's net is null, and mouses over another net, we can take on that net
+            # Take on this net(). Note this will change if we stop mousing over non null net
+            # self.setPos(self._previousPos)
+            self.mousedOverNet = self.resolvedNet
+            
+        else: # If we're staying here, set all sceneStuff
+            self.setSceneTerminals() 
+            self.setSceneBounds()
+            self.setSceneBuffer()
+            self.updateRtree()
+              
+    def mouseReleaseEvent(self, event):
+        print('CONNECTIVITYITEM.MRE')
+        # if ( self.net().isNull() ) and (self.resolvedNet != 'unres olved'): # None nets take on other nets upon mouseRelease
+        #     self.setNet(self.resolvedNet)
+        if not self.mousedOverNet.isNull():
+            self.setNet(self.mousedOverNet)
+        super().mouseReleaseEvent(event) 
+        
     def setBufferDistance(self, bufferDistance):
         self._bufferDistance = bufferDistance
     def bounds(self): 
@@ -39,44 +103,30 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         return None 
         # r = self.boundingRect() mapped to scene 
         
-    def mouseMoveEvent(self, event): 
-        if (event.buttons() & Qt.MouseButton.LeftButton ) and (self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsSelectable): # Only move if the item is selectable, and the mouse left button is clicked. https://github.com/qt/qtbase/blob/dev/src/widgets/graphicsview/qgraphicsitem.cpp if ((event->buttons() & Qt::LeftButton) && (flags() & ItemIsMovable)) {
-            print('LAYERSITEM.MOUSEMOVEEVENT')
-            self._previousPos = self.scenePos()     #Save the previous position
-            self._previousNet = self.net()          #Save the previous net 
 
-            self.setPos(self.scene().snapToGrid(event.scenePos() + self._offset))
-            nets = self.nets() 
-            self.scene().resolveNets(nets)
-            if self.net() == 'unresolved': 
-                self.setPos(self._previousPos)
-                self.setNet(self._previousNet)
-
-        else: 
-            event.ignore() # This seems to do nothing 
 
     def net(self):
         return self._net     
     def setNet(self, net):
         self._net = net 
         
-    def nets(self): # collects the net of any items which collide with this item.
-        nets = set( [self.net()] ) 
+    # def nets(self): # collects the net of any items which collide with this item.
+    #     nets = set( [self.net()] ) 
         
-        hitIds = [] 
-        hitItems = [] 
-        print('SELF.SCENEBOUNDS:', self.sceneBounds())
-        if not self.sceneBounds(): 
-            self.setSceneBounds
-        for layer in self.layers(): 
+    #     hitIds = [] 
+    #     hitItems = [] 
+    #     print('SELF.SCENEBOUNDS:', self.sceneBounds())
+    #     if not self.sceneBounds(): 
+    #         self.setSceneBounds
+    #     for layer in self.layers(): 
             
-            hitIds.extend( self.scene().rtrees[layer].intersection(self.sceneBounds() ) ) 
-        hitItems = [self.scene().ids[hitId] for hitId in hitIds]
+    #         hitIds.extend( self.scene().rtrees[layer].intersection(self.sceneBounds() ) ) 
+    #     hitItems = [self.scene().ids[hitId] for hitId in hitIds]
         
-        for item in hitItems: 
-            if self.collidesWithItem(item):
-                nets.add(item.net())
-        return nets 
+    #     for item in hitItems: 
+    #         if self.collidesWithItem(item):
+    #             nets.add(item.net())
+    #     return nets 
     
     def terminalsWithin(self, rect=None , sceneBounds=None): # Returns list of terminals found within rect|bounds in scene coordinates. If non found, returns an empty list. 
         terminalsWithin = [] 
@@ -136,19 +186,14 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         
     def removeFromRtree(self):
         for layer in self.layers(): 
-            print('ID:', self.id() ) 
-            print('SBB:', self.sceneBufferedBounds())
+            # print('ID:', self.id() )
+            # print('SBB:', self.sceneBufferedBounds())
             self.scene().rtrees[layer].delete(self.id() , self.sceneBufferedBounds())
         
     def updateRtree(self): # Update existing entry in rtree
         self.removeFromRtree() # rtree removal demands (id, bounds). Thus we must remove B4 .setSceneBufferedBounds()
         self.setSceneBufferedBounds()
         self.insertIntoRtree()
-        
-    # def layer(self): # CuICs won't all have just one layer
-    #     return self._layer
-    # def setLayer(self, layer):
-    #     self._layer = layer
         
     def layers(self):
         return self._layers
@@ -246,9 +291,9 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
     #             return False 
             
     def connectsTo(self, other): # -> True if self is connected to other. Connected as in electrically connected.
-        print('CUIC.ConnectsToItem')
+        # print('CONNECTIVITYITEM.CONNECTSTOITEM')
         
-        if not isinstance(other, ConnectivityItem): # CUIC not LayersItem bc don't care if connect to Footprint--padsTracesZoneViasOtherCopperOnly
+        if not isinstance(other, ConnectivityItem): # CI not LayersItem bc don't care if connect to Footprint--padsTracesZoneViasOtherCopperOnly
             return False 
 
         layerMatch = False
@@ -261,8 +306,8 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
             return False 
             
         for t in self.sceneTerminals():  # Try cheap check: do terminal exact positions match 
-            print("SELF:", self)
-            print('SELF.SCENETERMINALS():', self.sceneTerminals())
+            # print("SELF:", self)
+            # print('SELF.SCENETERMINALS():', self.sceneTerminals())
             if any(t == otherTerminal for otherTerminal in other.sceneTerminals()): 
                 return True 
             
@@ -270,13 +315,39 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
             if self.contains(otherTerminal): 
                 return True
             
-        if self.collidesWithItem(other): # Try expensive check: do shapes collide at all
+        if self.collidesWithItem(other): # Try expensive check: do shapes collide
             return True 
         else: 
             return False 
         
-              
 
+    def netsBeneath(self): # Return list of all nets beneath this item Note current imp not enough bc no distinction between layers
+        netsBeneath = set([self.net()])
+        for item in self.scene().items(): 
+            if not isinstance(item, ConnectivityItem): 
+                continue 
+            if self.connectsTo(item): 
+                netsBeneath.add(item.net())
+            print('NETSBENEATH:', netsBeneath)
+        return netsBeneath
+    
+    # def resolveNets(self, nets): # Moved to utils Return True if a net is resolvable from given list of nets 
+    #     nonNullNets = [net for net in nets if net != None] 
+        
+    #     if len(nonNullNets) == 0: # Then net was None, which is allowed
+    #         return None 
+              
+    #     elif len(nonNullNets) == 1: 
+    #         if (self.net() is not None) and (self.net() != nonNullNets[0]): # 
+    #             print(f'UNRESOLVABLE NETS: { nonNullNets[0], self.net()}')
+    #             return 'unresolved'
+    #         else: 
+    #             print('RESOLVED TO:', nonNullNets[0])
+    #             return nonNullNets[0] 
+            
+    #     elif len(nonNullNets) >1 : 
+    #         return 'unresolved'
+        
         # elif isinstance(other, QPoint): # idt this is used
         #     if any( t == other for t in self.terminals() ): # Initial fast check to see if terminals perfectly align
         #         return True 
@@ -287,8 +358,8 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
 
     # def connectedNets(self): 
     #     return self._connectedNets
-    def nonNoneNets(self):
-        return self._nonNoneNets
+    def nonNullNets(self):
+        return self._nonNullNets
 
     def connectedNets(self):
         for child in self.childItems(): 
@@ -302,10 +373,8 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         #         copperItem.setConnectedNets()
         #         for net, items in copperItem.connectedNets():
         #             self._connectedNets[net].extend(items)
-        # self._nonNoneNets = [net for net in self._connectedNets if not net is None]
+        # self._nonNullNets = [net for net in self._connectedNets if not net is None]
         # print() 
-        # print('CUIC.CONNECTEDNETS():', self.connectedNets())
-        # print('CUIC.NONNONENETS:', self._nonNoneNets) 
                             
                     # 
     # def updateStuff(self): 

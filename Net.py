@@ -34,6 +34,16 @@ class Net():
     def setPriority(self, priority):
         self._priority = priority 
 
+    def isNull(self):
+        if self.net() is None: 
+            return True 
+        return False
 
-    
-    
+
+# net = Net()
+# print('net.isNull():', net.isNull())
+# net2 = Net('3V3')
+# print('net2.isNull():', net2.isNull())
+# net3 = Net(None)
+# print('net3.isNull():', net3.isNull())
+

@@ -58,8 +58,12 @@ app = QApplication(sys.argv)
 
 defaultTraceWidth = .2
 
-class Utils: 
 
+
+class Utils: 
+    
+
+        
     grid4mm = 1 / 25.4 * 4 
     grid1mm = 1 / 25.4 
     grid1in = 1 
@@ -392,11 +396,6 @@ class Utils:
 
     copperLayers = [ 'F.Cu', 'B.Cu' ,'Inr.1', 'Inr.2', 'Inr.3', 'Inr.4'] 
 
-
-
-
-    
-
 line_length_threshold = 10 # 10 pixels is line length threshold.
 
 from enum import Enum
@@ -404,10 +403,6 @@ class ViaColors(Enum):
     ViaHoleColor = QColor(10, 50, 100 ) 
     ViaColor      = QColor( 20, 200, 150)
 
-    
-    
-
-    
 def pretty_print(xml):
     xml = etree.tostring(xml, pretty_print = True)
     print(xml.decode(), end = '') # str.decode(): decodes str, default UTF-8

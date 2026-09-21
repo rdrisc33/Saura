@@ -277,70 +277,68 @@ class Via(ConnectivityItem, QGraphicsItem):
     def nearestSceneSnap(self, pos): # Via only has one snap; center. But since TraceItem has two snaps, all items need this method to maintain consistent API.
         return self.scenePos()
     
-    # def mouseMoveEvent(self, event):
-    #     super().mouseMoveEvent(event)
-    #     self.setSceneTerminal()
-        
-    def mouseReleaseEvent(self, event):
-        print('VIA.MRE')
-        if ( self.net() == None ) and (self.resolvedNet != 'unresolved'): # None nets take on other nets upon mouseRelease
-            self.setNet(self.resolvedNet)
-        super().mouseReleaseEvent(event) 
-        
-    def mousePressEvent(self, event): 
-        print('VIA.MPE')
-        self._offset = event.scenePos() - self.scenePos()
-        
-    def mouseMoveEvent(self, event): 
-        print('VIA.MME')
-        pos = Utils.snapToGrid(event.scenePos() - self._offset , 20)
-        self.tentativeMove(pos) 
 
-    def tentativeMove(self, pos): # Move here but move back if there are obstructions 
-        self._previousPos = self.scenePos()  # Save the previous position 
-        self.setPos(pos) # Move to proposed position
-        nets = self.netsBeneath()  # Accumulate list of all nets beneath this item. # Are there net conflicts, if so, we do NOT want to move here. Did a None net collide with another net? If so, None net joins to other net 
-        self.resolvedNet = self.resolveNets(nets) # resolve nets into one net if possible, ex 'GND' or None. Else set net 'unresolved'
-        print('RESOLVEDNET:', self.resolvedNet)
-        print('SELF.NET:', self.net())
         
-        if (self.resolvedNet == 'unresolved'): # Then revert
-            self.setPos(self._previousPos) 
+    # def mouseReleaseEvent(self, event):
+    #     print('VIA.MRE')
+    #     if ( self.net() == None ) and (self.resolvedNet != 'unresolved'): # None nets take on other nets upon mouseRelease
+    #         self.setNet(self.resolvedNet)
+    #     super().mouseReleaseEvent(event) 
         
-        elif ( (self.net() is not None) and (self.net() != self.resolvedNet ) ) : # If nets do not match, then revert
-            self.setPos(self._previousPos)
+    # def mousePressEvent(self, event): 
+    #     print('VIA.MPE')
+    #     self._offset = event.scenePos() - self.scenePos()
+        
+    # def mouseMoveEvent(self, event): 
+    #     print('VIA.MME')
+    #     pos = self.scene().snapToGrid(event.scenePos() - self._offset )
+    #     self.tentativeMove(pos) 
 
-        else: # If we're staying here, set all sceneStuff
-            self.setSceneTerminals()
-            self.setSceneBounds()
-            self.setSceneBuffer()
-            self.updateRtree()
+    # def tentativeMove(self, pos): # Move here but move back if there are obstructions 
+    #     self._previousPos = self.scenePos()  # Save the previous position 
+        
+    #     self.setPos(pos) # Move to proposed position
+    #     # nets = self.scene().netsBeneathItem(self)
+    #     nets = self.netsBeneath()  # Accumulate list of all nets beneath this item. # Are there net conflicts, if so, we do NOT want to move here. Did a None net collide with another net? If so, None net joins to other net 
+    #     self.resolvedNet = Utils.resolveNets(nets) # resolve nets into one net if possible, ex 'GND' or None. Else set net 'unresolved'
+    #     print('RESOLVEDNET:', self.resolvedNet)
+    #     print('SELF.NET:', self.net())
+        
+    #     if (self.resolvedNet == 'unresolved'): # Then revert
+    #         self.setPos(self._previousPos) 
+        
+    #     elif ( (self.net() is not None) and (self.net() != self.resolvedNet ) ) : # If nets do not match, then revert
+    #         self.setPos(self._previousPos)
+
+    #     else: # If we're staying here, set all sceneStuff
+    #         self.setSceneTerminals() 
+    #         self.setSceneBounds()
+    #         self.setSceneBuffer()
+    #         self.updateRtree()
             
-            
+    # def netsBeneath(self): # Moved to ConnectivityItem Return list of all nets beneath this item Note current imp not enough bc no distinction between layers 
+    #     netsBeneath = set([self.net()])
+    #     for item in self.scene().items(): 
+    #         if not isinstance(item, ConnectivityItem): 
+    #             continue 
+    #         if self.connectsTo(item): 
+    #             netsBeneath.add(item.net())
+    #     return netsBeneath
 
-    def netsBeneath(self): # Return list of all nets beneath this item Note current imp not enough bc no distinction between layers
-        netsBeneath = set([self.net()])
-        for item in self.scene().items(): 
-            if not isinstance(item, ConnectivityItem): 
-                continue 
-            if self.connectsTo(item): 
-                netsBeneath.add(item.net())
-        return netsBeneath
-
-    def resolveNets(self, nets): # Return True if a net is resolvable from given list of nets 
-        nonNoneNets = [net for net in nets if net != None] 
+    # def resolveNets(self, nets): # Moved to ConnectivityItem Return True if a net is resolvable from given list of nets 
+    #     nonNoneNets = [net for net in nets if net != None] 
         
-        if len(nonNoneNets) == 0: # Then net was None, which is allowed
-            return None 
+    #     if len(nonNoneNets) == 0: # Then net was None, which is allowed
+    #         return None 
               
-        elif len(nonNoneNets) == 1: 
-            if (self.net() is not None) and (self.net() != nonNoneNets[0]): # 
-                return 'unresolved'
-            else: 
-                return nonNoneNets[0] 
+    #     elif len(nonNoneNets) == 1: 
+    #         if (self.net() is not None) and (self.net() != nonNoneNets[0]): # 
+    #             return 'unresolved'
+    #         else: 
+    #             return nonNoneNets[0] 
             
-        elif len(nonNoneNets) >1 : 
-            return 'unresolved'
+    #     elif len(nonNoneNets) >1 : 
+    #         return 'unresolved'
 
     def net(self):
         return self._net 

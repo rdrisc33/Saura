@@ -22,8 +22,8 @@ class Ffline:
         layers = [ self.scene().activeLayer() ]
         print()
         print('TRACEWIDTH', self.scene().traceWidth())
-        self._traceA = Trace(layers, self.scene().traceWidth(),  self.net(), None, self._lineA )
-        self._traceB = Trace(layers, self.scene().traceWidth(),self.net(), None, self._lineB)
+        self._traceA = Trace(layers, self.scene().traceWidth(), self.net(), None, self._lineA )
+        self._traceB = Trace(layers, self.scene().traceWidth(), self.net(), None, self._lineB)
         self.traces = [self._traceA , self._traceB]
         self.scene().addItem(self._traceA)
         self.scene().addItem(self._traceB)
@@ -139,7 +139,7 @@ class Ffline:
 
         self._traceA.setLine(self._lineA)
         self._traceB.setLine(self._lineB)
-        print('TRACEA.BR():', self._traceA.boundingRect())
+        # print('TRACEA.BR():', self._traceA.boundingRect())
 
         return True 
                 
