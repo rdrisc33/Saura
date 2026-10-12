@@ -98,6 +98,26 @@ class BoardScene( DrawScene, QGraphicsScene):
 
         self.setActiveNet(self._activeNet)
 
+    def collidingCourtyardItems(self, item): 
+        """Analogous to QGraphicsScene.collidingItems(). Returns any courtyardItems colliding with 'item'"""
+        # for hitItem in self.items(item.boundingRect()): 
+        layers = [layer for layer in item.layers() if (layer == 'F.Crtyd') or (layer == 'B.Crtyd') ] # Ignore non-courtyard layers 
+        if not layers: 
+            return 
+        hitItems = []
+        for layer in layers:  
+            
+            hitItems.extend( self.queryRtrees(item.sceneBounds() , layer) ) 
+
+        collidingCourtyards = [] 
+        for hitItem in hitItems :
+            if item.collidesWithItem(hitItem): 
+                collidingCourtyards.append(hitItem)
+        return collidingCourtyards 
+    
+            
+            
+
     def showingLayers(self): 
         return self._showingLayers
     def setShowingLayers(self, showingLayers):
@@ -294,12 +314,10 @@ class BoardScene( DrawScene, QGraphicsScene):
             # return         
         
         if isinstance( item, FootprintItem): # Footprint pads go in rtree, so call addItem again for each pad 
-            # self.footprints[item.referenceDesignator()][item.referenceNumber()] = item
             for pad in item.pads(): 
                 self.addItem(pad)
-            
         
-        if isinstance(item, ConnectivityItem): # Footprint, TraceViaZonePad, are all copperItemContainers: they track copperItems with their .copperItems() method. CopperItems include Trace, ViaItem, ZoneItem, PadItem. CopperItems support connectivity, and go in the rtree. CopperItems are also .childItems(). There are also layerItems. Think silkscreen doodles, user notes, and ratsnest lines. Layer items do not support connectivity. layerItems are tracked in .layerItems().
+        if isinstance(item, ConnectivityItem): # ConnectivityItems include Trace, ViaItem, ZoneItem, PadItem. ConnectivityItems support connectivity, and go in the rtree. 
             print(f'ADDING {type(item)} TO BOARDSCENE')
             item.setId(self.count)        # Count may differ between brd and sch
             self.count  += 1 
@@ -443,11 +461,13 @@ class BoardScene( DrawScene, QGraphicsScene):
         self.startAngleThreshold = self.gridSpacingMm * self.dpi/25.4 # Conversion of mm to pixels # intial_direction may be set while within this circular threshold
     
     #             item.setPen(QPen(item.pen().color() , traceWidth)) # Preserve pen_color ( Due to qt quirks;cosmetic pen cannot change to non-zero width), we have to replace entire qpen)
-    def queryRtrees(self, bounds, layer):
-        """Query the rtree at 'layer' for 'bounds'."""
+    def queryRtrees(self, bounds, layer ):
+        """Query the rtree at 'layer' for 'bounds'"""
         hitIds = self.rtrees[layer].intersection(bounds)
-        hitItems = [self.ids[id] for id in hitIds]
+        hitItems = [self.ids[hitId] for hitId in hitIds]
         return hitItems 
+
+            
 
     def netsAreJoinable(self, net1, net2): 
         joinable = False 

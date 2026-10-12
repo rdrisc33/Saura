@@ -4,7 +4,7 @@ from Reference import Reference
 from LayersItem import LayersItem
 from ConnectivityItem import ConnectivityItem
 from Net import Net
-from NonConnectivityItem import NonConnectivityItem
+from NonConnectivityItem import *
 # from Component import Component
 
 
@@ -31,10 +31,11 @@ class FootprintItem(Reference, QGraphicsItem):
         # print('FOOTPRINTITEM.INIT')
         self._file = None 
         self._layer = None 
-        
+        self._courtyard = None 
+        self._courtyardBounds = None 
+        self._courtyardPathItem = None 
         self._nets = None 
-        self._copperItems = defaultdict(list)
-        
+        # self._copperItems = defaultdict(list)
         # self._layerItems = None 
         
         self.setFile(file)
@@ -47,8 +48,13 @@ class FootprintItem(Reference, QGraphicsItem):
         self._referenceItem.setFont(Utils.footprintFont)
 
         self._pads = []
+        self.courtyard = defaultdict(list)
+        
         # self.terminal_items = set() # A set of items(think pads) whose origin makes for connection points: In a footprint, pads are what you connect to
         self.drawGraphics()
+        
+        self.generateCourtyardPath(self.courtyard)
+
         self.setNets()
         
         self._nameItem = QGraphicsSimpleTextItem("", self)
@@ -59,6 +65,25 @@ class FootprintItem(Reference, QGraphicsItem):
         # print('FOOTPRINTITEM CREATED') 
         # print('FOOTPRINTITEM.COPPERITEMS:', self.copperItems()) # {'F.Cu': [<FootprintItem.PadItem(0x21be98e6b00, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE7617FC0>, <FootprintItem.PadItem(0x21be98e7400, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE8493D00>], 'F.Paste': [<FootprintItem.PadItem(0x21be98e7740, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE8493800>, <FootprintItem.PadItem(0x21be98e7440, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE8493FC0>], 'F.Mask': [<FootprintItem.PadItem(0x21be98e7380, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE8493A40>, <FootprintItem.PadItem(0x21be98e7b80, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE84A0200>]})
 
+
+    def courtyardPathItem(self):
+        """A QGraphicsPathItem representing this footprint's courtyard"""
+        return self._courtyardPathItem
+    def setCourtyardPathItem(self, courtyardPathItem): 
+        self._courtyardPathItem = courtyardPathItem
+        
+    def courtyardBounds(self): 
+        r = self.mapToScene(self.courtyardPath.boundingRect()).boundingRect()
+        print()
+        print('R:', r)
+        self._courtyardBounds = ( r.left() , r.top() , r.right() , r.bottom()) # Shapely .bounds: (minx, miny, maxx, maxy) aka qt left top right bottom. miny is top / maxy is bottom because of qts flipped y axis
+        return self._courtyardBounds
+    def setCourtyardBounds(self):
+        # r = self.mapToScene(self.courtyardPath.boundingRect()).boundingRect()
+        # print()
+        # print('R:', r)
+        # self._courtyardBounds = ( r.left() , r.top() , r.right() , r.bottom()) # Shapely .bounds: (minx, miny, maxx, maxy) aka qt left top right bottom. miny is top / maxy is bottom because of qts flipped y axis
+
     def showLayer(self, layer): 
         pass 
     def hideLayer(self, layer): 
@@ -67,42 +92,58 @@ class FootprintItem(Reference, QGraphicsItem):
     def mousePressEvent(self, event): 
         self.offset = event.scenePos() - self.scenePos()
         super().mousePressEvent(event)
-        
+
+    # NOTE FP collision is by courtyard not individual pads
     def mouseMoveEvent(self, event): #QGI.mmE default moves all child items, so would call super() for that-- if we didn't need custom snapping behavior. And, still have to update rtrees & sceneBounds & sceneTerminals etc of all descendant Items # Note that when parent footprint gets a moveEvent, parent footprint does NOT send that event to children# QGI.mmE moves all decendant items,but we need custom snapping behavior, so can't just call super(), AND still have to update rtrees & bounds of all descendant Items
-        # print()
-        # print('COPPERITEMCONTAINER.MME')
+        print()
+        print('FOOTPRINTITEM.MME')
+        
+        # ToDo: fill courtyard red alpha based on self.courtyardPath
+
         self.setPos(self.scene().snapToGrid(event.scenePos() - self.offset))
-        self.updateRtrees()
+
+        # If collide with another footprint, turn color red 
+        if self.courtyardPathItem():
+            hitItems = self.scene().queryRtrees(self.courtyardBounds(), 'F.Crtyd')
+            print('HITITEMS:', hitItems) # We aren't hitting any items... courtyard bounds are in local 
+            for hitItem in hitItems: 
+                if hitItem.courtyardPathItem():
+                    print('HITITEMHASCPI')
+                    if self.courtyardPathItem.collidesWithItem(hitItem.courtyardPathItem):
+                        print('CPIS COLLIDE')
+                        self.courtyardPathItem().setBrush(QColor(255, 0,0,128)) 
+                        hitItem.courtyardPathItem().setBrush(QColor(255, 0,0,128)) 
+                
+                    
+                    
+                # Turning red
+        
+
+
+                
+        
+        
         for child in self.childItems():
             if not isinstance( child, ConnectivityItem):
                 continue 
+            child.updateRtree()
             child.setSceneBounds()
             child.setSceneBuffer()
-            child.setSceneBufferedBounds()
             child.setSceneTerminals()
-            child.updateRtree()
-
-
-        # # Also set sceneStuff every time we move 
-        # self.setSceneBounds()
-        # self.setSceneBuffer()
-        # self.setSceneBufferedBounds()
-        # self.setSceneTerminals()
-            
 
         # When footprint moves, need to update ratsnest. How do I run MainWindow.updateRatsnest from here? A: signals and slots. As QObjects have sig/slots, and QGraphicsItems are not Qobjects, we would need to subclass QObject to use signals/slots... (Ended up emitting signal if scene.mouseGrabber is FootprintItem)
         # self.moved.emit()
         
 
-    # def copperItems(self):
-    #     return self._copperItems 
-    # def setCopperItems(self,copperItems):
-    #     self._copperItems = copperItems 
-    # def addCopperItem(self, layer, copperItem):
-    #     self.copperItems()[layer].append(copperItem)
-    # def removeCopperItem(self, layer, copperItem):
-    #     self.copperItems()[layer].remove(copperItem)
-        
+
+
+
+
+
+
+
+
+
     def nets(self):
         # print('FOOTPRINTITEM.COPPERITEMS():', self.copperItems()) # FOOTPRINTITEM.COPPERITEMS(): defaultdict(<class 'list'>, {})
         return self._nets 
@@ -111,7 +152,7 @@ class FootprintItem(Reference, QGraphicsItem):
         self._nets = set()
         print('FOOTPRINT CHILDITEMSATHAT ARE LAYERSITEMS:')
         for childItem in self.childItems(): 
-            if not isinstance(childItem, LayersItem):
+            if not isinstance(childItem, ConnectivityItem):
                 continue 
             print(childItem)
             self._nets.add(childItem.net())
@@ -132,7 +173,7 @@ class FootprintItem(Reference, QGraphicsItem):
 
     def updateRtrees(self): 
         for childItem in self.childItems(): 
-            if not isinstance(childItem, LayersItem): 
+            if not isinstance(childItem, ConnectivityItem): 
                 continue
             childItem.updateRtree()
             # childItem.updateRtrees()
@@ -174,16 +215,17 @@ class FootprintItem(Reference, QGraphicsItem):
     # def terminals(self): # NOTE 'terminal' is place where traces connect, which is the job of pads, NOT FP. thus fp has  .terminals().
     
     def drawGraphics(self):
+        
         root = etree.parse(self.file()).getroot() # lxml.parse returns an Elementroot as opposed to an Element. Use ET.getroot() to get the root elem.
         self._name = root.attrib.get('name')
         # if self._name: 
         #     self._nameItem.setText(self._name)
             
-        # pad_elems = root.findall('pad')                              #
+        # pad_elems = root.findall('pad')                            #
         line_elems = root.findall('line')                            #
         arc_elems = root.findall('arc')                              #
         circle_elems =root.findall('circle')    
-        polygon_elems =root.findall('polygon')                        #
+        polygon_elems =root.findall('polygon')                       #
         # Not yet supported:
         # texts =root.findall('text')                              #
         # text_boxes =root.findall('text_box')                      #
@@ -193,6 +235,7 @@ class FootprintItem(Reference, QGraphicsItem):
         # model =root.findall('model')   
         # print()                         #
         # print("MYFOOTPRINTITEM SELF:", type(self), self)
+        
         for pad_elem in root.findall('pad') : 
             # print('PAD_ELEM:', pad_elem)
             # p = PadItem(pad_elem, self) 
@@ -206,10 +249,8 @@ class FootprintItem(Reference, QGraphicsItem):
             net.setNet(pad.parentItem().reference() + '_' + pad.name())# Ex 'C3_1' 
             net.setPriority(Utils.NetPriority.Pad)
             pad.setNet(net)
-
-                
+        
         for line in line_elems: 
-            # MyLineItem(line, self)
             x1 = float(line.get('x1')) 
             y1 = float(line.get('y1')) 
             x2 = float(line.get('x2')) 
@@ -221,14 +262,100 @@ class FootprintItem(Reference, QGraphicsItem):
     
             layer = line.get('layer')
             if layer:
-                # lineItem = LayersLineItem([layer], x1, y1, x2, y2, self)
-                lineItem = QGraphicsLineItem(x1, y1, x2, y2, self)
-                lineItem.setPen(QPen(Utils.layerColors[layer] , stroke_width))
-                # self.addLayerItem(lineItem)
-                # self.copperItems()[layer] = lineItem NO BAD remember to extend the copperItems 
-                # self.copperItems()[layer].append(lineItem) NO BAD Footprint Lines are not copperItems. They have no connectivity. They can be added as childItems 
-                # They arent copperItems but if they are merely childItems, they kinda get 'lost'... track them as layerItems.                
+                # print('LAYER:', layer)
+                if layer not in Utils.copperLayers:
+                    lineItem = NonConnectivityLineItem( [layer] , x1,y1,x2,y2, parent=self)
+                    # print('LINEITEM:', lineItem)
+                    # print('STROKEWIDTH:', stroke_width)
+
+                    lineItem.setPen(QPen(Utils.layerColors[layer] , stroke_width))
+
+
+                if 'crtyd' in layer.lower(): 
+                    self.courtyard['lines'].append(QLineF(x1,y1,x2,y2))# Line objects must change to polygons, bc polygons have area which can be used to detect courtyard overlaps. This raises the challenge of knowing which lines form closed shapes. Also, a closed shape could be made of lines, and arcs, and bezier curves.
+
+
+
+
+                    
+                    
+                    
+                # lineItem = QGraphicsLineItem(x1, y1, x2, y2, self)
+                # lineItem.setPen(QPen(Utils.layerColors[layer] , stroke_width))
+    
+
+    def generateCourtyardPath(self, courtyard): 
+        
+        def createGraph( courtyard): # represent courtyard geometry with a graph
+            G = nx.Graph()
+
+            for line in courtyard['lines']: 
+                p1,p2 = line.p1().toTuple() , line.p2().toTuple()
+                G.add_edge(p1  , p2    , geometryType=Utils.GeometryTypes.Line           , geometry=(p1, p2))
+            # for bez in courtyard['curves']:  # Not supported 
+            #     G.add_edge(bez[0]   , bez[3]     , geometryType= Utils.GeometryTypes.Curve         , geometry = bez)
+            # for arc in courtyard['arcs']:     # Not supported
+            #     G.add_edge(arc[0]   , arc[2]     , geometryType = Utils.GeometryTypes.Arc          , geometry = arc)
+
+            print('EDGES:',  type(G.edges)  , G.edges)
+            print('NODES:',  type(G.nodes)  , G.nodes(data=True))
+            print('ADJ:',    type(G.adj)    , G.adj) # The third dict is the node? attribute dictionary
+            return G
+
+        def createClosedPaths(G): # Given graph G, detect any closed shapes, and represent them with a QPainterPath. open shapes are ignored. 
+            components = list(nx.connected_components(G))
+            print('COMPONENTS:', len(components), components)
+            subgraphs = [G.subgraph(component).copy() for component in components]
+            # eulerian_circuits = [list(nx.eulerian_circuit(subgraph)) for subgraph in subgraphs]
+
+            from PySide6.QtGui import QPainterPath
+            path = QPainterPath()
+
+            for subgraph in subgraphs: 
+                print()
+                print('SUBGRAPH:')
+                print('EDGES:',  type(G.edges)  , G.edges(data=True))
+                print('NODES:',  type(G.nodes)  , G.nodes)
+                print('ADJ:',    type(G.adj)    , G.adj) # The third dict is the edge attribute dictionary
+                subpath = QPainterPath()
+                if not nx.is_eulerian(G):
+                    continue
+                eulerian_circuit=list(nx.eulerian_circuit(subgraph))
+                print('EULERIAN_CIRCUIT:', list(eulerian_circuit))
+
+                start = eulerian_circuit[0][0]
+                print('START:', start)
+                subpath.moveTo(QPointF(*start))
                 
+                for edge in eulerian_circuit:
+                    print(edge)
+                    
+                    geometry = subgraph.edges[edge]['geometry']
+                    geometryType = subgraph.edges[edge]['geometryType']
+                    
+                    if geometryType == Utils.GeometryTypes.Line: 
+                        subpath.lineTo(QPointF(*edge[1]))
+                    elif geometryType == Utils.GeometryTypes.Arc:
+                        subpath.lineTo(QPointF(*edge[1])) # For now, arc not supported. replace arcs w/ line
+                        # arc = Arc.fromStartMidEnd(geometry)
+                        # rect, startAngle, arcLength = arc.QtPathArc()
+                        # subpath.arcTo(rect,startAngle,arcLength)
+                    elif geometryType == Utils.GeometryTypes.Curve:
+                        ctrlPt0, ctrlPt1, ctrlPt2, ctrlPt3 = geometry
+                        subpath.cubicTo(QPointF(*ctrlPt1), QPointF(*ctrlPt2), QPointF(*ctrlPt3))
+
+                path.addPath(subpath)
+            return path
+
+        G = createGraph(courtyard)
+        self.courtyardPath = createClosedPaths(G)
+        print('SELF.COURTYARDPATH:', self.courtyardPath)
+        self.setCourtyardPathItem ( QGraphicsPathItem(self.courtyardPath, self) )
+        self.courtyardPathItem().setPen(QPen(Qt.black, 0)) # Note the courtyard is drawn elsewhere, in magenta, as possibly open shapes. The courtyardPathItem is for debugging, should appear over the magenta courtyard. Then the couryardPath is used for collision detection.
+        self.setCourtyardBounds()
+
+I think I am seeing 'r' before fp is ever moved so it makes sense that r would be about the origin
+
     @classmethod
     def from_part(cls, part, referenceNumber):
         file = part.get('footprint')

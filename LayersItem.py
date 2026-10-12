@@ -5,8 +5,8 @@ from PySide6.QtGui import *
 from utils import * 
 class LayersItem(): # Includes TraceViaZonePadConnectivity(RectEllipseEtc)ItemsNonConnectivity(RectEllipseEtcItems)
     def __init__(self, layers, *args, **kwargs):
-        # print('BOARDITEM.KWARGS:', kwargs)
-        # print('BOARDITEM.ARGS:', args)
+        # print('LAYERSITEM.KWARGS:', kwargs)
+        # print('LAYERSITEM.ARGS:', args)
         super().__init__(*args, **kwargs) 
 
         # self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges) # Must enable to receive item position changes. 
@@ -33,6 +33,7 @@ class LayersItem(): # Includes TraceViaZonePadConnectivity(RectEllipseEtc)ItemsN
         
     def mousePressEvent(self, event): 
         self._offset = self.scenePos() - event.scenePos()
+        super().mousePressEvent(event)
 
     def showLayer(self, layer):
         if layer not in self.layers(): 

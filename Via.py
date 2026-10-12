@@ -233,9 +233,9 @@ class Via(ConnectivityItem, QGraphicsItem):
         self._netItem.setBrush(QColor(0, 0, 0, 100) ) #pale black text
         self.setNet(net)
 
-
     def boundingRect(self):
         return self._boundingRect 
+    
         
     def paint(self, painter, option, widget): # QGraphicsItem.paint reimplementation to draw the aspects of a via: a clearance indicator and some colored circles
         #DrawClearance

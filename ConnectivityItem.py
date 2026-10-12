@@ -21,6 +21,12 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         self._id                    = None 
         self._net                   = None 
 
+        # self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
+
+    # def itemChange(change, value):
+    #     if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange: 
+            
+            
 
     def resolveNets(self, nets): # Return True if the given list of nets is resolvable with this item
         nonNullNets = [net for net in nets if not net.isNull()] 
@@ -55,7 +61,7 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         #     event.ignore() # This seems to do nothing 
     
     def tentativeMove(self, pos): # Move here but move back if there are obstructions 
-        self._previousPos = self.scenePos()  # Save the previous position 
+        self._previousPos = self.scenePos()  # Save the previous position
         
         self.setPos(pos) # Move to proposed position
         # nets = self.scene().netsBeneathItem(self)
@@ -91,14 +97,21 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         
     def setBufferDistance(self, bufferDistance):
         self._bufferDistance = bufferDistance
+        
     def bounds(self): 
-        return self._bounds 
+        return self._bounds
     def setBounds(self): # UNBUFFERED bounds. Local position. Used for .... ? 
-        return None 
+        rect =self.boundingRect()
+        self._bounds = ( rect.left() , rect.top() , rect.right() , rect.bottom() ) 
+
     def sceneBounds(self):
-        return self._sceneBounds 
+        return self._sceneBounds
     def setSceneBounds(self):
-        return None 
+        rect =self.mapToScene(self.boundingRect()).boundingRect()
+        self._sceneBounds = ( rect.left() , rect.top() , rect.right() , rect.bottom() ) 
+        # print('SET SCENE BOUNDS: ', self._sceneBounds)
+
+
     def setSceneTerminals(self): # Note Connectivity(Rect,Ellipse, etc)Items have no sceneTerminals. Most other classes reimplement this function.
         return None 
         # r = self.boundingRect() mapped to scene 
@@ -222,19 +235,7 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
             # self.setSceneBounds()
             
     
-    def bounds(self): 
-        return self._bounds
-    def setBounds(self): # UNBUFFERED bounds. Local position. Used for .... ? 
-        rect =self.boundingRect()
-        self._bounds = ( rect.left() , rect.top() , rect.right() , rect.bottom() ) 
 
-    def sceneBounds(self):
-        return self._sceneBounds
-    def setSceneBounds(self):
-        
-        rect =self.mapToScene(self.boundingRect()).boundingRect()
-        self._sceneBounds = ( rect.left() , rect.top() , rect.right() , rect.bottom() ) 
-        # print('SET SCENE BOUNDS: ', self._sceneBounds)
         
     def buffer(self):
         return self._buffer

@@ -246,10 +246,11 @@ class MainWindow(QMainWindow):
         hitItems = [self.board.scene().ids[id] for id in hitIds]
         return hitItems 
         
-    def updateRatsnest(self, net): # Modified Kruskal Minimum Spanning Tree https://www.w3schools.com/dsa/dsa_algo_mst_kruskal.php  https://en.wikipedia.org/wiki/Kruskal's_algorithm#Pseudocode. Note uses indices of vertices as ordered in G, rather than vertices.
-        print()
-        print('UPDATE RATSNEST, NET:', str(net))
-        print('MW.RATSNESTS:', self.ratsnests)
+    def updateRatsnest(self, net, verbose=False): # Modified Kruskal Minimum Spanning Tree https://www.w3schools.com/dsa/dsa_algo_mst_kruskal.php  https://en.wikipedia.org/wiki/Kruskal's_algorithm#Pseudocode. Note uses indices of vertices as ordered in G, rather than vertices.
+        if verbose: 
+            print()
+            print('UPDATE RATSNEST, NET:', str(net))
+            print('MW.RATSNESTS:', self.ratsnests)
         
         G = [ [ [2,0,'F.Cu'] , [0,0,'F.Cu'],  [1,1,'F.Cu' ] , [1,3,'F.Cu'] ] , [ [3,2,'F.Cu'], [4,2,'F.Cu'] ] ]
         G = self.ratsnestGraph(net) 
@@ -262,7 +263,8 @@ class MainWindow(QMainWindow):
             for pos in subgraph: 
                 flat.append(pos[0:2]) # Flat doesn't have layer part
 
-        print('FLAT:', flat)
+        if verbose: 
+            print('FLAT:', flat)
         self.addRatsnestToScene(G , flat, net)
         
     def ratsnestGraph(self, net, verbose = False):
@@ -308,7 +310,7 @@ class MainWindow(QMainWindow):
 
         return G
 
-    def ratsnestMST(self, G, flat ): 
+    def ratsnestMST(self, G, flat, verbose = False  ): 
         # Graph Theory: 
             # Tree: a graph. Vertices connected by 1 path. Undirected, acyclic.
             # Forest: a graph. Vertices connected by 0 or 1 path. Undirected, acyclic,  ( so named because a 'forest' can contain many 'trees') 
@@ -319,11 +321,12 @@ class MainWindow(QMainWindow):
             # Kruskal algo insufficient for my use case as-written. The board may have wires, vias, zones, connected to each other. Since we want ratsnest wires to span between unconnected items, we collect connected vertices in self.subgraphs. intra-subgraph connections are not allowed. Inter-subgraph connections only. To this end we have .propagations() method to collect subgraphs; connected vertices. Propagations considers not just pad terminals, but also terminals of connected vias and wires and zones-- these are all viable vertices for the ratsnest to connect to 
             # .propagations method detects vertices connected to a given point; self.subgraphs. Used to prevent intra-subgraph connections
         # G started with padTerminals, then we added all points of propagation. Now, G is a list of points representing possible ratsnest vertices for this net. But that's not enough for a ratsnest-- we need to not draw wires between connected items -- so we also have self.subgraphs, containing sets representing connected items. 
-                
-        print()
-        print('RATSNESTMST')
-        print('G:', G)
-        print('FLAT:', flat)
+
+        if verbose: 
+            print()
+            print('RATSNESTMST')
+            print('G:', G)
+            print('FLAT:', flat)
         
         def findSubgraph(index, G): # find the subgraph of G of the pos represented by index 
             pos  = flat[index] 
@@ -437,14 +440,16 @@ class MainWindow(QMainWindow):
     #     print('SELF.MST:', type(self.mst))
     #     print(self.mst)
     
-    def addRatsnestToScene(self, G, flat, net):            
-        print()
-        print('ADDRATSNESTTOSCENE')
-        print('NET:', str(net))
-        print('MW.RATSNESTS:', self.ratsnests)
+    def addRatsnestToScene(self, G, flat, net, verbose=False):       
+        if verbose:      
+            print()
+            print('ADDRATSNESTTOSCENE')
+            print('NET:', str(net))
+            print('MW.RATSNESTS:', self.ratsnests)
         
         ratsnest = self.ratsnests[net]
-        print('RATSNEST:', ratsnest) # [] 
+        if verbose:
+            print('RATSNEST:', ratsnest) # [] 
         for line in ratsnest: # Remove from scene each existing line in ratsnest, then, clear ratsnest
             self.board.scene().removeItem(line)
         self.ratsnests[net] = []

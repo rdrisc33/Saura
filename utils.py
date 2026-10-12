@@ -51,6 +51,7 @@ import sexpdata
 import math 
 import os
 import re # 'Regular Expressions' 
+import networkx as nx
 
 # from LayersItem import * 
 
@@ -60,8 +61,15 @@ defaultTraceWidth = .2
 
 
 
+    
 class Utils: 
     
+    class GeometryTypes(Enum):
+        Line = 0 
+        Rectangle = 1 
+        Arc  = 2
+        Ellipse = 3 
+        Curve   = 4  # cubic bezier curve ( the standard curve type in most softwares) 
 
         
     grid4mm = 1 / 25.4 * 4 
@@ -78,6 +86,8 @@ class Utils:
     boardTickSpacing = boardGridSpacing
     
     epsilon = 1e-9 # epsilon is a value used to compare floats against. 
+
+
 
 
 
