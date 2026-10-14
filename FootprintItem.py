@@ -5,6 +5,7 @@ from LayersItem import LayersItem
 from ConnectivityItem import ConnectivityItem
 from Net import Net
 from NonConnectivityItem import *
+from CourtyardItem import CourtyardItem
 # from Component import Component
 
 
@@ -65,20 +66,118 @@ class FootprintItem(Reference, QGraphicsItem):
         # print('FOOTPRINTITEM CREATED') 
         # print('FOOTPRINTITEM.COPPERITEMS:', self.copperItems()) # {'F.Cu': [<FootprintItem.PadItem(0x21be98e6b00, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE7617FC0>, <FootprintItem.PadItem(0x21be98e7400, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE8493D00>], 'F.Paste': [<FootprintItem.PadItem(0x21be98e7740, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE8493800>, <FootprintItem.PadItem(0x21be98e7440, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE8493FC0>], 'F.Mask': [<FootprintItem.PadItem(0x21be98e7380, parent=0x21be98e6a00, pos=0,0) at 0x0000021BE8493A40>, <FootprintItem.PadItem(0x21be98e7b80, parent=0x21be98e76c0, pos=0,0) at 0x0000021BE84A0200>]})
 
+    # NOTE FP collision is by courtyard not individual pads
+    def mouseMoveEvent(self, event): #QGI.mmE default moves all child items, so would call super() for that-- if we didn't need custom snapping behavior. And, still have to update rtrees & sceneBounds & sceneTerminals etc of all descendant Items # Note that when parent footprint gets a moveEvent, parent footprint does NOT send that event to children# QGI.mmE moves all decendant items,but we need custom snapping behavior, so can't just call super(), AND still have to update rtrees & bounds of all descendant Items
+        print()
+        print('FOOTPRINTITEM.MME')
+        
+        # ToDo: fill courtyard red alpha based on self.courtyardPath
 
+        self.setPos(self.scene().snapToGrid(event.scenePos() - self.offset))
+        self.collidingCourtyards()
+        # Note Fp Turning red happens in CourtyardItem.paint() Actually that didnt meet my needs so now scene will track who is colliding 
+            
+        for child in self.childItems():
+            if not isinstance( child, ConnectivityItem):
+                continue 
+            child.updateRtree()
+            child.setSceneBounds()
+            child.setSceneBuffer()
+            child.setSceneTerminals()
+
+        # When footprint moves, need to update ratsnest. How do I run MainWindow.updateRatsnest from here? A: signals and slots. As QObjects have sig/slots, and QGraphicsItems are not Qobjects, we would need to subclass QObject to use signals/slots... (Ended up emitting signal if scene.mouseGrabber is FootprintItem)
+        # self.moved.emit()
+        
+    def collidingCourtyards(self, verbose=False): 
+    # def collidingCourtyards(self, footprint=None, verbose=False): 
+        """return footprints whose courtyards collide with self's courtyard. """
+        
+        if not self.scene(): 
+            print('THIS FOOTPRINT HAS NO SCENE AS SUCH CANNOT USE COLLIDINGCOURTYARDS')
+            return []
+        
+        # First, implement 'Footprints stop being red once you stop moving them' behavior. This is accomplished by setting NoBrush on all previously-accrued footprints, then clearing the set(same thing also happens in mouseReleaseEvent)
+        for footprint in self.scene()._collidingCourtyards: 
+            footprint.courtyardPathItem().setBrush(Qt.NoBrush)
+        self.scene()._collidingCourtyards.clear() 
+        # Then, find all the current collisions
+        
+        if self.courtyardPathItem():
+            collidingFootprints = [item for item in self.scene().items(self.mapToScene(self.courtyardPathItem().boundingRect())) if isinstance(item, FootprintItem) and ( item is not self)]
+            if verbose:
+                print('COLLIDINGFOOTPRINTS:', len(collidingFootprints), collidingFootprints)
+            for collidingFootprint in collidingFootprints: 
+                if collidingFootprint.courtyardPathItem():
+                    if self.courtyardPathItem().collidesWithItem(collidingFootprint.courtyardPathItem()):
+                        if verbose:
+                            print('CPI COLLISION')
+                        self.scene()._collidingCourtyards.add(self)
+                        self.scene()._collidingCourtyards.add(collidingFootprint)              
+
+        if verbose: 
+            print()
+            print('THESE FOOTPRINTS HAVE COLLIDING COURTYARDS:',len(self.scene()._collidingCourtyards), list(self.scene()._collidingCourtyards))
+
+        for footprint in self.scene()._collidingCourtyards:
+            redAlpha = QColor(255,0,0,65)
+            footprint.courtyardPathItem().setBrush(redAlpha)    
+            
+    # def collidingCourtyardItems(self): 
+    #     """Analogous to QGraphicsScene.collidingItems(). Returns any courtyardItems colliding with 'footprint'"""
+    #     collidingCourtyardItems = [] 
+
+    #     layer = None 
+    #     if self.layer() == 'F.Cu': 
+    #         layer = 'Front'
+    #     elif self.layer() == 'B.Cu':
+    #         layer = 'Back'
+
+    #     print('LAYER:', layer)
+    #     if not layer: 
+    #         print()
+    #         print('DETECTED NO LAYER FOR FOOTPRINT:', self)
+    #         return 
+        
+    #     if self.courtyardPathItem():
+    #         print('SELF HAS CPI')
+    #         # print(self.scene().courtyardItems[layer])
+    #         for cydItem in self.scene().courtyardItems[layer]: 
+    #             print('CYDITEM:', cydItem)
+                
+    #             if cydItem.parentItem() is self: 
+    #                 print('PARENTITEM IS SELF, SKIPPING')
+    #                 continue 
+
+            
+    #             if self.courtyardPathItem().collidesWithItem(cydItem): #Guess  I don't understand how collidesWithItem works...
+                    
+    #                 print('COURTYARDS COLLIDE')
+    #                 collidingCourtyardItems.append(cydItem)
+    #             else: 
+    #                 print('No Collision')    
+    #     return collidingCourtyardItems 
+
+    def mouseReleaseEvent(self, event): 
+        super().mouseReleaseEvent(event)
+        
+        for footprint in self.scene()._collidingCourtyards: # Need to clear  set colliding courtyards to NoBrush then clear self._collidingCourtyards on mouseReleaseEvent
+            footprint.courtyardPathItem().setBrush(Qt.NoBrush)
+        self.scene()._collidingCourtyards.clear()
+        
     def courtyardPathItem(self):
-        """A QGraphicsPathItem representing this footprint's courtyard"""
+        """A CourtyardItem representing this footprint's courtyard"""
         return self._courtyardPathItem
+    
     def setCourtyardPathItem(self, courtyardPathItem): 
         self._courtyardPathItem = courtyardPathItem
         
-    def courtyardBounds(self): 
-        r = self.mapToScene(self.courtyardPath.boundingRect()).boundingRect()
-        print()
-        print('R:', r)
-        self._courtyardBounds = ( r.left() , r.top() , r.right() , r.bottom()) # Shapely .bounds: (minx, miny, maxx, maxy) aka qt left top right bottom. miny is top / maxy is bottom because of qts flipped y axis
-        return self._courtyardBounds
-    def setCourtyardBounds(self):
+    # def courtyardBounds(self): 
+    #     r = self.mapToScene(self.courtyardPath.boundingRect()).boundingRect()
+    #     print()
+    #     print('R:', r)
+    #     self._courtyardBounds = ( r.left() , r.top() , r.right() , r.bottom()) # Shapely .bounds: (minx, miny, maxx, maxy) aka qt left top right bottom. miny is top / maxy is bottom because of qts flipped y axis
+    #     return self._courtyardBounds
+    # def setCourtyardBounds(self):
         # r = self.mapToScene(self.courtyardPath.boundingRect()).boundingRect()
         # print()
         # print('R:', r)
@@ -93,47 +192,6 @@ class FootprintItem(Reference, QGraphicsItem):
         self.offset = event.scenePos() - self.scenePos()
         super().mousePressEvent(event)
 
-    # NOTE FP collision is by courtyard not individual pads
-    def mouseMoveEvent(self, event): #QGI.mmE default moves all child items, so would call super() for that-- if we didn't need custom snapping behavior. And, still have to update rtrees & sceneBounds & sceneTerminals etc of all descendant Items # Note that when parent footprint gets a moveEvent, parent footprint does NOT send that event to children# QGI.mmE moves all decendant items,but we need custom snapping behavior, so can't just call super(), AND still have to update rtrees & bounds of all descendant Items
-        print()
-        print('FOOTPRINTITEM.MME')
-        
-        # ToDo: fill courtyard red alpha based on self.courtyardPath
-
-        self.setPos(self.scene().snapToGrid(event.scenePos() - self.offset))
-
-        # If collide with another footprint, turn color red 
-        if self.courtyardPathItem():
-            hitItems = self.scene().queryRtrees(self.courtyardBounds(), 'F.Crtyd')
-            print('HITITEMS:', hitItems) # We aren't hitting any items... courtyard bounds are in local 
-            for hitItem in hitItems: 
-                if hitItem.courtyardPathItem():
-                    print('HITITEMHASCPI')
-                    if self.courtyardPathItem.collidesWithItem(hitItem.courtyardPathItem):
-                        print('CPIS COLLIDE')
-                        self.courtyardPathItem().setBrush(QColor(255, 0,0,128)) 
-                        hitItem.courtyardPathItem().setBrush(QColor(255, 0,0,128)) 
-                
-                    
-                    
-                # Turning red
-        
-
-
-                
-        
-        
-        for child in self.childItems():
-            if not isinstance( child, ConnectivityItem):
-                continue 
-            child.updateRtree()
-            child.setSceneBounds()
-            child.setSceneBuffer()
-            child.setSceneTerminals()
-
-        # When footprint moves, need to update ratsnest. How do I run MainWindow.updateRatsnest from here? A: signals and slots. As QObjects have sig/slots, and QGraphicsItems are not Qobjects, we would need to subclass QObject to use signals/slots... (Ended up emitting signal if scene.mouseGrabber is FootprintItem)
-        # self.moved.emit()
-        
 
 
 
@@ -350,11 +408,20 @@ class FootprintItem(Reference, QGraphicsItem):
         G = createGraph(courtyard)
         self.courtyardPath = createClosedPaths(G)
         print('SELF.COURTYARDPATH:', self.courtyardPath)
-        self.setCourtyardPathItem ( QGraphicsPathItem(self.courtyardPath, self) )
-        self.courtyardPathItem().setPen(QPen(Qt.black, 0)) # Note the courtyard is drawn elsewhere, in magenta, as possibly open shapes. The courtyardPathItem is for debugging, should appear over the magenta courtyard. Then the couryardPath is used for collision detection.
-        self.setCourtyardBounds()
 
-I think I am seeing 'r' before fp is ever moved so it makes sense that r would be about the origin
+        if self.layer() == 'F.Cu' :
+            layer = 'Front'
+        elif self.layer() == 'B.Cu':
+            layer = 'Back'
+
+        print('LAYER:', layer)
+        courtyardItem = CourtyardItem(layer, self, self.courtyardPath)
+        print('CI:', courtyardItem)
+        self.setCourtyardPathItem ( courtyardItem )
+        self.courtyardPathItem().setPen(QPen(Qt.black, 0)) # Note the courtyard is drawn elsewhere, in magenta, as possibly open shapes. The courtyardPathItem is for courtyard collision detection, and is usually invisible, save for debugging. If visible, it appears as same shape as magenta courtyard. They are the same shape, bc couryardPathItem is used for courtyard collision detection
+        # self.setCourtyardBounds()
+
+# I think I am seeing 'r' before fp is ever moved so it makes sense that r would be about the origin
 
     @classmethod
     def from_part(cls, part, referenceNumber):

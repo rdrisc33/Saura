@@ -8,12 +8,12 @@ from FootprintItem import *
 import heapq 
 import numpy as np
 from MyAStar import *
-from Trace import * 
-from ZoneItem import * 
+from Trace import *
+from ZoneItem import *
 # from LayersItem import LayersEllipseItem, LayersLineItem
 from Via import Via
 from Ffline import Ffline
-from DrawScene import DrawScene 
+from DrawScene import DrawScene
     
 class BoardScene( DrawScene, QGraphicsScene):
     # normalMode, addTraceMode, addViaMode, deleteTraceMode = range(4)
@@ -44,6 +44,11 @@ class BoardScene( DrawScene, QGraphicsScene):
     
     def __init__(self, parent = None, *args, **kwargs):
         super().__init__(parent, *args, **kwargs) 
+
+        self._collidingCourtyards = set()
+        
+# self.courtyardItems = {'Front':[] , 'Back':[]}
+        
         self._layers = Utils.layers
         self.rtrees = defaultdict(rectangletree.index.Index) # {'F.Cu': rtree}
         # self.footprints = defaultdict(defaultdict) Not used for anything so commented  defaultdict of default dict  { 'C':{1: item , 2: item , 5: item} , 'R': {1:item , 2:item}}}Note Entries/Deletions to this dict managed by MainWindow, bc, parts, with reference_value, go on both schematic AND board, but cant  reach both schematic and board from here, so we pass up to MW.
@@ -98,25 +103,40 @@ class BoardScene( DrawScene, QGraphicsScene):
 
         self.setActiveNet(self._activeNet)
 
-    def collidingCourtyardItems(self, item): 
-        """Analogous to QGraphicsScene.collidingItems(). Returns any courtyardItems colliding with 'item'"""
-        # for hitItem in self.items(item.boundingRect()): 
-        layers = [layer for layer in item.layers() if (layer == 'F.Crtyd') or (layer == 'B.Crtyd') ] # Ignore non-courtyard layers 
-        if not layers: 
-            return 
-        hitItems = []
-        for layer in layers:  
-            
-            hitItems.extend( self.queryRtrees(item.sceneBounds() , layer) ) 
+    # def collidingCourtyards(self, footprint=None, verbose=False): 
+    #     """return footprints whose courtyards collide with provided footprint. """
+    #     if not isinstance(footprint, FootprintItem):
+    #         print('DID NOT SUPPLY A FOOTPRINT BUT SHOULD HAVE')
 
-        collidingCourtyards = [] 
-        for hitItem in hitItems :
-            if item.collidesWithItem(hitItem): 
-                collidingCourtyards.append(hitItem)
-        return collidingCourtyards 
-    
-            
-            
+    #     # First, implement 'Footprints stop being red once you stop moving them' behavior. This is accomplished by setting NoBrush on all previously-accrued footprints, then clearing the set(same thing also happens in mouseReleaseEvent)
+    #     for footprint in self._collidingCourtyards: 
+    #         footprint.courtyardPathItem().setBrush(Qt.NoBrush)
+    #     self._collidingCourtyards.clear() 
+    #     # Then, find all the current collisions
+        
+    #     if footprint: 
+    #         if footprint.courtyardPathItem():
+    #             collidingFootprints = [item for item in self.items(footprint.mapToScene(footprint.courtyardPathItem().boundingRect())) if isinstance(item, FootprintItem) and ( item is not footprint)]
+    #             if verbose:
+    #                 print('COLLIDINGFOOTPRINTS:', len(collidingFootprints), collidingFootprints)
+    #             for collidingFootprint in collidingFootprints: 
+    #                 if collidingFootprint.courtyardPathItem():
+    #                     if footprint.courtyardPathItem().collidesWithItem(footprint.courtyardPathItem()):
+    #                         if verbose:
+    #                             print('CPI COLLISION')
+    #                         self._collidingCourtyards.add(footprint)
+    #                         self._collidingCourtyards.add(collidingFootprint)              
+
+    #         if verbose: 
+    #             print()
+    #             print('THESE FOOTPRINTS HAVE COLLIDING COURTYARDS:',len(self._collidingCourtyards), list(self._collidingCourtyards))
+
+    #         for footprint in self._collidingCourtyards:
+    #             redAlpha = QColor(255,0,0,65)
+    #             footprint.courtyardPathItem().setBrush(redAlpha)
+
+        # return list(self._collidingCourtyards)
+                                
 
     def showingLayers(self): 
         return self._showingLayers
@@ -316,6 +336,13 @@ class BoardScene( DrawScene, QGraphicsScene):
         if isinstance( item, FootprintItem): # Footprint pads go in rtree, so call addItem again for each pad 
             for pad in item.pads(): 
                 self.addItem(pad)
+            # if item.courtyardPathItem(): 
+            #     print('TRACKING FP.COURTYARDPATHITEM')
+                # if item.layer() == 'F.Cu': 
+                #     self.courtyardItems['Front'].append(item.courtyardPathItem())
+                # elif item.layer() == 'B.Cu': 
+                #     self.courtyardItems['Back'].append(item.courtyardPathItem())
+                    
         
         if isinstance(item, ConnectivityItem): # ConnectivityItems include Trace, ViaItem, ZoneItem, PadItem. ConnectivityItems support connectivity, and go in the rtree. 
             print(f'ADDING {type(item)} TO BOARDSCENE')
@@ -338,9 +365,15 @@ class BoardScene( DrawScene, QGraphicsScene):
             for layer in item.layers(): 
                 self.rtrees[layer].delete(item.id(), item.sceneBufferedBounds()) # Remove from idx. Index().delete(id, bounds) : Deletes an item from the index by id and coordinates. Note Index id uniqueness is up to the user to implement
         
-        # if isinstance(item, FootprintItem):
-        #     for pad in item.pads():
-        #         self.removeItem(pad)
+        if isinstance(item, FootprintItem):
+            if item.courtyardPathItem(): 
+                print('REMOVING COURTYARDPATHITEM FROM TRACKING')
+                if item.layer() == 'F.Cu': 
+                    self.courtyardItems['Front'].remove(item.courtyardPathItem())
+                elif item.layer() == 'B.Cu': 
+                    self.courtyardItems['Back'].remove(item.courtyardPathItem())
+                    
+        
 
 
             
@@ -547,6 +580,11 @@ class BoardScene( DrawScene, QGraphicsScene):
             pass
         elif self.mode() == Utils.BoardSceneMode.AddViaMode: 
             pass 
+
+        # for footprint in self._collidingCourtyards: # Need to clear  set colliding courtyards to NoBrush then clear self._collidingCourtyards on mouseReleaseEvent
+        #     footprint.courtyardPathItem().setBrush(Qt.NoBrush)
+        # self._collidingCourtyards.clear()
+
           
     def a_star(self): # A* pathfinding: 
         pass
@@ -605,7 +643,14 @@ class BoardScene( DrawScene, QGraphicsScene):
         if self.mouseGrabberItem(): 
             
             if isinstance(self.mouseGrabberItem(), FootprintItem):
+                # print('GRABBING FOOTPRINT')
                 self.footprintMoved.emit(self.mouseGrabberItem()) # MW.board.scene().footprintMoved.connect(updateRatsnest)
+                # self.collidingCourtyards(self.mouseGrabberItem(), verbose=True)
+# Need to clear  set colliding courtyards to NoBrush then clear self._collidingCourtyards on mouseReleaseEvent, too
+
+                        
+                        
+                    
                 
     def addViaModeMouseMoveEvent(self, event): 
         print('AVMMME')
