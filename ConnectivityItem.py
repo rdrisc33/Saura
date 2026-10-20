@@ -4,14 +4,12 @@ from Net import Net
 class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRectItem, etc. Not useful by itself
     def __init__(self, layers, *args, **kwargs):
         super().__init__(layers, *args, **kwargs)
-        # print('COPPERITEMCONTAINER.INIT')
-        # self._layer                 = None    Moved to BoardItem
-        # self._layers                = layers  Moved to BoardItem
-        # self._layerItems            = defaultdict(list) # { 'F.Cu': LineItem} Phasing out
+
+        self.mousedOverNet          = Net() 
         self._terminals             = None 
         self._nonNullNets           = None 
-        self._sceneTerminal         = None      # 3-Tuple (scenePosX,scenePosY,layer) 
-        self._sceneTerminals        = None      # self.terminals are point(s) on a pad, via, which are connectable. Ex TraceItem self.terminals are p1,p1. Via self.terminals are center aka origin, pad self.terminals are pad origin(NOT necessarily pad centroid, think solder bridge pads), and Footprint self.terminals are pads/vias contained in the footprint
+        # self._sceneTerminal         = None      # 3-Tuple (scenePosX,scenePosY,layer) 
+        # self._sceneTerminals        = None      # self.terminals are point(s) on a pad, via, which are connectable. Ex TraceItem self.terminals are p1,p1. Via self.terminals are center aka origin, pad self.terminals are pad origin(NOT necessarily pad centroid, think solder bridge pads), and Footprint self.terminals are pads/vias contained in the footprint
         self._buffer                = None      # QGraphicsPolygonItem representing item's shape, buffered by (mostLikely) scene.tracewidth
         self._sceneBuffer           = None      # A QPolygonF(?) representing item's shape, buffered by .bufferDistance(), in scene coordinates 
         self._bounds                = None      # A 4-tuple(left top right bottom). unbuffered. used by ... ?
@@ -19,7 +17,7 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         self._bufferedBounds        = None      # A 4-tuple(left top right bottom) buffered by .bufferDistance(). local coordinates 
         self._sceneBufferedBounds   = None      # ._bufferedBounds in scene coordinates
         self._id                    = None 
-        self._net                   = None 
+        self._net                   = Net() 
 
         # self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
 
@@ -49,13 +47,14 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
     def mousePressEvent(self, event): 
         print('CONNECTIVITYITEM.MPE')
         self._offset = event.scenePos() - self.scenePos()
+        super().mousePressEvent(event)
         
     def mouseMoveEvent(self, event): 
         print('CONNECTIVITYITEM.MME')
         
         if (event.buttons() & Qt.MouseButton.LeftButton ) and (self.flags() & QGraphicsItem.GraphicsItemFlag.ItemIsMovable): # Only move if the item is movable, and the mouse left button is clicked. https://github.com/qt/qtbase/blob/dev/src/widgets/graphicsview/qgraphicsitem.cpp if ((event->buttons() & Qt::LeftButton) && (flags() & ItemIsMovable)) {
             pos = self.scene().snapToGrid(event.scenePos() - self._offset )
-            self.tentativeMove(pos) 
+            self.tentativeMove(pos) # Try to move to pos, as long as we detect no net collisions
             
         # else: 
         #     event.ignore() # This seems to do nothing 
@@ -141,15 +140,21 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
     #             nets.add(item.net())
     #     return nets 
     
-    def terminalsWithin(self, rect=None , sceneBounds=None): # Returns list of terminals found within rect|bounds in scene coordinates. If non found, returns an empty list. 
-        terminalsWithin = [] 
-        if sceneBounds: 
-            l , t , r , b = sceneBounds 
-            rect = QRectF( l ,t ,r-l , b-t) 
-        for terminal in self.sceneTerminals():
-            if rect.contains(terminal):
-                terminalsWithin.append(terminal)
-        return terminalsWithin 
+    def nearestTerminal(self, point): # Returns nearest terminal to point, point is in scene coordinates. If two or more terminals are equidistant to point, will return just one of these terminals
+        if len(self.sceneTerminals()) ==1: 
+            return self.sceneTerminals()[0]
+        elif len(self.sceneTerminals()) > 1: 
+            return sorted(self.sceneTerminals() , key = lambda t : Utils.distance(t , point))[0]
+        
+    # def terminalsWithin(self, rect=None , sceneBounds=None): # Returns list of terminals found within rect|bounds in scene coordinates. If non found, returns an empty list. 
+    #     terminalsWithin = [] 
+    #     if sceneBounds: 
+    #         l , t , r , b = sceneBounds 
+    #         rect = QRectF( l ,t ,r-l , b-t) 
+    #     for terminal in self.sceneTerminals():
+    #         if rect.contains(terminal):
+    #             terminalsWithin.append(terminal)
+    #     return terminalsWithin 
 
     def queryRtrees(self):
         """query MainWindow.rtrees for self.sceneBufferedBounds() at each layer in self.layers """
@@ -448,30 +453,30 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
     #     for layer in self.layers(): 
     #         self.scene().rtrees[layer].delete(self.id() , self.sceneBufferedBounds())# rtree removal demands (id, bounds). Thus we must remove B4 .setSceneBufferedBounds()
     
-    def containsTerminal(self, terminal): # returns true if layers match and terminal pos is contained within shape. terminal: (layer:str, pos:QPoint)
-        terminalPos = terminal['pos']
-        terminalLayer = terminal['layer']
-        if terminalLayer in self.layers(): 
-            if self.contains(terminalPos): # QGraphicsItem.contains()
-                return True 
-        return False 
+    # def containsTerminal(self, terminal): # returns true if layers match and terminal pos is contained within shape. terminal: (layer:str, pos:QPoint)
+    #     terminalPos = terminal['pos']
+    #     terminalLayer = terminal['layer']
+    #     if terminalLayer in self.layers(): 
+    #         if self.contains(terminalPos): # QGraphicsItem.contains()
+    #             return True 
+    #     return False 
         
 
-    def setShowingLayers(self, layers): 
+    # def setShowingLayers(self, layers): 
 
-        for layer, layer_items in self.copperItems().items():
-            if layer in layers: 
-                for layer_item in layer_items: 
-                    layer_item.show()
-            else: 
-                for layer_item in layer_items:
-                    layer_item.hide()
+    #     for layer, layer_items in self.copperItems().items():
+    #         if layer in layers: 
+    #             for layer_item in layer_items: 
+    #                 layer_item.show()
+    #         else: 
+    #             for layer_item in layer_items:
+    #                 layer_item.hide()
             
 
-    def addLayer(self, layer):
-        self._layers.append(layer)
-    def removeLayer(self, layer):
-        self._layers.remove(layer)
+    # def addLayer(self, layer):
+    #     self._layers.append(layer)
+    # def removeLayer(self, layer):
+    #     self._layers.remove(layer)
           
     # def mousePressEvent(self, event):
     #     self.moveStart = event.scenePos()
@@ -490,12 +495,14 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
     #     self.setToolTip("")
     #     super().hoverLeaveEvent(event)
 
-class ConnectivityRectItem(ConnectivityItem, QGraphicsRectItem): # Basically a doodle but with electrical connectivity; is made of copper
+# class ConnectivityRectItem(ConnectivityItem, QGraphicsRectItem): # Basically a doodle but with electrical connectivity; is made of copper
+from AdjustableRect import AdjustableRect
+
+class ConnectivityRectItem(ConnectivityItem, AdjustableRect): # Basically a doodle but with electrical connectivity; is made of copper. I actually don't know what you would want this for
     def __init__(self, layers, lineWidth, *args, **kwargs):
         super().__init__( layers, *args, **kwargs)
 
         self._lineWidth = lineWidth 
-        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable | QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
 
         self.setPen(QPen(Utils.layerColors[self.layers()[0]] , self._lineWidth))
         # print()
@@ -504,11 +511,10 @@ class ConnectivityRectItem(ConnectivityItem, QGraphicsRectItem): # Basically a d
         #     print('LAYER:', layer)
         #     rectItem = QGraphicsRectItem(self, self.rect())
         #     rectItem.setPen(QPen(Utils.layerColors[layer] , self._lineWidth))
+    def sceneTerminals(self): # As a connectivityItem, We must implement sceneTerminals. Because there's not well defined endpoints for a rect, at least for now, there are no terminals, so return emptylist.
+        return []
 
 
-    # def paint(self, painter, option, widget):
-    #     return None # Reimplement paint event to do nothing, so that only child items are shown
-
-    # def setRect(self, rect): 
-    #     for childItem in self.childItems(): 
-    #         childItem.setRect(rect)
+# from AdjustablePath import AdjustablePath 
+# class ConnectivityPathItem(ConnectivityItem ,AdjustablePath):
+    

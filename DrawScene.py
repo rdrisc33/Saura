@@ -14,7 +14,8 @@ from ConnectivityItem import *
 
 # How to adjust shapes? Overlay 'adjust nodes' on shape, if mouse over adjust node, adjust that particular dimension(s)
 
-class DrawScene(QGraphicsScene):
+# class DrawScene(QGraphicsScene): # Note we do not inherit QGraphicsScene because of the diamond inheritance problem
+class DrawScene():
     
     def __init__(self, *args, **kwargs ):
         super().__init__(*args, **kwargs)
@@ -44,9 +45,10 @@ class DrawScene(QGraphicsScene):
                 # self._rect = QGraphicsRectItem(QRectF(self.startPos, self.startPos))
                 # self._rect = LayerRectItem( self.activeLayer() , QRectF(self.startPos, self.startPos))
                 # self._rect = DrawnRectItem( self.activeLayer() , QRectF(self.startPos, self.startPos))
-                    self._rect = ConnectivityRectItem( [self.activeLayer()] , 1, QRectF(self.startPos , self.startPos))
+                    self._rect = ConnectivityRectItem(  [self.activeLayer()] , 1, QRectF(self.startPos , self.startPos) )
+                    # self._rect = ConnectivityRectItem( [self.activeLayer()] , 1,  QRectF(self.startPos , self.startPos) )
                 elif self.activeLayer() not in Utils.copperLayers:
-                    self._rect = NonConnectivityRectItem( [ self.activeLayer()] , 0, QRectF(self.startPos, self.startPos))
+                    self._rect = NonConnectivityRectItem( [ self.activeLayer()] , 1, QRectF(self.startPos, self.startPos))
                                                                                             
                 self.addItem(self._rect)
             elif self._rect: 

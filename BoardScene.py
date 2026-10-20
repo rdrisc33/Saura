@@ -14,8 +14,10 @@ from ZoneItem import *
 from Via import Via
 from Ffline import Ffline
 from DrawScene import DrawScene
+from BoardSeeker import BoardSeeker
     
 class BoardScene( DrawScene, QGraphicsScene):
+# class BoardScene(QGraphicsScene): 
     # normalMode, addTraceMode, addViaMode, deleteTraceMode = range(4)
 
     dpi = qApp.screens()[0].physicalDotsPerInch()
@@ -34,6 +36,7 @@ class BoardScene( DrawScene, QGraphicsScene):
     # grid_spacing = ( ( dpi/25.4 ) * 1 ) # The default grid for the board should be ? mm 
     # dropped_part = Signal(dict)
     # added_footprint = Signal(dict, int) # (part, value) value as in reference_value as in "C3" "R1" "L2" etc. Note app crashed when Signal(MyFootprintItem)-- signals/slots Demand correct typing
+    # I Bet if I ditch these signals, then addItem will work ( I was wrong, still did not work )
     activeNetSet = Signal(str) # activeNet:str
     droppedPart = Signal(dict, QGraphicsSceneDragDropEvent, int) # part, event, source_widget
     deleteComponent = Signal(str , int) # reference, value . As in reference_value which was deleted. 
@@ -51,33 +54,20 @@ class BoardScene( DrawScene, QGraphicsScene):
         
         self._layers = Utils.layers
         self.rtrees = defaultdict(rectangletree.index.Index) # {'F.Cu': rtree}
-        # self.footprints = defaultdict(defaultdict) Not used for anything so commented  defaultdict of default dict  { 'C':{1: item , 2: item , 5: item} , 'R': {1:item , 2:item}}}Note Entries/Deletions to this dict managed by MainWindow, bc, parts, with reference_value, go on both schematic AND board, but cant  reach both schematic and board from here, so we pass up to MW.
         self._showingLayers = self._layers
         self.topmost_layer = 'F.Cu' # The layer which is drawn on top of all other layers. Selected via layerVisibilityControlWidget. Most of the time, will be same value as activeLayer. Default F.Cu
         self._activeLayer = 'F.Cu' # The currently selected layer; the layer the user is currently working on. F_Cu, Inr.3, B_Silk, etc # The layer to which Traces will be added. Selected via layerVisibilityControlWidget. Most of the time, will be same value as topmost_layer. Default F.Cu
         self._activeNet = None  # The currently selected net. gnd, Vcc, 3v3, signal_gnd, etc
-# active net is never actually set away from None SET ACTIVE NET CORRECTLY This is connected to the ratsnest wire not disappearing learn how to make active net show in the status bar 
         self.showing_layers = set(Utils.layers) # A set containing currently showing layers. Default show all layers 
         self.hidden_layers = []
         
-        # self.design_items = set() # a set to hold all 'design items'. DIs are traces, footprints, pads, vias, zones. DI's must have .is_design_item set to True. DIs are QGraphicsItem subclasses. DIs are what make up the PCB design. Compare against grid dots, or the seeker, which are QGraphicsItems, on the scene , yet are not to be in the pcb design. These non design items must have .is_design_item set to the default value None
-        
         self.ids = dict() # a dict to hold id:Item key value pairs. Note items also know their own ids. 
-        # self.reference_values       = defaultdict(int) # Moved to MW reference_values as in R0 C10 L1 LED2 U0; the reference_values of components on the board. A dictionary, of (reference):(num of components on board with that reference) Ex a board with 10 'C' and 2 'R' and 0 'U' would be {'C': 10 , 'R':2 , 'U': 0} . Defaultdict is a dictionary, with the bonus that if you try to access a key which DNE, instead of throwing KeyError, it will create an entry, of specified type(here 'int', so 0 ), for you. defaultdict (Note  plain dict.get() -> None if key dne) is part of the builtin python module 'collections' (from collections import defaultdict)
         self.count = 1 # counter from which items dropped on scene derive their id. not 0indexed starts at 1
-        # self.setSceneRect(-50,-50, 450,450) # I think sceneRect is infinite default. Units are pixels
-        # rect = QGraphicsRectItem(QRectF(-10,-10,20,20))
-        # rect.setPen(QPen(Qt.yellow, 1))
-        # self.addItem(rect)
-        # print()
-        # print(self.sceneRect())# a empty rect 0000
-        
         # print()
         # print("DPI:", self.dpi)
-        self.seekerRect = QRectF(-seekerRadius,-seekerRadius, seekerRadius*2 , seekerRadius*2)
-        # self.seeker   = QGraphicsEllipseItem(self.seekerRect)
-        # self.seeker = LayersEllipseItem(None, self.seekerRect) # Scene has a item, to detect important points/items/to highlight/snap to points of interest on mouse over # Note that do not add it to scene until needed.
-        self.seeker = QGraphicsEllipseItem(self.seekerRect) # Scene has a item, to detect important points/items/to highlight/snap to points of interest on mouse over # Note that do not add it to scene until needed.
+        self.seekerRect = QRectF(-Utils.seekerRadius,-Utils.seekerRadius, Utils.seekerRadius*2 , Utils.seekerRadius*2)
+        # self.seeker = QGraphicsEllipseItem(self.seekerRect) # Scene has a item, to detect important points/items/to highlight/snap to points of interest on mouse over # Note that do not add it to scene until needed.
+        self.seeker = BoardSeeker(self.seekerRect) # Scene has a item, to detect important points/items/to highlight/snap to points of interest on mouse over # Note that do not add it to scene until needed.
         self._mode = Utils.BoardSceneMode.NormalMode 
         self.ffline                     = None                      # ffline representing traces currently being drawn.
         self._line                      = None                      # Line from mouse position to position of last click. Usually not displayed but for debugging
@@ -102,64 +92,12 @@ class BoardScene( DrawScene, QGraphicsScene):
         self.setMode(Utils.BoardSceneMode.NormalMode)
 
         self.setActiveNet(self._activeNet)
-
-    # def collidingCourtyards(self, footprint=None, verbose=False): 
-    #     """return footprints whose courtyards collide with provided footprint. """
-    #     if not isinstance(footprint, FootprintItem):
-    #         print('DID NOT SUPPLY A FOOTPRINT BUT SHOULD HAVE')
-
-    #     # First, implement 'Footprints stop being red once you stop moving them' behavior. This is accomplished by setting NoBrush on all previously-accrued footprints, then clearing the set(same thing also happens in mouseReleaseEvent)
-    #     for footprint in self._collidingCourtyards: 
-    #         footprint.courtyardPathItem().setBrush(Qt.NoBrush)
-    #     self._collidingCourtyards.clear() 
-    #     # Then, find all the current collisions
-        
-    #     if footprint: 
-    #         if footprint.courtyardPathItem():
-    #             collidingFootprints = [item for item in self.items(footprint.mapToScene(footprint.courtyardPathItem().boundingRect())) if isinstance(item, FootprintItem) and ( item is not footprint)]
-    #             if verbose:
-    #                 print('COLLIDINGFOOTPRINTS:', len(collidingFootprints), collidingFootprints)
-    #             for collidingFootprint in collidingFootprints: 
-    #                 if collidingFootprint.courtyardPathItem():
-    #                     if footprint.courtyardPathItem().collidesWithItem(footprint.courtyardPathItem()):
-    #                         if verbose:
-    #                             print('CPI COLLISION')
-    #                         self._collidingCourtyards.add(footprint)
-    #                         self._collidingCourtyards.add(collidingFootprint)              
-
-    #         if verbose: 
-    #             print()
-    #             print('THESE FOOTPRINTS HAVE COLLIDING COURTYARDS:',len(self._collidingCourtyards), list(self._collidingCourtyards))
-
-    #         for footprint in self._collidingCourtyards:
-    #             redAlpha = QColor(255,0,0,65)
-    #             footprint.courtyardPathItem().setBrush(redAlpha)
-
-        # return list(self._collidingCourtyards)
                                 
 
     def showingLayers(self): 
         return self._showingLayers
     def setShowingLayers(self, showingLayers):
         self._showingLayers = showingLayers
-
-    # def updateVisibility(self, visibility): 
-    #     print()
-    #     print('UPDATE VISIBILITY')
-    #     print('VISIBILITY:', type(visibility) , visibility)
-    #     topmost = visibility.pop('topmost')
-        
-    #     for item in self.items(): 
-    #         if isinstance(item ,LayersItem): 
-    #             if topmost in item.layers(): 
-    #                 print('SHOWING TOPMOST')
-    #                 item.showLayer(topmost)
-    #             else: 
-    #                 for layer, vis in visibility.items(): 
-    #                     if layer in item.layers(): 
-    #                         if vis:
-    #                             item.showLayer(layer)
-    #                             break
 
     def netsBeneathPoint(self, point):
         nets = set()
@@ -225,7 +163,6 @@ class BoardScene( DrawScene, QGraphicsScene):
         self.tracingLaid.emit(self.activeNet()) 
         self.exitAddTraceMode()
 
-
     def activeNet(self): # The net of the currently selected item. If no selected item, the net of the item beneath seeker center point. Is used to setActiveNet of None-net items and prevent items with unlike nets from connecting
         return self._activeNet 
     
@@ -240,8 +177,6 @@ class BoardScene( DrawScene, QGraphicsScene):
         self._activeLayer = activeLayer
         self.showLayer(activeLayer)
         
-        
-        
     def layerItems(self):
         # print()
         # print('SCENE.LAYERITEMS:')
@@ -250,35 +185,6 @@ class BoardScene( DrawScene, QGraphicsScene):
             # print('\t', layerItems)
         return self._layerItems
     
-    # def addLayerItem(self, layerItem):
-    #     self.layerItems()[layerItem.layer()].append(layerItem)
-        
-    # def removeLayerItem(self, layerItem):
-    #     self.layerItems()[layerItem.layer()].remove(layerItem)
-        
-    # def copperItems(self):
-    #     # print()
-    #     # print('BOARDSCENE.COPPERITEMS():', self._copperItems)
-    #     return self._copperItems
-    
-    # def addCopperItem(self, copperItem):
-    #     self.copperItems()[copperItem.layer()].append(copperItem)
-        
-    # def removeCopperItem(self, copperItem):
-    #     self.copperItems()[copperItem.layer()].remove(copperItem)
-        
-    # def setTopmostLayer(self, layer): # First, return the previous topmostLayer z value to zero, then, set new topmostLayer zValue to 1, bringing that layer above all other items.
-    #     # for item in self.copperItems()[self.topmost_layer]: 
-    #     #     item.setZValue(0)
-    #     for item in self.layerItems()[self.topmost_layer]:
-    #         item.setZValue(0)
-            
-    #     self.topmost_layer = layer 
-    #     # for item in self.copperItems()[self.topmost_layer]: 
-    #     #     item.setZValue(1)
-    #     for item in self.layerItems()[self.topmost_layer]:
-    #         item.setZValue(1)
-            
     def onlyShowCopperLayers(self):
         for layer in Utils.layers: 
             if layer in Utils.copperLayers:
@@ -318,32 +224,25 @@ class BoardScene( DrawScene, QGraphicsScene):
                 continue 
             item.hideLayer(layer)
    
-
     # def normalModeMousePressEvent(self, event):
     #     print('normalModeMousePressEvent')
     #     super().mousePressEvent(event) # Call base implementation to forward event to any items beneath the press. Call base implementation to: fwd event to mousegrabber if there's a mousegrabber, OR fwd event to topmost item, if no mousegrabber, OR reset selections, then remove focus from any focused items, then ignore the event, if no item below event position. 
       
     def addItem(self, item): # QGraphicsScene.addItem reimplementation: Add (Trace,Via,Zone,Footprint) items to: the scene, scene.ids, scene.idx. If Footprint, +1 to reference_values. 
-        super().addItem(item) # Add Item normally, which adds all childItems. We still have to add copperItems to their rtree.
-        # print('ADDING ITEM OF TYPE:',type(item))
+
+        super().addItem(item)
         
         if isinstance(item, LayersItem):
+            print('ADDING LAYERSITEM')
+            
             if self.activeLayer() in self.showingLayers():
                 item.showLayer(self.activeLayer())
-            
-            # return         
         
         if isinstance( item, FootprintItem): # Footprint pads go in rtree, so call addItem again for each pad 
+            print('ADDING FOOTPRINT')
             for pad in item.pads(): 
                 self.addItem(pad)
-            # if item.courtyardPathItem(): 
-            #     print('TRACKING FP.COURTYARDPATHITEM')
-                # if item.layer() == 'F.Cu': 
-                #     self.courtyardItems['Front'].append(item.courtyardPathItem())
-                # elif item.layer() == 'B.Cu': 
-                #     self.courtyardItems['Back'].append(item.courtyardPathItem())
                     
-        
         if isinstance(item, ConnectivityItem): # ConnectivityItems include Trace, ViaItem, ZoneItem, PadItem. ConnectivityItems support connectivity, and go in the rtree. 
             print(f'ADDING {type(item)} TO BOARDSCENE')
             item.setId(self.count)        # Count may differ between brd and sch
@@ -420,23 +319,7 @@ class BoardScene( DrawScene, QGraphicsScene):
     #         if isinstance(item, Trace):
     #             print('TRACE.bR():', item.mapToScene(item.boundingRect()).boundingRect())
     #     return visited
-    
-    # def chainHitsTrace(self, bounds): # Return rtree chain hits, of Traces, that are near enough to given trace that might belong in the trace_vein. Note still need to check if hits exactly connect; need to run result of this function thru further processing. Note that we use self.scene().idx, which is full of buffered rects, which are not needed here, but we can repurpose the rtree here instead of creating a new one. Wait this is senseless bc it saves no time, the traceVein knows exactly where to look don't need rect hitboxes to narrow it down...
-    #     visited = set()
-    #     queue = [bounds]
-        
-    #     while queue: 
-    #         hit_ids = self.rtree.intersection(queue.pop())
-    #         for hit_id in hit_ids: 
-    #             if hit_id in visited: 
-    #                 continue 
-    #             visited.add(hit_id) 
-    #             item = self.ids[hit_id]
-    #             if isinstance(item, Trace): # Ignore any non-trace items ( so Zone Footprint Via)
-    #                 # visited.add(hit_id)
-    #                 queue.append( item.sceneBufferedBounds() )
 
-    #     return visited 
         
     def keyPressEvent(self, event):
         print()
@@ -468,14 +351,12 @@ class BoardScene( DrawScene, QGraphicsScene):
     def addTraceModeMousePressEvent(self, event):
         print()
         print('ADDTRACEMODEMOUSEPRESSEVENT')
-
         
         if self.ffline is not None: # If there is an existing ffline, we are done with it, add it to scene
             self.ffline.finalize() # Remove traces from scene if any are of 0 length
         if self._line : 
             self.removeItem(self._line)
-            
-        # self.startPosition = self.snapToGrid(self.seeker.scenePos()) # ffline begins wherever seeker(not mouse) is 
+
         self.startPosition = self.seeker.scenePos() # ffline begins wherever seeker(not mouse) is 
         print()
         print('SELF.STARTPOSIITON:', self.startPosition) 
@@ -494,14 +375,18 @@ class BoardScene( DrawScene, QGraphicsScene):
         self.startAngleThreshold = self.gridSpacingMm * self.dpi/25.4 # Conversion of mm to pixels # intial_direction may be set while within this circular threshold
     
     #             item.setPen(QPen(item.pen().color() , traceWidth)) # Preserve pen_color ( Due to qt quirks;cosmetic pen cannot change to non-zero width), we have to replace entire qpen)
-    def queryRtrees(self, bounds, layer ):
-        """Query the rtree at 'layer' for 'bounds'"""
-        hitIds = self.rtrees[layer].intersection(bounds)
-        hitItems = [self.ids[hitId] for hitId in hitIds]
-        return hitItems 
-
+    def queryRtrees(self, bounds, layer, queryType=Utils.RTreeQueryType.Intersection ):
+        """Query the rtree at 'layer' for 'bounds' if 'queryType' is Utils.Intersection.
+        Query the rtree for nearest neighbor to 'bounds' if 'queryType' is Utils.Nearest."""
+        if queryType == Utils.RTreeQueryType.Intersection: 
+            hitIds = self.rtrees[layer].intersection(bounds)
+            hitItems = [self.ids[hitId] for hitId in hitIds]
+            return hitItems 
+        elif queryType == Utils.RTreeQueryType.Nearest: 
+            hitIds = self.rtrees[layer].nearest(bounds)
+            hitItems = [self.ids[hitId] for hitId in hitIds] 
+            return hitItems
             
-
     def netsAreJoinable(self, net1, net2): 
         joinable = False 
         if ( net1 == None ) or ( net2== None ): 
@@ -533,32 +418,38 @@ class BoardScene( DrawScene, QGraphicsScene):
         self.seeker.setPos(event.scenePos()) # FIRST, we set to the cursor position, and snap to any terminals we find. If there's none, then we snap to grid.
         
         snappedToTerminal = False 
-        
         # seekerBounds =  ( self.seeker.boundingRect().left(), self.seeker.boundingRect().top() , self.seeker.boundingRect().right() , self.seeker.boundingRect().bottom() ) NO BAD this gives bounds based on .bR(), which is in local coords; does not reflect any set scene Position
-        r = self.seeker.mapToScene(self.seeker.boundingRect()).boundingRect()
-        seekerBounds = ( r.left(), r.top(), r.right() , r.bottom())
-        # print('SEEKER BOUNDS:', seekerBounds)
-        # rtrees = getRtrees()
-        hitItems = self.queryRtrees(seekerBounds , self.activeLayer())
+        # r = self.seeker.mapToScene(self.seeker.boundingRect()).boundingRect()
+        # seekerBounds = ( r.left(), r.top(), r.right() , r.bottom())
+        bounds = self.seeker.sceneBounds()
+        print('SEEKERBOUNDS:', bounds)
+        hitItems = self.queryRtrees( bounds, self.activeLayer())
+        hitItems.sort(key=lambda hitItem: Utils.distance( self.seeker.scenePos(), hitItem.nearestTerminal(self.seeker.scenePos())))
         print('HITITEMS:', hitItems)
         
-        for hitItem in hitItems:  
+        for hitItem in hitItems:  # We need to compare nets of currently drawing trace against terminal nets, to see if the trace net is compatible with the terminal net. For example a terminal with a net of 3V3 is not connectable to a trace of GND. # TODO: use sorted() to snap to the closest terminal, AND use cursor posiiton to somehow be able to choose between close terminals 
+            if self.ffline: 
+                if (hitItem is self.ffline._traceA) or (hitItem is self.ffline._traceB): 
+                    continue # Do not consider the ffline traces
             print('HITITEM.NET:', hitItem.net())
-            for terminal in  hitItem.terminalsWithin(sceneBounds= seekerBounds): # We need to compare nets of currently drawing trace against terminal nets, to see if the trace net is compatible with the terminal net. For example a terminal with a net of 3V3 is not connectable to a trace of GND. # TODO: use sorted() to snap to the closest terminal, AND use cursor posiiton to somehow be able to choose between close terminals 
-                print('TERMINAL:', terminal)
-                if self.startPosition: 
-                    print('SELF.FFLINE.NET():', self.ffline.net())
-                    print('HITITEM.NET():', hitItem.net())
-                    self.joinable = self.netsAreJoinable(self.ffline.net() , hitItem.net())
-                    if self.joinable: 
-                        self.seeker.setPos(terminal)
-                        self.ffline.setPoints(self.startPosition, terminal)
-                        snappedToTerminal = True
-                        break
-                elif not self.startPosition: 
+            if self.startPosition: 
+                print('SELF.FFLINE.NET():', self.ffline.net())
+                print('HITITEM.NET():', hitItem.net())
+                self.joinable = self.netsAreJoinable(self.ffline.net() , hitItem.net())
+                print('JOINABLE:' , self.joinable)
+                if self.joinable: 
+                    terminal = hitItem.nearestTerminal(self.seeker.scenePos())
+                    print('TERMINAL:', terminal)
                     self.seeker.setPos(terminal)
-                    snappedToTerminal = True 
+                    self.ffline.setPoints(self.startPosition, terminal)
+                    snappedToTerminal = True
                     break
+            elif not self.startPosition: 
+                terminal = hitItem.nearestTerminal(self.seeker.scenePos())
+                print('TERMINAL:', terminal)
+                self.seeker.setPos(terminal)
+                snappedToTerminal = True 
+                break
 
         if not snappedToTerminal: 
             self.seeker.setPos(self.snapToGrid(event.scenePos())) # snap seeker to grid to begin with. We'll move seeker elsewhere if we need to.
@@ -626,7 +517,8 @@ class BoardScene( DrawScene, QGraphicsScene):
             self.setMode(Utils.BoardSceneMode.NormalMode)
             return 
         
-        super().mousePressEvent(event)
+        else: 
+            super().mousePressEvent(event)
                
     def mouseMoveEvent(self, event):
         # print('BOARDSCENE.MOUSEMOVEEVENT')
@@ -698,7 +590,7 @@ class BoardScene( DrawScene, QGraphicsScene):
             self.seeker.setPen(QPen(Qt.red , 0))
         elif mode == Utils.BoardSceneMode.AddViaMode: 
             print('ENTERED ADD VIA MODE')
-            self.via = Via(10,4 , 1, Utils.copperLayers)
+            self.via = Via(2,1 , .1, Utils.copperLayers)
             self.addItem(self.via) 
             self.via.setPos(0,0)
             self.views()[0].setMouseTracking(True) # mouseMoveEvent fires while no mouse button pressed down 

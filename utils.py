@@ -58,12 +58,29 @@ import networkx as nx
 app = QApplication(sys.argv)
 
 defaultTraceWidth = .2
-
-
-
     
 class Utils: 
+
+    seekerRadius = 20 
     
+    class RTreeQueryType(Enum):
+        Intersection    = 0 
+        Nearest         =1
+        
+    class AdjustHandleShape(Enum):
+        Rect            = 0
+        Circle          = 1 
+
+    class AdjustHandleLocation(Enum): # Eight adjust handles; those little dots you click on to adjust the shape
+        Left            = 0 
+        Right           = 1 
+        Top             = 2 
+        Bottom          = 3 
+        TopLeft         = 4 
+        TopRight        = 5 
+        BottomLeft      = 6 
+        BottomRight     = 7 
+        
     class GeometryTypes(Enum):
         Line = 0 
         Rectangle = 1 
@@ -280,8 +297,8 @@ class Utils:
 
     
     # C:\Users\robby\OneDrive\Saura\symbols\netSymbols
-    viaClearance        = 1 # mm 
-    viaPlatingThickness = 1 # um typical
+    viaClearance        = .1 # mm 
+    viaPlatingThickness = .2 # um typical
     
     class ViaStyle(Enum):
         Through                     = 0 
@@ -510,7 +527,7 @@ general_schema = [ # Sql tables demand a fixed column order; schema. Here, I set
 terminal_radius = 1
 KICAD8_SYMBOL_DIR = "C:/Users/robby/AppData/Local/Programs/KiCad/8.0/share/kicad/symbols/" # Swap the backslashes for fwd slashes with ctrlH on the selected string
 dir = 'parts/'                     #For practice
-seekerRadius = 2 # Radius about pointer, self.self.terminals within which will becoonme snap location for our line( NOT our cursor -- we don't want to steal control of mouse from user. But its good to steal control of our line item from the cursor)
+
 # alt names for 'seeker' : 'seeker' 'scanner' 
 
 reference_designator_map = { # TODO: cover all cases of reference_designators https://en.wikipedia.org/wiki/Reference_designator
