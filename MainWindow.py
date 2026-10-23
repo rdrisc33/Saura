@@ -196,6 +196,7 @@ class MainWindow(QMainWindow):
         print()
         print(f'TRACING LAID ON NET {net}')
 
+# propagations is wrong, did away with xYLayer
     def propagations(self, xYLayer, net): # xYLayer is a 3-tuple (x,y,layer). pos already taken to refer to 2-tuple|QPointF(x,y)
         startxYLayer = xYLayer
 
@@ -541,7 +542,7 @@ class MainWindow(QMainWindow):
             p2 = [otherWire.p1() , otherWire.p2()][otherWire.p2()==pos]
             self.schematic.scene().removeItem(wire)
             self.schematic.scene().removeItem(otherWire)
-            merged = WireItem(*p1, *p2)
+            merged = WireItem(*p1.toTuple(), *p2.toTuple())
             merged.setPen(QPen(Qt.darkCyan, 1 ))
             merged.setVeinId(wire.veinId())
             self.schematic.scene().addItem(merged)
@@ -552,8 +553,8 @@ class MainWindow(QMainWindow):
         # def split(pos , wire, points, row, col, data ): 
         def split(pos , wire): 
 
-            d1 = Utils.distance(wire.p1() , pos)
-            d2 = Utils.distance(pos, wire.p2())
+            # d1 = Utils.distance(wire.p1() , pos)
+            # d2 = Utils.distance(pos, wire.p2())
 
 ### remove/add split to scene
             split1 = WireItem(QLineF(wire.p1(), pos))
@@ -603,9 +604,7 @@ class MainWindow(QMainWindow):
 
 
         def normalizeWiring(pos): 
-            """Normalize entire wiring using queues & graph
-            graph is of scipy COOrdinate form, where a graph is represented by three arrays: row, col, and data, see scipy.coo_array. 
-            COOrdinate form was chosen over adjacency matrix because I couldnt quite figure out how to implement adjacency matrix :/
+            """Normalize entire wiring using queues 
             See normalizeWiring Tutorial<LINK TUTORIAL> 
             Note usage of break break continue to stop processing a wire which needs to be split/merged.
             Note usage of while loops rather than for loops so as to be able to add split/merged wires as they're created
@@ -637,13 +636,13 @@ class MainWindow(QMainWindow):
                 print('POS:', pos.toPoint())
                 _merge = True # flag merge indicates whether there are collinear adjacent wires to merge at pos. Will not merge, if adjacent orthagonal wires, or Symbol terminals, are present at pos
                 
+                # for item in self.schematic.scene().items(pos): #  Usage of WHILE loops not for loops, so as to be able to add split/merged wires a
                 items = self.schematic.scene().items(pos) 
                 while items: 
                     item = items.pop(0)
                     if not isinstance(item,( WireItem, Symbol) ):  # Ignore the seeker, which is a QGraphicsEllipseItem
                         continue 
                 
-                # for item in self.schematic.scene().items(pos): #  Usage of WHILE loops not for loops, so as to be able to add split/merged wires a
                     print('ITEM IS:', type(item))
                     if isinstance(item, Symbol): # Symbol includes ComponentSymbol, NetSymbol, Label 
                         # sceneTerminals = item.sceneTerminals() # For ComponentSymbol, sceneTerminals
@@ -694,21 +693,32 @@ class MainWindow(QMainWindow):
                         if _merge == True: # If merge is still True, lets look for wires orthagonal @ pos. If so, _merge=False. 
                             for otherWire in [otherWire for otherWire in self.schematic.scene().collidingItems(wire) if isinstance(otherWire, WireItem)]: # Check for orthagonal wires, no need to merge if any orthagonal wires
                                 if any(otherTerminal == pos for otherTerminal in otherWire.sceneTerminals()): # Check wire, otherWire, are adjacent @ pos # TODO: at this point , do a wire-end-check: check that wire @ pos IS connected to another wire @ pos (otherwise wire ends here, and thats a special case )
-                                        if Utils.wiresAreOrthagonal(wire, otherWire):  
+                                        if Utils.wiresAreOrthagonal(wire, otherWire):  # We will not be merging at this pos if there are any orthagonal wires 
                                             _merge = False 
-                        if _merge == True: #  If merge still True, then there were no Symbols on pos, and no orthagonals on pos, and pos is not a wire end. Thus there are collinear adjacent wires at pos and we need to merge them.
+                        if _merge == True: #  If merge still True, then there were no Symbols on pos, and no orthagonals on pos, and pos is not a wire end. Check for collinear (possibly adjacent, possibly intersecting) wires to wire and we need to merge them.
+                            for otherWire in [otherWire for otherWire in self.schematic.scene().collidingItems(wire) if isinstance(otherWire, WireItem)]:
+                                # Check wire, otherWire are collinear adjacent or collinear overlap
+                                if Utils.wiresAreCollinearIntersecting(wire, otherWire):
+                                    print('MERGING WIRES')
+                                    merged = merge(pos, wire, otherWire)
+                                    items.append(merged)
+                                    wireNormal = False
+                                    continue # to the next item in 'while items'
 
-                            if len(points) <= 2: 
-                                print(f'MERGE REQUIRES 3+ POINTS BUT LEN(POINTS) = {len(points)})')
-                                # continue # to the next item in 'while items'
-                                _merge = False 
+
+
+                            # if len(points) <= 2: # NOTE len(points) ALWAYS one bc I phased out points.append
+                            #     print(f'MERGE REQUIRES 3+ POINTS BUT LEN(POINTS) = {len(points)})')
+                            #     # continue # to the next item in 'while items'
+                            #     _merge = False 
                                 
-                            if _merge == True: 
-                                # points , row, col, data, merged = merge(pos, wire, otherWire, points , row, col, data)
-                                merged = merge(pos, wire, otherWire)
-                                items.append(merged)
-                                wireNormal = False
-                                continue # to the next item in 'while items'
+                            # if _merge == True: 
+                            #     # points , row, col, data, merged = merge(pos, wire, otherWire, points , row, col, data)
+                                
+                            #     merged = merge(pos, wire, otherWire)
+                            #     items.append(merged)
+                            #     wireNormal = False
+                            #     continue # to the next item in 'while items'
                         
                         # Reaching this point means wireNormal, and we want to add wire to our vein 
                         print('WIRENORMAL')
@@ -749,11 +759,11 @@ class MainWindow(QMainWindow):
             print('NORMALIZEWIRINGDONE')
             # return points , row, col, data
             return None
+        
 ### BEGIN UPDATEVEINS ###
         print()
         print('UPDATEVEINS:')
         vein = defaultdict(list)              
-        # points, row, col, data = normalizeWiring(pos)
         normalizeWiring(pos)
         print('VEIN:', vein)
 
@@ -801,6 +811,7 @@ class MainWindow(QMainWindow):
             net = nets # Note we still track net chimera as a list rather than a string (?)
             
         if net == None : # Then we're dealing with wires floating in space, and as such, there is no vein to update
+        # if net == Net():     # I changed this but it threw errors so will leave as is for now .
             return 
         
         if not self.nets[net]: 
@@ -1311,7 +1322,7 @@ class MainWindow(QMainWindow):
         #    self.schematic.scene().set_cursor(Qt.CursorShape.CrossCursor)
         else: 
            self.schematic.scene().exitAddWireMode() # Note triggered is any time we press the btn, including when we've already pressed it & entered _addWireAction. In this case, we want to exit add_wire_mode
-           self.schematic.scene().setMode(SchematicScene.normalMode)
+           self.schematic.scene().setMode(SchematicScene.NormalMode)
         #    self.schematic.scene().set_cursor(Qt.CursorShape.ArrowCursor)
         print(self.schematic.scene()._mode)
 
