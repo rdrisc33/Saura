@@ -49,7 +49,6 @@ class BoardScene( DrawScene, QGraphicsScene):
         super().__init__(parent, *args, **kwargs) 
 
         self._collidingCourtyards = set()
-        
 # self.courtyardItems = {'Front':[] , 'Back':[]}
         
         self._layers = Utils.layers
@@ -158,10 +157,29 @@ class BoardScene( DrawScene, QGraphicsScene):
         self._traceWidth = float(traceWidth)
         
     def addTraceModeMouseDoubleClickEvent(self, event):
-        # self.tracing_laid.emit() # When new traces are added, need to update MW.ratsnest & MW.nets@ BoardItems, which is done @ MW level, so we emit a signal.
         print('BOARD SCENE ACTIVE NET:', self.activeNet())
         self.tracingLaid.emit(self.activeNet()) 
         self.exitAddTraceMode()
+
+    def addViaModeMouseDoubleClickEvent(self, event): 
+        self.exitAddViaMode()
+
+    def exitAddTraceMode(self):
+        print()
+        print('BOARDSCENE.exitAddTraceMode')
+        self.views()[0].setMouseTracking(False) # disable mouseMoveEvent from firing while no mouse button pressed down, which is default setting.    
+        self.setMode(Utils.BoardSceneMode.NormalMode) # restore default mode. But for real app, should stay in wiring_mode
+        self.removeItem(self._line) 
+        self.ffline = None 
+        self.startPosition = None 
+        # main_window = self.views()[0].parentWidget().parentWidget().parentWidget()# Get the main_window.( we need to uncheck add_traceAction). The view's parent is the schematic, schematic's parent is a stackedWidget, stackedWidget's parent is the QMainWindow. # This is bad practice bc so brittle but what way is better? HEY this is a good example of when we should start using SIGNALS/SLOTS rather than digging through parent objects (?)
+        
+    def exitAddViaMode(self):
+        print()
+        print('BOARDSCENE.EXITADDTRACEMODE')
+        self.views()[0].setMouseTracking(False)
+        self.setMode(Utils.BoardSceneMode.NormalMode)
+        self.via = None 
 
     def activeNet(self): # The net of the currently selected item. If no selected item, the net of the item beneath seeker center point. Is used to setActiveNet of None-net items and prevent items with unlike nets from connecting
         return self._activeNet 
@@ -178,11 +196,6 @@ class BoardScene( DrawScene, QGraphicsScene):
         self.showLayer(activeLayer)
         
     def layerItems(self):
-        # print()
-        # print('SCENE.LAYERITEMS:')
-        # for layer, layerItems in self._layerItems.items():
-            # print('LAYER:', layer)
-            # print('\t', layerItems)
         return self._layerItems
     
     def onlyShowCopperLayers(self):
@@ -265,12 +278,13 @@ class BoardScene( DrawScene, QGraphicsScene):
                 self.rtrees[layer].delete(item.id(), item.sceneBufferedBounds()) # Remove from idx. Index().delete(id, bounds) : Deletes an item from the index by id and coordinates. Note Index id uniqueness is up to the user to implement
         
         if isinstance(item, FootprintItem):
-            if item.courtyardPathItem(): 
-                print('REMOVING COURTYARDPATHITEM FROM TRACKING')
-                if item.layer() == 'F.Cu': 
-                    self.courtyardItems['Front'].remove(item.courtyardPathItem())
-                elif item.layer() == 'B.Cu': 
-                    self.courtyardItems['Back'].remove(item.courtyardPathItem())
+            pass
+            # if item.courtyardPathItem(): 
+            #     print('REMOVING COURTYARDPATHITEM FROM TRACKING')
+            #     if item.layer() == 'F.Cu': 
+            #         self.courtyardItems['Front'].remove(item.courtyardPathItem())
+            #     elif item.layer() == 'B.Cu': 
+            #         self.courtyardItems['Back'].remove(item.courtyardPathItem())
                     
         
 
@@ -325,9 +339,14 @@ class BoardScene( DrawScene, QGraphicsScene):
         print()
         print('MySCHEMATICSCENE.KEYPRESSEVENT')
         if event.key() == Qt.Key.Key_Escape: 
-            self.set_mode(Utils.BoardSceneMode.NormalMode)
-            self.exitAddTraceMode()
-            print('ESCAPE KEY PRESSED. SET MODE TO NORMAL')
+            if self.mode() == Utils.BoardSceneMode.AddTraceMode:
+                if self.ffline: 
+                    self.removeItem(self.ffline._traceA)
+                    self.removeItem(self.ffline._traceB)
+                self.exitAddTraceMode()
+            elif self.mode() == Utils.BoardSceneMode.AddViaMode: 
+                self.exitAddViaMode()
+            print('ESCAPE KEY PRESSED')
             
         if event.key() == Qt.Key.Key_Delete:
             print('DELETE KEY PRESSED')
@@ -389,18 +408,22 @@ class BoardScene( DrawScene, QGraphicsScene):
             
     def netsAreJoinable(self, net1, net2): 
         joinable = False 
-        if ( net1 == None ) or ( net2== None ): 
+        if ( net1 == Net() ) or ( net2== Net() ): 
             return True 
-        if ( net1.priority() == Utils.NetPriority.Pad ) or ( net2.priority() == Utils.NetPriority.Pad ): 
-            joinable = True 
-        if ( net1.priority() == Utils.NetPriority.NetSymbol ) or ( net2.priority() == Utils.NetPriority.NetSymbol ): 
-            joinable = True
 
-        print('NET1:', net1)
-        print('NET2:', net2) 
-        print('JOINABLE:', joinable)
+        elif net1 == net2: 
+            return True 
+        return False
+        # if ( net1.priority() == Utils.NetPriority.Pad ) or ( net2.priority() == Utils.NetPriority.Pad ): 
+        #     joinable = True 
+        # if ( net1.priority() == Utils.NetPriority.NetSymbol ) or ( net2.priority() == Utils.NetPriority.NetSymbol ): 
+        #     joinable = True
+
+        # print('NET1:', net1)
+        # print('NET2:', net2) 
+        # print('JOINABLE:', joinable)
         
-        return joinable 
+        # return joinable 
 
     def normalModeMouseMoveEvent(self, event): # Detect underlying items with .seeker. Move seeker accordingly; seeker ends up snapped to point of interest POI or grid.
         
@@ -412,12 +435,15 @@ class BoardScene( DrawScene, QGraphicsScene):
     def addTraceModeMouseMoveEvent(self, event):
         print() 
         print('ADDTRACEMODEMOUSEMOVEEVENT')
+        self.joinable = False # flag for if nets are joinable or not 
         if self._line : 
             self._line.setLine(QLineF(self._line.line().p1() , event.scenePos())) # _line is drawn from SEEKER position of last click to current MOUSE position
-            
-        self.seeker.setPos(event.scenePos()) # FIRST, we set to the cursor position, and snap to any terminals we find. If there's none, then we snap to grid.
+
+        previousSeekerPos = self.seeker.scenePos() # Save for possible revert
+
+        self.seeker.setPos(event.scenePos()) # FIRST, we set to the raw event.scenePos(), aka cursor position, and snap to any terminals we find, as long as nets are resolvable. If there's not terminals, then we snap to grid.
         
-        snappedToTerminal = False 
+        snappedToTerminal = False
         # seekerBounds =  ( self.seeker.boundingRect().left(), self.seeker.boundingRect().top() , self.seeker.boundingRect().right() , self.seeker.boundingRect().bottom() ) NO BAD this gives bounds based on .bR(), which is in local coords; does not reflect any set scene Position
         # r = self.seeker.mapToScene(self.seeker.boundingRect()).boundingRect()
         # seekerBounds = ( r.left(), r.top(), r.right() , r.bottom())
@@ -427,7 +453,7 @@ class BoardScene( DrawScene, QGraphicsScene):
         hitItems.sort(key=lambda hitItem: Utils.distance( self.seeker.scenePos(), hitItem.nearestTerminal(self.seeker.scenePos())))
         print('HITITEMS:', hitItems)
         
-        for hitItem in hitItems:  # We need to compare nets of currently drawing trace against terminal nets, to see if the trace net is compatible with the terminal net. For example a terminal with a net of 3V3 is not connectable to a trace of GND. # TODO: use sorted() to snap to the closest terminal, AND use cursor posiiton to somehow be able to choose between close terminals 
+        for hitItem in hitItems:  # We need to compare nets of currently drawing trace against terminal nets, to see if the trace net is compatible with the terminal net. For example a terminal with a net of 3V3 is not connectable to a trace of GND. 
             if self.ffline: 
                 if (hitItem is self.ffline._traceA) or (hitItem is self.ffline._traceB): 
                     continue # Do not consider the ffline traces
@@ -451,8 +477,12 @@ class BoardScene( DrawScene, QGraphicsScene):
                 snappedToTerminal = True 
                 break
 
-        if not snappedToTerminal: 
-            self.seeker.setPos(self.snapToGrid(event.scenePos())) # snap seeker to grid to begin with. We'll move seeker elsewhere if we need to.
+        if(hitItems) and (not snappedToTerminal):  # If there were hitITems, but none were snappable, that means there was a net collision, so DON'T MOVE HERE
+            self.seeker.setPos(previousSeekerPos)
+            if not self.startPosition :
+                self.ffline.setPoints(self.startPosition, previousSeekerPos)
+        elif not hitItems:
+            self.seeker.setPos(self.snapToGrid(event.scenePos())) # snap seeker to grid if we found nothing else to snap to 
             if self.startPosition is not None : # If we previously pressed mouse, we are drawing a trace. Use the mouse position to sense startAngle. Note is not None used because QPoint(0,0) evaluates False while QPoint(1,1) evaluates True; QPoint if testing shouldn't be used, so we compare against None.
                 self.ffline.setPoints(self.startPosition, self.seeker.scenePos()) # This will update the ffline from here to there, as long as no collisions are found, inwhich case the old ffline will persist
 
@@ -505,9 +535,6 @@ class BoardScene( DrawScene, QGraphicsScene):
         print()
         print('BOARDSCENE.MOUSEPRESSEVENT')
         
-        # if self._mode == Utils.BoardSceneMode.NormalMode:
-        #     super().mousePressEvent(event)
-            # self.normalModeMousePressEvent(event) # this involves adjusting TraceItems & more
         if self.mode() == Utils.BoardSceneMode.AddTraceMode: 
             return self.addTraceModeMousePressEvent(event)
         
@@ -524,7 +551,6 @@ class BoardScene( DrawScene, QGraphicsScene):
         # print('BOARDSCENE.MOUSEMOVEEVENT')
         super().mouseMoveEvent(event) 
 
-
         if self.mode() == Utils.BoardSceneMode.NormalMode:
            self.normalModeMouseMoveEvent(event)
         elif self.mode() == Utils.BoardSceneMode.AddTraceMode:
@@ -540,10 +566,6 @@ class BoardScene( DrawScene, QGraphicsScene):
                 # self.collidingCourtyards(self.mouseGrabberItem(), verbose=True)
 # Need to clear  set colliding courtyards to NoBrush then clear self._collidingCourtyards on mouseReleaseEvent, too
 
-                        
-                        
-                    
-                
     def addViaModeMouseMoveEvent(self, event): 
         print('AVMMME')
         self.via.tentativeMove( self.snapToGrid(event.scenePos()) )# MOve here, as long as no conflicts
@@ -556,8 +578,10 @@ class BoardScene( DrawScene, QGraphicsScene):
            self.addTraceModeMouseDoubleClickEvent(event)
         elif self._mode == Utils.BoardSceneMode.DeleteMode:
             pass # 
+        elif self._mode == Utils.BoardSceneMode.AddViaMode: 
+            self.addViaModeMouseDoubleClickEvent(event)
         # super().mouseDoubleClickEvent(event) # The base implementation calls mousepressEvent. We don't need that here 
-            
+        
     def dragMoveEvent(self, event): # NOTE must reimplement, even if does nothing, for dragNDrop to work 
         pass          
         
@@ -569,17 +593,6 @@ class BoardScene( DrawScene, QGraphicsScene):
             source_widget = MyWidgets.Board.value
             self.droppedPart.emit(part, event, source_widget) # We will .addItem from MyMainWindow, because we ALSO need to add corresponding part to sch. 
 
-    def exitAddTraceMode(self):
-        print()
-        print('BOARDSCENE.exitAddTraceMode')
-        self.views()[0].setMouseTracking(False) # disable mouseMoveEvent from firing while no mouse button pressed down, which is default setting.    
-        self.setMode(Utils.BoardSceneMode.NormalMode) # restore default mode. But for real app, should stay in wiring_mode
-        self.removeItem(self._line) 
-        self.ffline = None 
-        self.startPosition = None 
-        # main_window = self.views()[0].parentWidget().parentWidget().parentWidget()# Get the main_window.( we need to uncheck add_traceAction). The view's parent is the schematic, schematic's parent is a stackedWidget, stackedWidget's parent is the QMainWindow. # This is bad practice bc so brittle but what way is better? HEY this is a good example of when we should start using SIGNALS/SLOTS rather than digging through parent objects (?)
-
-        
     def setMode(self, mode):
         self._mode = mode
 # Set seeker color depending on mode TODO should actually change seeker shape 
@@ -593,7 +606,7 @@ class BoardScene( DrawScene, QGraphicsScene):
             self.via = Via(2,1 , .1, Utils.copperLayers)
             self.addItem(self.via) 
             self.via.setPos(0,0)
-            self.views()[0].setMouseTracking(True) # mouseMoveEvent fires while no mouse button pressed down 
+            # self.views()[0].setMouseTracking(True) # mouseMoveEvent fires while no mouse button pressed down 
         print()
         print(f"SET BOARDSCENE MODE TO {mode}")
 

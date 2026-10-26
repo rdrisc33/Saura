@@ -14,7 +14,6 @@ from LayersVisibilityWidget import LayersVisibilityWidgetScrollWindow
 import sys
 import os
 
-    
 class Board(QWidget): # Board goes in the stacked widget centralWidget of the MainWindow. Shares stackedwidget with  MySchematic and MyFabrication 
     netclasses = {
         'default': 
@@ -89,8 +88,6 @@ class Board(QWidget): # Board goes in the stacked widget centralWidget of the Ma
     def onHideNonCopperLayersButtonClicked(self):
         self.hideNonCopperLayers()
 
-
-
     def showAllLayers(self):
         for layer in Utils.layers: 
             self.scene().showLayer(layer)
@@ -105,28 +102,11 @@ class Board(QWidget): # Board goes in the stacked widget centralWidget of the Ma
             if layer not in Utils.copperLayers: 
                 self.scene().hideLayer(layer)
                 
-    # def onVisibilityToggled(self, checkState , layer): # CheckState is an enum, Qt.CheckState, can be on/off/partial 
-    #     print()
-    #     print('LAYER:', layer)
-    #     print('CHECKSTATE', checkState)
-    #     if checkState == Qt.CheckState.Checked: 
-    #         self._scene.showLayer(layer)
-    #     elif checkState== Qt.CheckState.Unchecked: 
-    #         self._scene.hideLayer(layer)
-
-            
-    # def onlyShowCopperLayers(self):
-    #     print('SHOWING ONLY CU LAYERS')
-    #     for layer in Utils.layers: 
-    #         if layer in Utils.CopperLayers: 
-    #             self.showLayer(layer)
-    #         else: 
-    #             self.hideLayer(layer)
                 
     def create_gerbers(self):
         
         from ComponentSymbol import ComponentSymbol
-        from FootprintItem import FootprintItem, MySubFootprint,  MyCircleItem, MyPadItem
+        from FootprintItem import FootprintItem
         from TerminalItem import TerminalItem
         from WireItem import WireItem
         from GerberLayer import GerberLayer

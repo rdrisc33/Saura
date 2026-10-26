@@ -7,6 +7,8 @@ from shapely.geometry import Polygon
 class ZoneItem( ConnectivityItem, QGraphicsPathItem):
     def __init__(self, layer, *args, **kwargs ):
         super().__init__(layer, *args, **kwargs)
+        self.setAcceptHoverEvents(True)
+
         self.setPen(QPen(self._color, 0))
         self.setBrush(QBrush(self._color, bs=Qt.BrushStyle.FDiagPattern))
 

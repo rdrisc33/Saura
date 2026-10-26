@@ -10,9 +10,8 @@ class BoardView(View):
     
     def __init__(self, *args, **kwargs ):
         super().__init__(*args, **kwargs)
-     
+        self.setCursor(Qt.CursorShape.CrossCursor) # For some reason this takes effect only at the borders of the BV...
 
-                
     def drawBackground(self, painter, rect): 
 
         # print()

@@ -5,12 +5,13 @@ from NonConnectivityItem import NonConnectivityItem
 
 
 class Trace(ConnectivityItem, QGraphicsLineItem): 
-    def __init__(self, layers, traceWidth, net=Net(), parent=None, *args, **kwargs ): 
+    def __init__(self, layers, traceWidth, net=None, parent=None, *args, **kwargs ): 
 
         self._traceWidth = traceWidth
         self._net = net
         super().__init__( layers, parent=parent, *args, **kwargs)
-        
+
+        self.setAcceptHoverEvents(True)
         self.setLayers(layers)
         self.setTraceWidth(traceWidth)
         self.setColor(Utils.layerColors[layers[0]])
@@ -71,7 +72,7 @@ class Trace(ConnectivityItem, QGraphicsLineItem):
 
 # def __init__(self, layers, traceWidth, net=Net(), parent=None, *args, **kwargs ): 
     @classmethod 
-    def fromLine(cls, line, traceWidth , layers, net = Net()):
+    def fromLine(cls, line, traceWidth , layers, net = None):
         return cls( line, layers=layers, traceWidth=traceWidth, net=net)
 
     @classmethod
@@ -474,13 +475,14 @@ class Trace(ConnectivityItem, QGraphicsLineItem):
     def fromPoints(cls, layers, traceWidth, p1, p2): 
         return cls( p1, p2, layers=layers, traceWidth=traceWidth )
 
-    def hoverEnterEvent(self, event):
-        current_tooltip = self.toolTip()
-        self.setToolTip(f"{current_tooltip}\nP1: {self.line().p1()}\nP2: {self.line().p2()}") 
-        super().hoverEnterEvent(event)
 
     def snapAngleRadians(self , angle, snapTo=math.pi/4): # angle in radians. return angle snapped to nearest multiple of snapTo, default pi/4
         
         angle = round(angle / (snapTo)) * snapTo # pemdas 12/3/4 different 12/(3/4)
         # print('SNAPPED TO ANGLE(degrees):', angle *180/math.pi)
         return self.normalizeAngleRadians(angle) 
+    
+    # def hoverEnterEvent(self, event):
+    #     current_tooltip = self.toolTip() # Preserve any info super put in the tooltip
+    #     self.setToolTip(f"{current_tooltip}\nP1: {self.line().p1()}\nP2: {self.line().p2()}") 
+    #     super().hoverEnterEvent(event)

@@ -6,10 +6,11 @@ from LayersItem import LayersItem
 from Net import Net 
 # When using painter.drawEllipse(), there is an int overload, and a float overload, and Qt will choose which one to use based on whether its passed a QPoint or a QPointF so be sure to use QPointF! 
 class Via(ConnectivityItem, QGraphicsItem):
-    def __init__(self, outerDiameter, innerDiameter, clearance=Utils.viaClearance, layers=Utils.copperLayers, net=Net(),parent=None):# layers : A via may exist on all or some layers, default all # clearance: default 1mm
+    def __init__(self, outerDiameter, innerDiameter, clearance=Utils.viaClearance, layers=Utils.copperLayers, net=None,parent=None):# layers : A via may exist on all or some layers, default all # clearance: default 1mm
         
         super().__init__(layers = layers)
-        
+        self.setAcceptHoverEvents(True)
+
         self._pen = Qt.NoPen
         self._brush = Qt.NoBrush
         self._color = Qt.black # Won't know color until add to scene, & see what activeLayer is set 

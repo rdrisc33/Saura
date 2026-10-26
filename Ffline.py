@@ -4,7 +4,7 @@ from Net import Net
 
 class Ffline: 
     # Angles in radians. If angles in degrees, _degrees should be attached to variable name 
-    def __init__(self, here, there, scene, net=Net()):  # here,there: draw this ffline from here, to there. scene: need a reference to the scene, for scene.tracewidth, and scene.ids, and scene.rtrees( but we don't want to add fflines to the scene, until we know them and their connecteds are valid, so ffline is not a QGraphicsItem)
+    def __init__(self, here, there, scene, net=None):  # here,there: draw this ffline from here, to there. scene: need a reference to the scene, for scene.tracewidth, and scene.ids, and scene.rtrees( but we don't want to add fflines to the scene, until we know them and their connecteds are valid, so ffline is not a QGraphicsItem)
         # print('ADDING FFLINE')
         self.here = here
         self.there = there 

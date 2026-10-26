@@ -4,8 +4,8 @@ from Net import Net
 class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRectItem, etc. Not useful by itself
     def __init__(self, layers, *args, **kwargs):
         super().__init__(layers, *args, **kwargs)
-
-        self.mousedOverNet          = Net() 
+        # self.mousedOverNet          = Net() 
+        self.mousedOverNet          = None
         self._terminals             = None 
         self._nonNullNets           = None 
         # self._sceneTerminal         = None      # 3-Tuple (scenePosX,scenePosY,layer) 
@@ -17,7 +17,8 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         self._bufferedBounds        = None      # A 4-tuple(left top right bottom) buffered by .bufferDistance(). local coordinates 
         self._sceneBufferedBounds   = None      # ._bufferedBounds in scene coordinates
         self._id                    = None 
-        self._net                   = Net() 
+        # self._net                   = Net() 
+        self._net                   = None 
 
         # self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
 
@@ -27,13 +28,16 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
             
 
     def resolveNets(self, nets): # Return True if the given list of nets is resolvable with this item
-        nonNullNets = [net for net in nets if not net.isNull()] 
+        # nonNullNets = [net for net in nets if not net.isNull()] 
+        nonNullNets = [net for net in nets if not net is None] 
         
         if len(nonNullNets) == 0: # Then net was null, which is allowed
-            return Net() 
+            # return Net() 
+            return None 
                 
         elif len(nonNullNets) == 1: 
-            if ( not self.net().isNull()) and (self.net() != nonNullNets[0]): # If self.net() is something, but we found another net,  that is unresolvable
+
+            if ( self.net() is not None) and (self.net() != nonNullNets[0]): # If self.net() is something, but we found another net,  that is unresolvable
                 print(f'UNRESOLVABLE NETS: { nonNullNets[0], self.net()}')
                 return 'unresolved'
             else: 
@@ -41,6 +45,7 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
                 return nonNullNets[0] 
             
         elif len(nonNullNets) >1 : 
+            print(f'UNRESOLVABLE NETS: { *nonNullNets, self.net()}')
             return 'unresolved'
  
         
@@ -59,7 +64,7 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         # else: 
         #     event.ignore() # This seems to do nothing 
     
-    def tentativeMove(self, pos): # Move here but move back if there are obstructions 
+    def tentativeMove(self, pos): # Move here but move back if there are obstructions # This implementation really only suits via&zone. trace don't move like them, and pad never mouseMoves. 
         self._previousPos = self.scenePos()  # Save the previous position
         
         self.setPos(pos) # Move to proposed position
@@ -75,7 +80,7 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
         # elif ( not self.net().isNull() ) and (self.net() != self.resolvedNet ) : # If nets do not match, then revert Oh this is detected by resolvedNets
         #     self.setPos(self._previousPos)
 
-        elif ( self.net().isNull() ) : # If self's net is null, and mouses over another net, we can take on that net
+        elif ( self.net() is None ) : # If self's net is null, and mouses over another net, we can take on that net
             # Take on this net(). Note this will change if we stop mousing over non null net
             # self.setPos(self._previousPos)
             self.mousedOverNet = self.resolvedNet
@@ -486,14 +491,13 @@ class ConnectivityItem(LayersItem): # Base class of TR ZN VA PD & ConnectivityRe
     # def mouseMoveEvent(self, event):
     #     super().mouseMoveEvent(event)
     
-    # def hoverEnterEvent(self, event):
-    #     current_tooltip = self.toolTip()
-
-    #     self.setToolTip(f"{current_tooltip}\nPos: {self.pos()}\nscenePos: {self.scenePos()}")
-    #     return super().hoverEnterEvent(event)
-    # def hoverLeaveEvent(self, event):
-    #     self.setToolTip("")
-    #     super().hoverLeaveEvent(event)
+    def hoverEnterEvent(self, event):
+        self.setToolTip(f"Net: {self.net()}")
+        return super().hoverEnterEvent(event)
+    
+    def hoverLeaveEvent(self, event):
+        self.setToolTip("")
+        super().hoverLeaveEvent(event)
 
 # class ConnectivityRectItem(ConnectivityItem, QGraphicsRectItem): # Basically a doodle but with electrical connectivity; is made of copper
 from AdjustableRect import AdjustableRect

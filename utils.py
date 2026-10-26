@@ -207,12 +207,49 @@ class Utils:
         
         if numZeroes == 2: # Then these wires are perpendicular
             return True
+        
+        return False 
+    
+    @staticmethod
+    def wiresAreCollinearIntersecting( wire1, wire2):
+        """Returns True if wire1 and wire2 are collinear and intersect, within segment; NOT at endpoints.
+        Note a collinear intersection might see wire1 'contained' fully within wire2, or, they may overlap a bit, or, they may be adjacent."""
+
+        p1 = wire1.p1()
+        p2 = wire1.p2()
+        p3 = wire2.p1()
+        p4 = wire2.p2()
+        
+        orient1 = Utils.threePointOrientation(p1,p2,p3) 
+        orient2 = Utils.threePointOrientation(p1,p2,p4)
+        orient3 = Utils.threePointOrientation(p3,p4,p1)
+        orient4 = Utils.threePointOrientation(p3,p4,p2)
+        
+        orientations = [orient1, orient2, orient3, orient4]
+        numZeroes = orientations.count(0)
+        
+        if numZeroes == 4: #Then these lines are collinear. Check if they are adjacent collinear, or overlapping collinear, or nonintersecting
+
+            x1, y1 = p1.toTuple() 
+            x2, y2 = p2.toTuple()
+            x3, y3 = p3.toTuple()
+            x4, y4 = p4.toTuple()
+    
+            # Test if X range overlaps: 
+            xOverlap = Utils.rangesOverlap(x1, x2, x3, x4)
+            yOverlap = Utils.rangesOverlap(y1, y2, y3, y4) 
+            # if xOverlap or yOverlap: # If x-rangesoverlap OR y-ranges overlap, these lines overlap PRETTY SURE THIS NEEDS TO BE AND 
+            if xOverlap and yOverlap:
+                # return ( Utils.JunctionType.CollinearOverlap ,)
+                return True 
+            
+        return False # This needs to be tested. Think I was getting perp wires reporting as true aaaaand I was, tho I have no clue why...
     
     @staticmethod
     def junction(line1, line2): 
         """Returns a tuple which differs depending on junction type of line1 and line2. 
         Zeroeth index of the return tuple is junctionType, a Utils.JunctionType. 
-        If junctionType is Utils.JunctionType.Tee, this function will return a 2-tuple (junctionType, zero) where zero is orient1, orient2, orient3, or orient4, whichever one was zero. Google three point orientation
+        If junctionType is Utils.JunctionType.Tee, this function will return a 2-tuple (junctionType, zero) where zero is an int representing index in [orient1, orient2, orient3, or orient4], whichever index was zero. See three point orientation
         IF junctionType is Utils.JunctionType.L,   this function will return a 2-tuple (junctionType, orientations) (for wire dragging)
         If junctionType is any other Utils.JunctionType, this function will return a 1-tuple (junctionType)
         Note (5) is an int while (5,) is a tuple. This used in this functions return statements  """
@@ -254,7 +291,8 @@ class Utils:
                 # Test if X range overlaps: 
                 xOverlap = Utils.rangesOverlap(x1, x2 , x3 , x4)
                 yOverlap = Utils.rangesOverlap(y1,y2 , y3, y4) 
-                if xOverlap or yOverlap: # If x-rangesoverlap OR y-ranges overlap, these lines overlap
+                # if xOverlap or yOverlap: # If x-rangesoverlap OR y-ranges overlap, these lines overlap # PRETTY SURE THIS NEEDS TO BE AND 
+                if xOverlap and yOverlap: 
                     return ( Utils.JunctionType.CollinearOverlap ,)
                 
         elif orient1 != orient2 and orient3 != orient4: # Then these lines are intersecting. Note no action needed here(no split. intersecting lines in EDA SW are supposed to not connect
@@ -351,9 +389,9 @@ class Utils:
         Pin                                     = 1
         ComponentSymbol                         = 2
         NetSymbol                               = 3
-        HierarchyLabel                          = 4
-        GlobalLabel                             = 5
-        # LocalLabel                              = 4 
+        LocalLabel                              = 4
+        HierarchyLabel                          = 5
+        GlobalLabel                             = 6
         # Label                                   = 6 
         
         

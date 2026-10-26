@@ -7,12 +7,10 @@ class View(QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(True) # Must enable to allow drops (as in drag and drop drops)
-        
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         # self.grabGesture(Qt.GestureType.PinchGesture) # Zoom in by pinching the trackpad. NOTE: trackpad zoom works fine w/o this line 
         # self.setDragMode(QGraphicsView.ScrollHandDrag) # Behavior for LMB clicking & dragging the mouse the scene. This behavior only affects mouse clicks, that are not handled by any item. (NOTE: I like this mode, but for the cursor becomes hand cursor all the time... not just when i click/drag...)
-        self.setCursor(Qt.CursorShape.ArrowCursor)
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         # Qt::ScrollBarAlwaysOff
         # self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)

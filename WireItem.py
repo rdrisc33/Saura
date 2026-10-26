@@ -147,6 +147,7 @@ class WireItem(QGraphicsLineItem):
         pass
     def sceneTerminals(self):
         return self._sceneTerminals 
+    
     def setSceneTerminals(self):
         # print('WIREITEM.SETSCENETERMINALS:')
         # print('P1:',self.line().p1().toPoint())

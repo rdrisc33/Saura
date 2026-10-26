@@ -303,9 +303,8 @@ class FootprintItem(Reference, QGraphicsItem):
             #         self.addCopperItem(layer, pad )
             self.pads().append(pad)# Note if p is not referenced by anything, p will be garbage collected; deallocated; deleted. When p is deallocated, its childrenItems are, too, so no more pads. To avoid this, maintain a reference to p; put p in a list
             pad.setZValue(1) 
-            net = Net()
-            net.setNet(pad.parentItem().reference() + '_' + pad.name())# Ex 'C3_1' 
-            net.setPriority(Utils.NetPriority.Pad)
+            net= pad.parentItem().reference() + '_' + pad.name()# Ex 'C3_1' 
+            # net.setPriority(Utils.NetPriority.Pad)
             pad.setNet(net)
         
         for line in line_elems: 

@@ -105,8 +105,8 @@ class SchematicScene(QGraphicsScene):
 
                
         
-    def wireVein(self, pos): # Return the vein of wire, a dict including wire and other interconnected wires, pins, NetSymbols, and labels, and more.
-        pass  # Implemented in MainWindow
+    # def wireVein(self, pos): # Return the vein of wire, a dict including wire and other interconnected wires, pins, NetSymbols, and labels, and more.
+    #     pass  # Implemented in MainWindow
                 
                         
     @Slot(dict) # (table_name) The name of the sql table which was changed
@@ -257,24 +257,24 @@ class SchematicScene(QGraphicsScene):
             
 ### seeker snap to points of interest if applicable
             detected_items = self._seeker.collidingItems() # List all items beneath seeker  # Qt.ItemSelectionMode.ContainsItemBoundingRect) 
-            if detected_items: 
-                for item in detected_items:  # These for loops are written such that we only bother processing a single item
-                    if isinstance(item, TerminalItem):
-                        self.terminal = item 
-                        # print('DETECTED TERMINAL:', self.terminal)
-                        self._seeker.setPos(self.terminal.scenePos()) # Snap seeker to terminal item
-                        break
-                    elif isinstance(item, WireItem) and not item==self._horWire and not item==self._vertWire and not item==self._wire:#  Find wires in enlarged area under mouse press(enlarge bc skinny wires are hard to click on). Disregard currently drawing wire items, tho.
-                        self.moused_over_wire = item 
-                        # print('DETECTED WIRE:', self.moused_over_wire)
-                    # wires= [item for item in items if isinstance(item, MyGraphicsWireItem) and not item==self.hor_wire and not item== self.vert_wire and not item==self._wire] #  Find wires in enlarged area under mouse press(enlarge bc skinny wires are hard to click on). Disregard currently drawing wire items, tho.
+            # if detected_items: 
+            for item in detected_items:  # These for loops are written such that we only bother processing a single item
+                if isinstance(item, TerminalItem):
+                    self.terminal = item 
+                    # print('DETECTED TERMINAL:', self.terminal)
+                    self._seeker.setPos(self.terminal.scenePos()) # Snap seeker to terminal item
+                    break
+                elif isinstance(item, WireItem) and not item==self._horWire and not item==self._vertWire and not item==self._wire:#  Find wires in enlarged area under mouse press(enlarge bc skinny wires are hard to click on). Disregard currently drawing wire items, tho.
+                    self.moused_over_wire = item 
+                    # print('DETECTED WIRE:', self.moused_over_wire)
+                # wires= [item for item in items if isinstance(item, MyGraphicsWireItem) and not item==self.hor_wire and not item== self.vert_wire and not item==self._wire] #  Find wires in enlarged area under mouse press(enlarge bc skinny wires are hard to click on). Disregard currently drawing wire items, tho.
 
-                        if self.moused_over_wire.line().dy(): # If this wire is vertical:
-                            seeker_snap = QPointF(self.moused_over_wire.line().x1(), grid_pos.y()) # Snap wires to the gridSpacing, as well
-                        elif self.moused_over_wire.line().dx(): # If this wire is horizontal: 
-                            seeker_snap = QPointF(grid_pos.x(), self.moused_over_wire.line().y1())  # 
-                        self._seeker.setPos(seeker_snap) # Update seeker pos
-                        break
+                    if self.moused_over_wire.line().dy(): # If this wire is vertical:
+                        seeker_snap = QPointF(self.moused_over_wire.line().x1(), grid_pos.y()) # Snap wires to the gridSpacing, as well
+                    elif self.moused_over_wire.line().dx(): # If this wire is horizontal: 
+                        seeker_snap = QPointF(grid_pos.x(), self.moused_over_wire.line().y1())  # 
+                    self._seeker.setPos(seeker_snap) # Update seeker pos
+                    break
 ### Drawing _line. _line Does NOT snap
             if self._line:
                 self._line.setLine( QLineF(self._line.line().p1() , event.scenePos()) ) # Update _line with current pos of mouse. Line does NOT snap

@@ -129,17 +129,23 @@ class MainWindow(QMainWindow):
             
             self.updateRatsnest(net)
 
-    def setVeinNets(self, vein): # TODO more robust drc
+    def resolveVeinNets(self, vein): 
+        """The vein collected all its pads, wires, pins, NetSymbols, & Labels. 
+        Now, we need to deduce the net of the vein. """
+        
         print()
-        print('setVeinNets')
+        print('RESOLVEVEINNETS')
+        net = None 
         
         highestPriority = max(vein)# ValueError: max() iterable argument is empty
         print('HIGHESTPRIORITY:', highestPriority)
         
         if highestPriority == Utils.SchematicItemKinds.Wire.value: # .value!!
+            print('WIRES FLOATING IN SPACE') 
             # vein['nets'].append(None)
-            print()
-            print('DRC NOTIFICATION: WIRES FLOATING IN SPACE') 
+            # net = Net()
+            # vein['nets'].append(Net())
+            net = None 
             
         elif highestPriority == Utils.SchematicItemKinds.Pin.value: 
             
@@ -148,12 +154,14 @@ class MainWindow(QMainWindow):
                 print()
                 print('DRC NOTIFICATION: PIN IS NOT CONNECTED') 
             
-            pins = sorted(pins, key = lambda pin: pin.name()+str(pin.number())) # pin.id is unique integer assigned during brdScene.addItem. TODO: confirm pin.id is deterministic way for sorting pins. Could also sort by pin name ('C3-1') since we need it for the net anyway
+            pins = sorted(pins, key = lambda pin: pin.name()+str(pin.number())) # Sort by pin name ('C3_1') as it is unique. We need a deterministic way of sorting pins, because we need to resolve net chimeras to a single net (?)
             pin = pins[0]
-            net = Net()
-            net.setNet( pin.parentItem().reference() + '_' + pin.number())
-            net.setPriority(Utils.NetPriority.Pad) # Note schematic PIN links to a board PAD 
-            vein['nets'].append(net)
+            # net = Net()
+            # net.setNet( pin.parentItem().reference() + '_' + pin.number())
+            # net.setPriority(Utils.NetPriority.Pad) # Note schematic PIN links to a board PAD 
+            # vein['nets'].append(net)
+            net = pin.parentItem().reference() + '_' + pin.number()
+            
 
         elif highestPriority == Utils.SchematicItemKinds.LocalLabel.value: 
             print()
@@ -161,15 +169,13 @@ class MainWindow(QMainWindow):
             
         elif highestPriority == Utils.SchematicItemKinds.NetSymbol.value: 
             netSymbols = vein[Utils.SchematicItemKinds.NetSymbol.value]
-            print('HIGHEST PRIO 3: NET SYMBOL')
-            print('NETSYMBOLS:', len(netSymbols), netSymbols)
-            nets = [netSymbol.net() for netSymbol in netSymbols]
-            vein['nets'].extend( nets )
-            
-            if len(nets) > 1: 
-                print()
-                print('NETS:', nets)
-                print('DRC ERROR: CONFLICTING NET SYMBOLS')
+            print('HIGHEST PRIO: NET SYMBOL:', len(netSymbols), netSymbols)
+            nets = sorted(set([netSymbol.net() for netSymbol in netSymbols]))
+            # Trying strategy of raising error but then ignoring extra nets
+            net = nets[0]
+            if len(nets) > 1 : 
+                print('FOUND NETS:', nets, 'ONLY USING:', net)                
+            # vein['nets'].extend( nets )
 
         else: 
             print()
@@ -177,7 +183,8 @@ class MainWindow(QMainWindow):
             
         # Note use of nets rather than net. This is because its possible user conencted two nets to same vein, in which case, we want to raise a DRC error 
         # Note that if HP is Global label, most prios below must also be checked for conflicts 
-        
+        return net 
+    
     def onWiringLaid(self, pos): # This slot runs when schematic.scene emits wiring_laid. pos: the position of any terminal of laid wiring. If user added wire, pos equals mouseDoubleClickEvent.event.scenePos(). 
         # We need to:
             # update MW.veins
@@ -342,8 +349,6 @@ class MainWindow(QMainWindow):
                 if index in subset: 
                     return subset 
             
-
-        
         # kruskal starts w/ each vertex index its own set 
         
         # sets = [ set([index]) for index in range(len(flat))]
@@ -397,49 +402,13 @@ class MainWindow(QMainWindow):
             print('SETU:', setU)
             print('SETV:', setV)
             if setU != setV: 
-                forest = forest.union({ frozenset([u,v]) })
+                forest = forest.union({ frozenset([u,v]) }) # note in python, sets are mutable; unhashable. Unhashable types can't be part of a set. Use tuples or frozenset(which creates an immutable set) instead
                 subsets.append(setU.union(setV))
                 subsets.remove(setU)
                 subsets.remove(setV)
             
         print('FOREST:', forest)# MST: {frozenset({3, 4}), frozenset({1, 2}), frozenset({2, 6})}
         return forest
-    
-    # Pretty sure this makes a correct ratsnestMST.
-    # def ratsnestMinimumSpanningTree(self, G):
-
-    #     def findSubgraph(index): # index: 
-    #         for subgraph in self.subgraphs: 
-    #             if index in subgraph: 
-    #                 return subgraph
-    #     removedLayerCoordinate = list(set([i[0:2] for i in G ])) # Remember in slice [0:2] that 2 is exclusive 
-    #     print('REMOVED LAYER COORDINATE:', removedLayerCoordinate) # [(0.9271,)]
-    #     pairwiseDistance = pdist( removedLayerCoordinate )
-    #     print('PAIRWISEDISTANCE:', pairwiseDistance) 
-    #     adjacencyMatrix = squareform( pairwiseDistance ) # pdist as in pairwise distance. Use scipy to form weighted adjacency matrix, a precursor to the minimum spanning tree. See sparse matrices, compressed sparse matrices,  scipy.pdist, scipy.squareform, adjacency matrices, minimum spanning tree(everyone uses KruskalMST including me here). adj matrix aka 'graph' in compSci 
-    #     # adjacencyMatrix = squareform( pdist( G )) 
-    #     print('ADJACENCYMATRIX:', adjacencyMatrix)
-        
-    #     coo = coo_array(adjacencyMatrix) # Create a sparse matrix, COOrdinate flavor, so that we can use coo.row & coo.col to make our graph edges-- Note these edges are made of indices of points, corresponding to how they were ordered in 'points'. So edge(0,2) corresponds to points[0] to points[2]
-    #     edges = list(zip(coo.row , coo.col, coo.data))      
-    #     edges = sorted(edges, key = lambda coo : coo[2] ) # order G edges by weight; Kruskal algo
-    #     for edge in edges: # Example: edge:(0,3,3.0) where 0&3 code for indices in G. 3.0 would code for the distance from G[0] to G[3]; edge weight. Thus edge 0-3 is a line from (0,0) to (3,0)            
-    #         u = edge[0]
-    #         v = edge[1]
-    #         setU = findSubgraph(u)
-    #         setV = findSubgraph(v)
-        
-    #         # for subgraph in self.subgraphs: 
-    #         #     if (u in subgraph) and (v in subgraph):
-    #         #         continue 
-                
-    #         if setU != setV:
-    #             self.mst = self.mst.union( { frozenset(u,v) } ) # {}.union( { (0,3) } ) -> { (0,3) } # Store 2-sets, which preserves the data needed to draw lines. note in python, sets are mutable; unhashable. Unhashable types can't be part of a set. Use tuples or frozenset(which creates an immutable set) instead
-    #             setU.union(setV)
-                
-    #     print()
-    #     print('SELF.MST:', type(self.mst))
-    #     print(self.mst)
     
     def addRatsnestToScene(self, G, flat, net, verbose=False):       
         if verbose:      
@@ -472,136 +441,34 @@ class MainWindow(QMainWindow):
 
     def updateVeins(self, pos): 
 
-        # def merge( pos, wire, otherWire, points, row, col, data ): 
-        def merge( pos, wire, otherWire ): 
-            """Merge wires. Given wires must be adjacent at pos; Checks to ensure existence of adjacent collinear wires with no Symbol terminals on pos, nor any orthagonal wires on pos, are implemented elsewhere"""
+#         def merge( pos, wire, otherWire ): 
+#             """Merge wires. Given wires must be adjacent at pos; Checks to ensure existence of adjacent collinear wires with no Symbol terminals on pos, nor any orthagonal wires on pos, are implemented elsewhere"""
 
-            # if len(points <= 2): # Then not enough points to perform a merge
-            #     return
+#             p1 = [wire.p1() , wire.p2()][wire.p2()==pos] 
+#             p2 = [otherWire.p1() , otherWire.p2()][otherWire.p2()==pos]
+#             self.schematic.scene().removeItem(wire)
+#             self.schematic.scene().removeItem(otherWire)
+#             merged = WireItem(*p1.toTuple(), *p2.toTuple())
+#             merged.setPen(QPen(Qt.darkCyan, 1 ))
+#             merged.setVeinId(wire.veinId())
+#             self.schematic.scene().addItem(merged)
+#             return merged
+
+
+#         def split(pos , wire): 
+
+# ### remove/add split to scene
+#             split1 = WireItem(QLineF(wire.p1(), pos))
+#             split2 = WireItem(QLineF(pos, wire.p2()))
+#             split1.setPen(QPen(Qt.magenta, 1))
+#             split2.setPen(QPen(Qt.darkMagenta, 1))
+#             split1.setVeinId(wire.veinId())
+#             split2.setVeinId(wire.veinId())
+#             self.schematic.scene().addItem(split1)
+#             self.schematic.scene().addItem(split2)
+#             self.schematic.scene().removeItem(wire) 
             
-            # index = points.index(pos) 
-            # points.pop(index)
-            # p1 = [wire.p1() , wire.p2()][wire.p2()==pos] 
-            # p2 = [otherWire.p1() , otherWire.p2()][otherWire.p2()==pos]
-            # index1 = points.index(p1)
-            # index2 = points.index(p2)
-
-            # upForMerge = {c for c,x in enumerate(row) if (x==index1) or (x==index2) } + { c for c,x in enumerate(col) if (x==index1) or (x==index2) }
-            # print('UPFORMERGE:', upForMerge)
-            # reversed = sorted(upForMerge , reverse=True)
-            # for l in [row, col, data]: 
-            #     for r in reversed:
-            #         l.pop(r) # This entry is merging; no longer exists 
-
-            # dist = Utils.distance(points[index1] , points[index2])
-            # row.append(index1)
-            # col.append(index2) 
-            # data.append( dist)
-            
-            # row.append(index2)
-            # col.append(index1)
-            # data.append(dist)
-
-            
-            # delete row and column 
-            # deleted = G.pop(index)
-            
-            # indices12 = [] # Know positions adjacent to pos by which two are nonzero. Note if there winds up being more than 2 im screwed 
-            # for count, d in enumerate(deleted): 
-            #     if d != 0: 
-            #         indices12.append(count)
-            # index1, index2 = indices12 
-                    
-            # for row in G: 
-            #     row.pop(index)
-
-            # weight = deleted[index1] + deleted[index2]
-
-            # if index1 > index : index1 -= 1 # We did delete a col from G, which affected indices greater than that column by 1
-            # if index2 > index : index2 -= 1 
-            
-            # G[index1] [index2] = weight
-
-### add/remove splits from scene 
-
-            # p1, p2 = wire.line().toTuple()
-            # p3, p4 = otherWire.line().toTuple
-            
-            # x1, y1 = p1.toTuple()
-            # x2, y2 = p2.toTuple()
-            # x3, y3 = p3.toTuple()
-            # x4, y4 = p4.toTuple()
-            
-            # xMax = max(x1, x2 , x3 , x4) 
-            # yMax = max(y1, y2, y3, y4)
-            # xMin = min(x1, x2 , x3 , x4) 
-            # yMin = min(y1, y2, y3, y4)
-            
-            # merged = WireItem(xMin, yMin, xMax, yMax) # Note this works bc previous checks ensure we're working with collinear lines & scene only allows hor/vert lines\
-            p1 = [wire.p1() , wire.p2()][wire.p2()==pos] 
-            p2 = [otherWire.p1() , otherWire.p2()][otherWire.p2()==pos]
-            self.schematic.scene().removeItem(wire)
-            self.schematic.scene().removeItem(otherWire)
-            merged = WireItem(*p1.toTuple(), *p2.toTuple())
-            merged.setPen(QPen(Qt.darkCyan, 1 ))
-            merged.setVeinId(wire.veinId())
-            self.schematic.scene().addItem(merged)
-            return merged
-
-            # return points , row, col, data , merged
-
-        # def split(pos , wire, points, row, col, data ): 
-        def split(pos , wire): 
-
-            # d1 = Utils.distance(wire.p1() , pos)
-            # d2 = Utils.distance(pos, wire.p2())
-
-### remove/add split to scene
-            split1 = WireItem(QLineF(wire.p1(), pos))
-            split2 = WireItem(QLineF(pos, wire.p2()))
-            split1.setPen(QPen(Qt.magenta, 1))
-            split2.setPen(QPen(Qt.darkMagenta, 1))
-            split1.setVeinId(wire.veinId())
-            split2.setVeinId(wire.veinId())
-            self.schematic.scene().addItem(split1)
-            self.schematic.scene().addItem(split2)
-            self.schematic.scene().removeItem(wire) 
-            
-            return split1 , split2
-            # return points, row, col, data, split1 , split2
-
-            # index = points.index(pos) 
-            # index1 = points.index(wire.p1())
-            # index2 = points.index(wire.p2()) 
-            
-            # upForRemoval = {c for c,x in enumerate(row) if (x==index1) or (x==index2)} + {c for c,x in enumerate(col) if (x==index2) or (x==index2)}
-            # upForRemoval = sorted(upForRemoval, reverse=True)
-            # for l in [row, col, data]: 
-            #     for r in upForRemoval: 
-            #         l.pop(r) # These edges no longer exist
-            
-            # # Add in new edges
-            # #from wire.p1 to pos 
-            # row.append(index) 
-            # col.append(index1)
-            # data.append(d1)
-            
-            # row.append(index1)
-            # col.append(index)
-            # data.append(d1)
-            
-            # # from pos to wire.p2 
-            # row.append(index)
-            # col.append(index2)
-            # data.append(d2)
-
-            # row.append(index2)
-            # col.append(index)
-            # data.append(d2)
-            
-                    
-
-
+#             return split1 , split2
 
         def normalizeWiring(pos): 
             """Normalize entire wiring using queues 
@@ -617,6 +484,47 @@ class MainWindow(QMainWindow):
             'wire terminal' is either p1 or p2; its the point where wire can connect to other stuff
             """
             
+            def merge( pos, wire, otherWire ): 
+                """Merge wires. Given wires must be adjacent at pos; Checks to ensure existence of adjacent collinear wires with no Symbol terminals on pos, nor any orthagonal wires on pos, are implemented elsewhere"""
+
+                p1 = [wire.p1() , wire.p2()][wire.p1()==pos] # Concise code to select whichever point is NOT pos; True/False act like 0/1
+                p2 = [otherWire.p1() , otherWire.p2()][otherWire.p1()==pos] 
+                print('P1:', p1)
+                print('P2:', p2)
+                # x1,y1 = wire.p1().toTuple()
+                # x2,y2 = wire.p2().toTuple()
+                # x3,y3 = otherWire.p1().toTuple()
+                # x4,y4 = otherWire.p2().toTuple() 
+
+                # xmin = min(x1, x2, x3, x4) 
+                # ymin = min(y1, y2, y3, y4) 
+                # xmax = max(x1, x2, x3, x4) 
+                # ymax = max(y1, y2, y3, y4) 
+                
+                self.schematic.scene().removeItem(wire)
+                self.schematic.scene().removeItem(otherWire)
+                if otherWire in items: 
+                    items.remove(otherWire) # We cannot remove wire from items bc wire already got .pop()ed from items. But we do have to remove otherWire from items as it no longer exists
+                # Also remove wire, otherWire from vein TODO
+                merged = WireItem(*p1.toTuple(), *p2.toTuple())
+                merged.setPen(QPen(Qt.darkCyan, 1 ))
+                merged.setVeinId(wire.veinId())
+                self.schematic.scene().addItem(merged)
+                return merged
+
+            def split(pos , wire): ### remove/add split to scene
+                split1 = WireItem(QLineF(wire.p1(), pos))
+                split2 = WireItem(QLineF(pos, wire.p2()))
+                split1.setPen(QPen(Qt.magenta, 1))
+                split2.setPen(QPen(Qt.darkMagenta, 1))
+                split1.setVeinId(wire.veinId())
+                split2.setVeinId(wire.veinId())
+                self.schematic.scene().addItem(split1)
+                self.schematic.scene().addItem(split2)
+                self.schematic.scene().removeItem(wire) 
+                
+                return split1 , split2
+            
             # G = [[]] 
             print()
             print('NORMALIZEWIRING')
@@ -625,16 +533,17 @@ class MainWindow(QMainWindow):
             # data = [] 
             visitedPositions = []
             positionQueue = [pos] 
-            points = [pos] # list of points. indices of points correspond to adjacencyMatrix 
+            # points = [pos] # list of points. indices of points correspond to adjacencyMatrix 
             
             while positionQueue: 
                 pos = positionQueue.pop(0)
                 if pos in visitedPositions: 
                     continue 
                 visitedPositions.append(pos)
-                
+
+                print()
                 print('POS:', pos.toPoint())
-                _merge = True # flag merge indicates whether there are collinear adjacent wires to merge at pos. Will not merge, if adjacent orthagonal wires, or Symbol terminals, are present at pos
+                _merge = True # flag merge indicates whether there are collinear adjacent or overlapping wires to merge at pos. Will not merge, if adjacent orthagonal wires, or Symbol terminals, are present at pos
                 
                 # for item in self.schematic.scene().items(pos): #  Usage of WHILE loops not for loops, so as to be able to add split/merged wires a
                 items = self.schematic.scene().items(pos) 
@@ -658,25 +567,30 @@ class MainWindow(QMainWindow):
                             if isinstance(item, NetSymbol):
                                 vein[Utils.SchematicItemKinds.NetSymbol.value].append(item)
 
-
                     if isinstance(item, WireItem): 
-                        print('WIRE.SCENETERMINALS():', item.sceneTerminals())
-                        if not any(terminal == pos for terminal in item.sceneTerminals()): # Then this wire is not connected to this pos. 
-                            print('WIRE NOT TERMINATING ON POS')
-                            continue
-                        
                         wire = item 
+                        # print('WIRE.SCENETERMINALS():', wire.sceneTerminals())
+                        if not any(terminal == pos for terminal in wire.sceneTerminals()): # Then this wire intersects pos, withoug terminating on pos; therefore we must split wire
+                            print('WIRE NOT TERMINATING ON POS.')
+                            print('SPLITTING WIRE')
+                            split1, split2 = split(pos, wire)
+                            items.append(split1)
+                            items.append(split2)
+                            wireNormal = False
+                            continue # If we split a wire, we need to stop processing this wire, since we took it off the scene. Go to the next item in items. 
+                        
                         wireNormal = True # This flag indicates whether or not the wire is 'normal' -- abnormal wires get either split or merged, and then cease to be processed, while normal wires are processed as part of the vein
                         
                         #for symbols terminating inside wire segment: 
-                        for symbol in [item for item in self.schematic.scene().collidingItems(wire) if isinstance(item, Symbol)] :
+                        for symbol in [i for i in self.schematic.scene().collidingItems(wire) if isinstance(i, Symbol)] : 
                             for symbolTerminal in symbol.sceneTerminals(): 
 
                                 if Utils.pointWithinSegment(symbolTerminal, wire.line()):
-                                    print('SYMBOL WITHIN WIRE SEGMENT')
+                                    print('SYMBOL TERMINAL WITHIN WIRE SEGMENT')
 
                                     if (symbolTerminal not in positionQueue) and (symbolTerminal not in visitedPositions):
                                         positionQueue.append(symbolTerminal)
+                                        print('SPLITTING')
                                         # points.append(symbolTerminal)
                                         # points, row, col, data, split1, split2 = split(pos, wire, points, row, col, data)
                                         split1, split2 = split(pos, wire)
@@ -690,43 +604,48 @@ class MainWindow(QMainWindow):
                         if not wireNormal: # Then we split this wire, and it no longer exists. continue to the next in 'while items' 
                             continue 
 
+                        # if _merge == True: # If merge is True, lets look for otherwires whose endpoint intersects wire. If so, split
+                        #     for otherWire in [otherWire for otherWire in self.schematic.scene().collidingItems(wire) if isinstance(otherWire, WireItem)]: 
+                                
                         if _merge == True: # If merge is still True, lets look for wires orthagonal @ pos. If so, _merge=False. 
-                            for otherWire in [otherWire for otherWire in self.schematic.scene().collidingItems(wire) if isinstance(otherWire, WireItem)]: # Check for orthagonal wires, no need to merge if any orthagonal wires
+                            print('CHECKING FOR ORTHAGONALS AT POS')
+                            otherWires = [otherWire for otherWire in self.schematic.scene().collidingItems(wire) if isinstance(otherWire, WireItem)]
+                            print('FOUND', len(otherWires), 'OTHER WIRES COLLIDING WITH WIRE')
+                            for otherWire in otherWires: # Check for orthagonal wires, no need to merge if any orthagonal wires
+                                # print('WIRE.SCENETERMINALS():', wire.sceneTerminals())
+                                # print('OTHERWIRE.SCENETERMINALS():', otherWire.sceneTerminals())
                                 if any(otherTerminal == pos for otherTerminal in otherWire.sceneTerminals()): # Check wire, otherWire, are adjacent @ pos # TODO: at this point , do a wire-end-check: check that wire @ pos IS connected to another wire @ pos (otherwise wire ends here, and thats a special case )
+                                        # print("ONE OF THE TERMINALS OF AN OTHER WIRE MATCHES WITH WIRE'S")
                                         if Utils.wiresAreOrthagonal(wire, otherWire):  # We will not be merging at this pos if there are any orthagonal wires 
                                             _merge = False 
+                                            print('ORTHAGONAL WIRE FOUND. NO MERGE.')
+                                            break # Onc we find one orthagonal, we can stop looking, we know not to merge 
+                                        
                         if _merge == True: #  If merge still True, then there were no Symbols on pos, and no orthagonals on pos, and pos is not a wire end. Check for collinear (possibly adjacent, possibly intersecting) wires to wire and we need to merge them.
                             for otherWire in [otherWire for otherWire in self.schematic.scene().collidingItems(wire) if isinstance(otherWire, WireItem)]:
                                 # Check wire, otherWire are collinear adjacent or collinear overlap
-                                if Utils.wiresAreCollinearIntersecting(wire, otherWire):
-                                    print('MERGING WIRES')
-                                    merged = merge(pos, wire, otherWire)
-                                    items.append(merged)
-                                    wireNormal = False
-                                    continue # to the next item in 'while items'
+                                if any(otherTerminal == pos for otherTerminal in otherWire.sceneTerminals()): # Check wire, otherWire, are adjacent @ pos; we are only doing a merge for this particular pos at the moment. ACTUALLY, gotta account for overlapping collinears, so consider all wires not just adjacent
 
+                                    if Utils.wiresAreCollinearIntersecting(wire, otherWire): # Very specifically, we are looking for wires, which are collinear, and intersecting, yet NOT intersecting at endpoints; NOT adjacent, just overlapping
+ 
+                                        print('MERGEABLE WIRES FOUND. MERGING:')
+                                        print('WIRE.SCENETERMINALS():', wire.sceneTerminals())
+                                        print('OTHERWIRE.SCENETERMINALS():', otherWire.sceneTerminals()) 
 
-
-                            # if len(points) <= 2: # NOTE len(points) ALWAYS one bc I phased out points.append
-                            #     print(f'MERGE REQUIRES 3+ POINTS BUT LEN(POINTS) = {len(points)})')
-                            #     # continue # to the next item in 'while items'
-                            #     _merge = False 
-                                
-                            # if _merge == True: 
-                            #     # points , row, col, data, merged = merge(pos, wire, otherWire, points , row, col, data)
-                                
-                            #     merged = merge(pos, wire, otherWire)
-                            #     items.append(merged)
-                            #     wireNormal = False
-                            #     continue # to the next item in 'while items'
+                                        merged = merge(pos, wire, otherWire)
+                                        items.append(merged) # Add merged to items, then break out of 'while items'
+                                        wireNormal = False
+                                        break # Break out of 'for otherWire in otherWires'
+                            if not wireNormal: 
+                                # continue# to the next item in 'while items'
+                                break # break out of 'while items'. If we merge, it better be the last thing we do at pos
                         
-                        # Reaching this point means wireNormal, and we want to add wire to our vein 
+                        # Reaching this point means wire is normal. Add wire to our vein 
                         print('WIRENORMAL')
                         if not (wire in vein[Utils.SchematicItemKinds.Wire.value]): 
                             vein[Utils.SchematicItemKinds.Wire.value].append(wire)
-                        print()
-                        print('VEIN:', len(vein[Utils.SchematicItemKinds.Wire.value]), vein)
-                        # if any(terminal == pos for terminal in wire.sceneTerminals()): # Then this wire is connected to this pos. 
+                        # print()
+                        print('VEIN WIRES:', len(vein[Utils.SchematicItemKinds.Wire.value]), vein)
                         if wire.veinId() is not None: 
                             self.connectedVeins.add(wire.veinId())
 
@@ -739,25 +658,9 @@ class MainWindow(QMainWindow):
 
                         if ( distal not in positionQueue) and (distal not in visitedPositions) : 
                             positionQueue.append(distal)
-                            # points.append(distal)
                             print('DISTAL:', distal.toPoint())
-                            # print('POINTS:', points)
 
-                            # index = points.index(pos)
-                            # indexDistal = points.index(distal)
-                            
-                            # row.append(index) 
-                            # row.append(indexDistal) 
-                            
-                            # col.append(index) 
-                            # col.append(indexDistal) 
-
-                            # dist = Utils.distance(distal, pos) 
-                            # data.append(dist)
-                            # data.append(dist)
-                        
-            print('NORMALIZEWIRINGDONE')
-            # return points , row, col, data
+            print('NORMALIZEWIRING DONE')
             return None
         
 ### BEGIN UPDATEVEINS ###
@@ -766,12 +669,12 @@ class MainWindow(QMainWindow):
         vein = defaultdict(list)              
         normalizeWiring(pos)
         print('VEIN:', vein)
-
         print('MW.CONNECTEDVEINS:', self.connectedVeins)
         
         if self.connectedVeins: # Kill any veins which were connected to. Remove that vein from vein, nets, & ratsnest. Connected-to veins will become absorbed into the vein we're currently laying
+            print('KILLING CONNECTED VEINS:')
             for id in self.connectedVeins: 
-                print('ID:', id)
+                print('VEIN ID:', id)
                 print('SELF.VEINS:', self.veins)
                 net2Rm = self.veins.pop(id)['net']
                 print('NET2RM:', net2Rm)
@@ -783,41 +686,43 @@ class MainWindow(QMainWindow):
                 self.ratsnests[net2Rm] = [] 
         
         veinId = max(self.veins) + 1 
-        print('VEINID:', veinId)
+        print('NEW VEIN ID:', veinId)
         # Put vein in veins, nets, and ratsnest
         self.veins[veinId] = vein 
 
-        self.setVeinNets(vein) 
-        
-        if len(vein['nets']) == 1: # Then no DRC error; its good this vein has one net.
-            print('THIS VEIN HAS ONE NET')
-        if len(vein['nets']) > 1: # Then that's bad; DRC error 
-            print('THIS VEIN HAS MORE THAN ONE NET. DRC ERROR')
-            return 
+        net = self.resolveVeinNets(vein) 
+        vein['net'] = net
+        print('RESOLVED VEIN NETS TO:', net)
 
-
-        nets = vein['nets']
-        print('NETS:', nets)
+        # nets = vein['nets']
         
-        if not nets: 
-            # net = None
-            net = Net() 
+        # if not nets: 
+        #     print('something wrong, should have resolved vein nets into Net() at least but nets is: ', nets)
+        #     # net = None
+        #     # net = Net() 
             
-        if len(nets) == 1: 
-            net = nets[0]
+        # if len(nets) == 1: 
+        #     net = nets[0]
 
-        if len(nets) > 1: 
-            print('DRC ERROR: MORE THAN ONE ASSIGNED NET: ', nets)
-            net = nets # Note we still track net chimera as a list rather than a string (?)
+        # if len(nets) > 1: 
+        #     print('DRC ERROR: MORE THAN ONE ASSIGNED NET: ', nets)
+        #     net = nets # Note we still track net chimera as a list rather than a string (?)
             
         if net == None : # Then we're dealing with wires floating in space, and as such, there is no vein to update
-        # if net == Net():     # I changed this but it threw errors so will leave as is for now .
+            print()
+            print('NET == NONE')
             return 
+        
+        # if net == Net():     
+        #     print('NET IS NULL')
+        #     return 
         
         if not self.nets[net]: 
             self.nets[net] = defaultdict(list) 
             
         self.nets[net]['veinIds'].append(veinId)
+        
+# Maybe try keying nets on a frozenset of nets rather than just nets, at least for nets which dont resolve to one net. While this would work, I think better to do what kicad does, and just pretend any extra nets dont exist. After rasing drc warning.
         
         veinPins =vein[Utils.SchematicItemKinds.Pin.value] 
         print()
