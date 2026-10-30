@@ -41,7 +41,6 @@ from Net import Net
         
 
 class MainWindow(QMainWindow):
-    # wiring_action_signal = Signal(int) # This signal emits when the wiring action is triggered ( user presses 'wiring mode' button) ( Signals aren't designed to be reimplemented-- so don't reimplement builtin signals. Instead, create your own Signals)
     on_graphic_assign_all_done = Signal()
 
     def __init__(self):
@@ -441,35 +440,6 @@ class MainWindow(QMainWindow):
 
     def updateVeins(self, pos): 
 
-#         def merge( pos, wire, otherWire ): 
-#             """Merge wires. Given wires must be adjacent at pos; Checks to ensure existence of adjacent collinear wires with no Symbol terminals on pos, nor any orthagonal wires on pos, are implemented elsewhere"""
-
-#             p1 = [wire.p1() , wire.p2()][wire.p2()==pos] 
-#             p2 = [otherWire.p1() , otherWire.p2()][otherWire.p2()==pos]
-#             self.schematic.scene().removeItem(wire)
-#             self.schematic.scene().removeItem(otherWire)
-#             merged = WireItem(*p1.toTuple(), *p2.toTuple())
-#             merged.setPen(QPen(Qt.darkCyan, 1 ))
-#             merged.setVeinId(wire.veinId())
-#             self.schematic.scene().addItem(merged)
-#             return merged
-
-
-#         def split(pos , wire): 
-
-# ### remove/add split to scene
-#             split1 = WireItem(QLineF(wire.p1(), pos))
-#             split2 = WireItem(QLineF(pos, wire.p2()))
-#             split1.setPen(QPen(Qt.magenta, 1))
-#             split2.setPen(QPen(Qt.darkMagenta, 1))
-#             split1.setVeinId(wire.veinId())
-#             split2.setVeinId(wire.veinId())
-#             self.schematic.scene().addItem(split1)
-#             self.schematic.scene().addItem(split2)
-#             self.schematic.scene().removeItem(wire) 
-            
-#             return split1 , split2
-
         def normalizeWiring(pos): 
             """Normalize entire wiring using queues 
             See normalizeWiring Tutorial<LINK TUTORIAL> 
@@ -480,39 +450,63 @@ class MainWindow(QMainWindow):
             a wire is a line segment used to connect things on the schematic. 
             Note difference between 'wires floating in space' and 'wire end' and 'wire terminals'
             'wire(s) floating in space' means wiring never connects to anything, besides other wires. 
-            'wire end' is a point where a wire is not connected to anything else
+            'wire end' is a wire endpoint not connected to anything else
             'wire terminal' is either p1 or p2; its the point where wire can connect to other stuff
-            """
-            
-            def merge( pos, wire, otherWire ): 
-                """Merge wires. Given wires must be adjacent at pos; Checks to ensure existence of adjacent collinear wires with no Symbol terminals on pos, nor any orthagonal wires on pos, are implemented elsewhere"""
+            'junction': a node, a point in the wiring where wires meet end-to-end. Normalizing wiring may involve preserving sensible junctions/ridding unneeded junctions
 
-                p1 = [wire.p1() , wire.p2()][wire.p1()==pos] # Concise code to select whichever point is NOT pos; True/False act like 0/1
-                p2 = [otherWire.p1() , otherWire.p2()][otherWire.p1()==pos] 
+            Algorithm overview:
+            User adds a wiring, or collection of wires, to the scene, or adds a symbol to the scene
+            This algo needs to 'normalize' the wiring, that is, tidy it up, make sure no wires on top of each other, no duplicate wires, no overlapping wires, if you place a symbol terminal on a wire, wire breaks into two on symbol terminal, etc.
+            
+            Begin at any position in the wiring.
+            Find all items at pos.
+            For each position, check all items on pos. Normalize wire, if needed. Denote pos as a junction, if orthagonal wires or symbol terminals present at pos.
+            After all items processed, check if pos is wire end or connected to mergeable wire, & merge if able. Then move on to the next pos 
+            
+                Collect any NetSymbols & ComponentSymbol at pos into vein. If any, mark _junction True 
+                Split any wires which intersect pos, without terminating on pos
+                Split any wires with symbol terminals which intersect intra-segment( not at endpoints )
+                Find any duplicate wires. Merge them.
+                Find any orthagonal wires at pos. If any, mark _junction True
+                Find any orthagonal wires terminating intra-wire(not at endpoints; not adjacent). If any, split wire at intersection point. NOtE This part is never reached, but its ok bc algo tests fine 
+            AFTER Looking & normalizing every item at pos, if _junction is still False, there must be collinear adjacent, non backcrossing wires at pos; there must be mergeable wires at pos. Or, a wire ends at pos. If there are mergeable wires, merge them. 
+            Move to the next position. 
+            """
+
+            def merge(wire, otherWire ): 
+                """Merge wires. Given wires must be collinear and adjacent at pos, though checks to ensure existence of adjacent collinear wires with no Symbol terminals on pos, nor any orthagonal wires on pos, are implemented elsewhere
+                 """
+
+                # p1 = [wire.p1() , wire.p2()][wire.p1()==pos] # Concise code to select whichever point is NOT pos, remember, [0,1][True] acts like [0,1][1]. THIS DNW IN ALL SCENARIOS
+                # p2 = [otherWire.p1() , otherWire.p2()][otherWire.p1()==pos] 
+                x1, y1 = wire.p1().toTuple()
+                x2, y2 = wire.p2().toTuple()
+                x3, y3 = otherWire.p1().toTuple()
+                x4, y4 = otherWire.p2().toTuple()
+
+                xmin = min(x1,x2,x3,x4)
+                xmax = max(x1,x2,x3,x4)
+                ymin = min(y1,y2,y3,y4)
+                ymax = max(y1,y2,y3,y4)
+
+                p1 = (xmin, ymin)
+                p2 = (xmax, ymax)
                 print('P1:', p1)
                 print('P2:', p2)
-                # x1,y1 = wire.p1().toTuple()
-                # x2,y2 = wire.p2().toTuple()
-                # x3,y3 = otherWire.p1().toTuple()
-                # x4,y4 = otherWire.p2().toTuple() 
-
-                # xmin = min(x1, x2, x3, x4) 
-                # ymin = min(y1, y2, y3, y4) 
-                # xmax = max(x1, x2, x3, x4) 
-                # ymax = max(y1, y2, y3, y4) 
                 
                 self.schematic.scene().removeItem(wire)
                 self.schematic.scene().removeItem(otherWire)
                 if otherWire in items: 
                     items.remove(otherWire) # We cannot remove wire from items bc wire already got .pop()ed from items. But we do have to remove otherWire from items as it no longer exists
                 # Also remove wire, otherWire from vein TODO
-                merged = WireItem(*p1.toTuple(), *p2.toTuple())
+                merged = WireItem(*p1, *p2)
                 merged.setPen(QPen(Qt.darkCyan, 1 ))
                 merged.setVeinId(wire.veinId())
                 self.schematic.scene().addItem(merged)
                 return merged
 
-            def split(pos , wire): ### remove/add split to scene
+            def split(pos , wire): ### 
+                """Split wire in two at pos. Remove wire from scene. Add splits to scene. Returns split1, split2, the newly split wires"""
                 split1 = WireItem(QLineF(wire.p1(), pos))
                 split2 = WireItem(QLineF(pos, wire.p2()))
                 split1.setPen(QPen(Qt.magenta, 1))
@@ -525,15 +519,10 @@ class MainWindow(QMainWindow):
                 
                 return split1 , split2
             
-            # G = [[]] 
             print()
             print('NORMALIZEWIRING')
-            # row = []  # row col data as in scipy COOrdinate format 
-            # col = [] 
-            # data = [] 
             visitedPositions = []
             positionQueue = [pos] 
-            # points = [pos] # list of points. indices of points correspond to adjacencyMatrix 
             
             while positionQueue: 
                 pos = positionQueue.pop(0)
@@ -543,20 +532,19 @@ class MainWindow(QMainWindow):
 
                 print()
                 print('POS:', pos.toPoint())
-                _merge = True # flag merge indicates whether there are collinear adjacent or overlapping wires to merge at pos. Will not merge, if adjacent orthagonal wires, or Symbol terminals, are present at pos
+                _junction = False # flag _junction tracks whether this pos makes for a wiring junction. A junction would have a symbol terminal, and/or an orthagonal adjacent wire @ pos. If pos does not make for a wiring junction, there are mergeable wires present (aka collinear adjacent, nonbackcrossing) @ pos.
                 
-                # for item in self.schematic.scene().items(pos): #  Usage of WHILE loops not for loops, so as to be able to add split/merged wires a
+                # for item in self.schematic.scene().items(pos): #  Usage of WHILE loops not for loops, so as to be able to add split/merged wires back into items
                 items = self.schematic.scene().items(pos) 
                 while items: 
                     item = items.pop(0)
                     if not isinstance(item,( WireItem, Symbol) ):  # Ignore the seeker, which is a QGraphicsEllipseItem
                         continue 
-                
-                    print('ITEM IS:', type(item))
+# Collect net info from symbols into vein
                     if isinstance(item, Symbol): # Symbol includes ComponentSymbol, NetSymbol, Label 
                         # sceneTerminals = item.sceneTerminals() # For ComponentSymbol, sceneTerminals
                         if any(otherTerminal == pos for otherTerminal in item.sceneTerminals()): # If there is a symbol terminal at pos, we do not want to merge adjacent wires
-                            _merge = False 
+                            _junction = True 
                             # Collect pins and symbols and labels into vein
                             if isinstance(item, ComponentSymbol):
                                 for pin in item.pins(): 
@@ -569,18 +557,33 @@ class MainWindow(QMainWindow):
 
                     if isinstance(item, WireItem): 
                         wire = item 
-                        # print('WIRE.SCENETERMINALS():', wire.sceneTerminals())
-                        if not any(terminal == pos for terminal in wire.sceneTerminals()): # Then this wire intersects pos, withoug terminating on pos; therefore we must split wire
-                            print('WIRE NOT TERMINATING ON POS.')
-                            print('SPLITTING WIRE')
+                        print('WIRE.SCENETERMINALS():', wire.sceneTerminals())
+                        wireNormal = True # This flag indicates whether or not the wire is 'normal' -- abnormal wires will get either split or merged, and then cease to be processed, while normal wires are included as part of the vein
+                        
+                        if not any(terminal == pos for terminal in wire.sceneTerminals()): # Then this wire intersects pos, without terminating on pos; therefore we must split wire
+                            print('WIRE DOES NOT TERMINATE ON POS. SPLITTING WIRE')
                             split1, split2 = split(pos, wire)
                             items.append(split1)
                             items.append(split2)
-                            wireNormal = False
                             continue # If we split a wire, we need to stop processing this wire, since we took it off the scene. Go to the next item in items. 
                         
-                        wireNormal = True # This flag indicates whether or not the wire is 'normal' -- abnormal wires get either split or merged, and then cease to be processed, while normal wires are processed as part of the vein
-                        
+#Lets look for wires equal to wire. equal wires have same p1 and p2. Can be placed by user and definitely are placed as result of split()
+                        print('CHECKING FOR EQUALS TO WIRE')
+                        # otherWires = [otherWire for otherWire in self.schematic.scene().collidingItems(wire) if isinstance(otherWire, WireItem)]
+                        # for otherWire in otherWires: 
+                        for otherWire in [otherWire for otherWire in self.schematic.scene().items(pos) if isinstance(otherWire, WireItem) and  (not otherWire is wire)]:
+
+                            # print('WIRE.SCENETERMINALS():', wire.sceneTerminals())
+                            # print('OTHERWIRE.SCENETERMINALS():', otherWire.sceneTerminals())
+                            if Utils.wiresAreEqual(wire,otherWire): 
+                                print('EQUAL WIRE FOUND')
+                                merged = merge( wire, otherWire)
+                                items.append(merged) # Add merged to items
+                                wireNormal = False
+                                break # Break out of 'for otherWire in otherWires'
+                        if not wireNormal: 
+                            continue # If we merged, then wire no longer exists, onto the next item in 'while items'
+# Look for symbol junctions. If any found, split and then cease processing wire, and move on to the next in 'while items'
                         #for symbols terminating inside wire segment: 
                         for symbol in [i for i in self.schematic.scene().collidingItems(wire) if isinstance(i, Symbol)] : 
                             for symbolTerminal in symbol.sceneTerminals(): 
@@ -591,8 +594,6 @@ class MainWindow(QMainWindow):
                                     if (symbolTerminal not in positionQueue) and (symbolTerminal not in visitedPositions):
                                         positionQueue.append(symbolTerminal)
                                         print('SPLITTING')
-                                        # points.append(symbolTerminal)
-                                        # points, row, col, data, split1, split2 = split(pos, wire, points, row, col, data)
                                         split1, split2 = split(pos, wire)
                                         items.append(split1)
                                         items.append(split2)
@@ -604,48 +605,61 @@ class MainWindow(QMainWindow):
                         if not wireNormal: # Then we split this wire, and it no longer exists. continue to the next in 'while items' 
                             continue 
 
-                        # if _merge == True: # If merge is True, lets look for otherwires whose endpoint intersects wire. If so, split
-                        #     for otherWire in [otherWire for otherWire in self.schematic.scene().collidingItems(wire) if isinstance(otherWire, WireItem)]: 
-                                
-                        if _merge == True: # If merge is still True, lets look for wires orthagonal @ pos. If so, _merge=False. 
-                            print('CHECKING FOR ORTHAGONALS AT POS')
-                            otherWires = [otherWire for otherWire in self.schematic.scene().collidingItems(wire) if isinstance(otherWire, WireItem)]
-                            print('FOUND', len(otherWires), 'OTHER WIRES COLLIDING WITH WIRE')
-                            for otherWire in otherWires: # Check for orthagonal wires, no need to merge if any orthagonal wires
-                                # print('WIRE.SCENETERMINALS():', wire.sceneTerminals())
-                                # print('OTHERWIRE.SCENETERMINALS():', otherWire.sceneTerminals())
-                                if any(otherTerminal == pos for otherTerminal in otherWire.sceneTerminals()): # Check wire, otherWire, are adjacent @ pos # TODO: at this point , do a wire-end-check: check that wire @ pos IS connected to another wire @ pos (otherwise wire ends here, and thats a special case )
-                                        # print("ONE OF THE TERMINALS OF AN OTHER WIRE MATCHES WITH WIRE'S")
-                                        if Utils.wiresAreOrthagonal(wire, otherWire):  # We will not be merging at this pos if there are any orthagonal wires 
-                                            _merge = False 
-                                            print('ORTHAGONAL WIRE FOUND. NO MERGE.')
-                                            break # Onc we find one orthagonal, we can stop looking, we know not to merge 
+#Lets look for junctions made by other wires orthagonal to wire. Junction @ pos, _junction=True. Junction at wire distal, ignore. Otherwise, Junction is inter-wire, split wire.
+                        print('CHECKING FOR ORTHAGONALS TO WIRE:')
+                        otherWires = [otherWire for otherWire in self.schematic.scene().collidingItems(wire) if isinstance(otherWire, WireItem)]
+                        # print('FOUND', len(otherWires), 'OTHER WIRES COLLIDING WITH WIRE')
+                        for otherWire in otherWires: 
+                            if Utils.wiresAreOrthagonal(wire,otherWire):
+                                if Utils.wiresAreAdjacentAtPos(wire, otherWire, pos): # Then there is a junction here, there is no merge to take place at pos 
+                                    print('FOUND WIRE ORTHAGONAL AT POS. SET _junction TRUE.')
+                                    _junction = True 
+                                    continue 
+                                else: 
+                                    
+                                    if wire.p1() == pos: 
+                                        distal = wire.p2()
+                                    elif wire.p2() == pos: 
+                                        distal = wire.p1() 
                                         
-                        if _merge == True: #  If merge still True, then there were no Symbols on pos, and no orthagonals on pos, and pos is not a wire end. Check for collinear (possibly adjacent, possibly intersecting) wires to wire and we need to merge them.
-                            for otherWire in [otherWire for otherWire in self.schematic.scene().collidingItems(wire) if isinstance(otherWire, WireItem)]:
-                                # Check wire, otherWire are collinear adjacent or collinear overlap
-                                if any(otherTerminal == pos for otherTerminal in otherWire.sceneTerminals()): # Check wire, otherWire, are adjacent @ pos; we are only doing a merge for this particular pos at the moment. ACTUALLY, gotta account for overlapping collinears, so consider all wires not just adjacent
+                                    if Utils.wiresAreAdjacentAtPos(wire, otherWire, distal): # If wires junction at wire distal, we know we will catch it later
+                                        continue 
+                                    # else: # if intersect some where inter-segement: # This loop never actually executes--(algo tests fine so its fine) must be locked out by other conditions
+                                    #     print('FOUND WIRE ORTHAGONAL INTRA-SEGEMENT. SPLITTING.')
+                                    #     split1, split2 = split(pos, wire) # TODO: SPLIT WIRE @ POS IS POINTLESS. SHOULD BE SPLITTING WIRE @ INTERSECTION W/OTHERWIRE
+                                    #     #add one split, the split w/pos, back to items. Both splits are added to scene 
+                                    #     if split1.p1() == pos or split1.p2() == pos: 
+                                    #         items.append(split1)
+                                    #     elif split2.p1() == pos or split2.p2() == pos:
+                                    #         items.append(split2)
+                                    #     wireNormal=False 
+                                    #     break # break out of 'for otherWire in otherWires'
+                            
+                        if not wireNormal: # If there was an orthagonal junction, then we split wire, thus wire no longer exists, thus continue to the next in 'while items' 
+                            continue 
+#Look for overlapping wires(wires intersecting at 1+ points. That means collinear, and ranges overlap, endpoint exclusive) If any found, merge.
+                        # B/c of previous check for junctions,  @ this point, we know any overlappers wont have junctions on wire; we can merge 
+                        otherWires = [otherWire for otherWire in self.schematic.scene().collidingItems(wire) if isinstance(otherWire, WireItem)]
+                        for otherWire in otherWires: 
+                            if Utils.wiresAreOverlapping(wire, otherWire):
+                                print('OVERLAPPING WIRES FOUND. MERGING:')
+                            # if Utils.wiresAreCollinearIntersecting(wire,otherWire):
+                                print('COLLINEAR INTERSECTING FOUND. MERGING')
+                                print('WIRE.SCENETERMINALS():', wire.sceneTerminals())
+                                print('OTHERWIRE.SCENETERMINALS():', otherWire.sceneTerminals()) 
 
-                                    if Utils.wiresAreCollinearIntersecting(wire, otherWire): # Very specifically, we are looking for wires, which are collinear, and intersecting, yet NOT intersecting at endpoints; NOT adjacent, just overlapping
- 
-                                        print('MERGEABLE WIRES FOUND. MERGING:')
-                                        print('WIRE.SCENETERMINALS():', wire.sceneTerminals())
-                                        print('OTHERWIRE.SCENETERMINALS():', otherWire.sceneTerminals()) 
+                                merged = merge( wire, otherWire)
+                                items.append(merged) # Add merged to items, then break out of 'while items'
+                                wireNormal = False
+                                break # Break out of 'for otherWire in otherWires'
+                        if not wireNormal: 
+                            continue # break out of 'while items'.  THINK THIS SHOULD BE CONTINUE yes but then infinite loop happens 
 
-                                        merged = merge(pos, wire, otherWire)
-                                        items.append(merged) # Add merged to items, then break out of 'while items'
-                                        wireNormal = False
-                                        break # Break out of 'for otherWire in otherWires'
-                            if not wireNormal: 
-                                # continue# to the next item in 'while items'
-                                break # break out of 'while items'. If we merge, it better be the last thing we do at pos
-                        
-                        # Reaching this point means wire is normal. Add wire to our vein 
-                        print('WIRENORMAL')
+                        # Reaching this point means wire is normal; we can use it as an edge in final result, Add wire to our vein and append distal to pQ 
+                        print('WIRE IS NORMAL')
                         if not (wire in vein[Utils.SchematicItemKinds.Wire.value]): 
                             vein[Utils.SchematicItemKinds.Wire.value].append(wire)
-                        # print()
-                        print('VEIN WIRES:', len(vein[Utils.SchematicItemKinds.Wire.value]), vein)
+                        # print('VEIN WIRES:', len(vein[Utils.SchematicItemKinds.Wire.value]), vein)
                         if wire.veinId() is not None: 
                             self.connectedVeins.add(wire.veinId())
 
@@ -659,7 +673,22 @@ class MainWindow(QMainWindow):
                         if ( distal not in positionQueue) and (distal not in visitedPositions) : 
                             positionQueue.append(distal)
                             print('DISTAL:', distal.toPoint())
+                
+                if not _junction: # At this point, we have checked EVERY ITEM AT POS. if _junction is still False, @ pos, should be either one item(wire) or two items, both WireItems, which are collinear and adjacent and non-back-crossing. merge them, then we are DONE with pos, in fact, we just merged pos away; pos was found to NOT be a junction. 
+                    print('MERGE IS TRUE')
+                    print('SHOULD BE ZERO OR JUST ONE MERGEABLE WIRE @ POS')
+                    wires = [otherWire for otherWire in self.schematic.scene().items(pos) if isinstance(otherWire, WireItem)]
+                    print('WIRES:',len(wires), wires)
+                    if not wires: 
+                        print('NO WIRES?')
 
+                    elif len(wires) == 1: 
+                        print('POS IS WIRE END')
+                    elif len(wires) == 2: 
+                        print('MERGING WIRES @ POS')
+                        merged = merge( wires[0], wires[1])
+                    # At this point, we are DONE with current pos, having found it NOT to be a junction. We merged the only two collinear adjacent wires @pos (or did nothing, if there was only one wire at pos) and now we expect items to be empty, and we will continue to add distals of wire to pQ, then go to next position.
+                    print('AT THIS POINT EXPECT ITEMS TO BE EMPTY:', len(items), items)
             print('NORMALIZEWIRING DONE')
             return None
         

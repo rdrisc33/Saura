@@ -181,6 +181,17 @@ class Utils:
             b1, b2 = b2, b1
         # Its a mindfuck, but ranges overlap if the start of one range is <= end of the other AND vice versa
         return a1 <= b2 and b1 <= a2
+    
+    @staticmethod
+    def rangesOverlapEndpointExclusive(a1,a2 , b1,b2) : 
+        """Returns True if ranges overlap, excluding endpoints"""
+        # First, make sure that ranges are 'well ordered':  n1 < n2 
+        if a1 > a2: 
+            a1, a2 = a2, a1 # Switch 1&2
+        if b1 > b2: 
+            b1, b2 = b2, b1
+            
+        return a1 < b2 and b1 < a2
 
     @staticmethod
     def wiresAreOrthagonal(wire1, wire2): 
@@ -209,11 +220,59 @@ class Utils:
             return True
         
         return False 
+
+    @staticmethod
+    def wiresAreAdjacentAtPos( wire1, wire2, pos):
+        """Returns True if wire1 and wire2 are adjacent at pos. Wires must be nonzero length, though there are no checks for that here """
+
+        p1 = wire1.p1()
+        p2 = wire1.p2()
+        p3 = wire2.p1()
+        p4 = wire2.p2()
+        print()
+        print('P1:', p1)
+        print('P2:', p2)
+        print('P3:', p3)
+        print('P4:', p4)
+        print('POS:', pos)
+        if (p1 == pos or p2 == pos) and (p3 == pos or p4 == pos):
+            print('WIRES ADJACENT AT POS')
+            return True
+
+        return False     
     
     @staticmethod
-    def wiresAreCollinearIntersecting( wire1, wire2):
-        """Returns True if wire1 and wire2 are collinear and intersect, within segment; NOT at endpoints.
-        Note a collinear intersection might see wire1 'contained' fully within wire2, or, they may overlap a bit, or, they may be adjacent."""
+    def wiresAreAdjacent( wire1, wire2):
+        """Returns True if wire1 and wire2 connect at an endpoint, or both endpoints . Wires must be nonzero length, though there are no checks for that here """
+
+        p1 = wire1.p1()
+        p2 = wire1.p2()
+        p3 = wire2.p1()
+        p4 = wire2.p2()
+        
+        if (p1 == p3 or p1 == p4) or (p2 == p3 or p2 == p4):
+            return True
+
+        return False     
+    
+    @staticmethod
+    def wiresAreEqual( wire1, wire2):
+        """Returns True if wire1 and wire2 have the same endpoints. Wires must be nonzero length, though there are no checks for that here """
+
+        p1 = wire1.p1()
+        p2 = wire1.p2()
+        p3 = wire2.p1()
+        p4 = wire2.p2()
+        
+        if (p1 == p3 or p1 == p4) and (p2 == p3 or p2 == p4):
+            return True
+
+        return False     
+    
+    @staticmethod
+    def wiresAreCollinearAdjacent( wire1, wire2):
+        """Returns True if wire1 and wire2 are collinear and adjacent. Adjacent means intersect at endpoints; joined end to end.
+        Note collinear adjacency might see wire1 'double back' into wire2 or viceversa. Collinear adjacent wires might even be equal """
 
         p1 = wire1.p1()
         p2 = wire1.p2()
@@ -229,22 +288,74 @@ class Utils:
         numZeroes = orientations.count(0)
         
         if numZeroes == 4: #Then these lines are collinear. Check if they are adjacent collinear, or overlapping collinear, or nonintersecting
+            if p1 == p3 or p1 == p4 or p2 == p3 or p2 == p4: #Then these lines are adjacent
+                return True
+
+        return False 
+
+
+
+    @staticmethod
+    def wiresAreCollinearIntersecting(wire1, wire2): 
+        """Returns True if  wire1 and wire2 are collinear and intersect. """
+        
+        p1 = wire1.p1()
+        p2 = wire1.p2()
+        p3 = wire2.p1()
+        p4 = wire2.p2()
+
+        orient1 = Utils.threePointOrientation(p1,p2,p3) 
+        orient2 = Utils.threePointOrientation(p1,p2,p4)
+        orient3 = Utils.threePointOrientation(p3,p4,p1)
+        orient4 = Utils.threePointOrientation(p3,p4,p2)
+        
+        orientations = [orient1, orient2, orient3, orient4]
+        numZeroes = orientations.count(0)
+        
+        if numZeroes == 4: #Then these lines are collinear. Still have to check if they intersect or not
 
             x1, y1 = p1.toTuple() 
             x2, y2 = p2.toTuple()
             x3, y3 = p3.toTuple()
             x4, y4 = p4.toTuple()
     
-            # Test if X range overlaps: 
-            xOverlap = Utils.rangesOverlap(x1, x2, x3, x4)
-            yOverlap = Utils.rangesOverlap(y1, y2, y3, y4) 
-            # if xOverlap or yOverlap: # If x-rangesoverlap OR y-ranges overlap, these lines overlap PRETTY SURE THIS NEEDS TO BE AND 
-            if xOverlap and yOverlap:
-                # return ( Utils.JunctionType.CollinearOverlap ,)
-                return True 
+            # Test if both x and y ranges overlap: One of the ranges will definitely overlap, because the lines are collinear. If both ranges overlap, then the lines intersect
+            xOverlap = Utils.rangesOverlap(x1, x2 , x3 , x4)
+            yOverlap = Utils.rangesOverlap(y1, y2 , y3, y4) 
+            if xOverlap and yOverlap: 
+                return True
             
-        return False # This needs to be tested. Think I was getting perp wires reporting as true aaaaand I was, tho I have no clue why...
+    @staticmethod # I don't like this definition of 'overlap' bc it has no geomeyrical definition
+    def wiresAreOverlapping(wire1, wire2): 
+        """Returns True if  wire1 and wire2 overlap; intersect at >1 point. In order for wires to overlap, they must be collinear """
+        
+        p1 = wire1.p1()
+        p2 = wire1.p2()
+        p3 = wire2.p1()
+        p4 = wire2.p2()
+
+        orient1 = Utils.threePointOrientation(p1,p2,p3) 
+        orient2 = Utils.threePointOrientation(p1,p2,p4)
+        orient3 = Utils.threePointOrientation(p3,p4,p1)
+        orient4 = Utils.threePointOrientation(p3,p4,p2)
+        
+        orientations = [orient1, orient2, orient3, orient4]
+        numZeroes = orientations.count(0)
+        
+        if numZeroes == 4: #Then these lines are collinear. Check if they are adjacent collinear, or overlapping collinear, or nonintersecting
+
+            x1, y1 = p1.toTuple() 
+            x2, y2 = p2.toTuple()
+            x3, y3 = p3.toTuple()
+            x4, y4 = p4.toTuple()
     
+            # Test if both x and y ranges overlap: One of the ranges will definitely overlap, because the lines are collinear. If both ranges overlap, then the lines intersect
+            # Note usage of 'greater than' and 'lesser than' , instead of 'greater than or equal to' and 'lesser than or equal to'. This is because for wires to overlap, intersection must happen at two+ points, so we test exclusive of endpoints 
+            xOverlap = Utils.rangesOverlapEndpointExclusive(x1, x2 , x3 , x4)
+            yOverlap = Utils.rangesOverlapEndpointExclusive(y1, y2 , y3, y4) 
+            if xOverlap and yOverlap: 
+                return True
+                
     @staticmethod
     def junction(line1, line2): 
         """Returns a tuple which differs depending on junction type of line1 and line2. 
@@ -258,11 +369,6 @@ class Utils:
         p2 = line1.p2()
         p3 = line2.p1()
         p4 = line2.p2()
-        
-        x1, y1 = p1.toTuple() 
-        x2, y2 = p2.toTuple()
-        x3, y3 = p3.toTuple()
-        x4, y4 = p4.toTuple()
 
         orient1 = Utils.threePointOrientation(p1,p2,p3) 
         orient2 = Utils.threePointOrientation(p1,p2,p4)
@@ -272,11 +378,11 @@ class Utils:
         orientations = [orient1, orient2, orient3, orient4]
         numZeroes = orientations.count(0)
         
-        if numZeroes == 1: # Then this is a Tee intersection. Will split, if no 'L' @ split point 
+        if numZeroes == 1: # Then this is a Tee intersection. Will split, if no 'L' @ split point # TODO PRETTY SURE THIS STATEMENT IS INCORRECT
             zero = [orient1, orient2, orient3, orient4].index(0) # Find the idx of the single zero. We can tell how we should split based on which orient is 0.
             return ( Utils.JunctionType.Tee , zero )
         
-        elif numZeroes == 2: # Then this is a L intersection. No action.
+        elif numZeroes == 2: # Then this is a L intersection. No action. # TODO PRETTY SURE numZeroes==2 COULD ALSO MEAN TEE
             return ( Utils.JunctionType.L , orientations) 
         
         elif numZeroes == 4: #Then these lines are collinear. Check if they are adjacent collinear, or overlapping collinear, or nonintersecting
@@ -288,10 +394,9 @@ class Utils:
                 x3, y3 = p3.toTuple()
                 x4, y4 = p4.toTuple()
         
-                # Test if X range overlaps: 
+                # Test if both x and y ranges overlap: One of the ranges will definitely overlap, because the lines are collinear. If both ranges overlap, then the lines intersect
                 xOverlap = Utils.rangesOverlap(x1, x2 , x3 , x4)
                 yOverlap = Utils.rangesOverlap(y1,y2 , y3, y4) 
-                # if xOverlap or yOverlap: # If x-rangesoverlap OR y-ranges overlap, these lines overlap # PRETTY SURE THIS NEEDS TO BE AND 
                 if xOverlap and yOverlap: 
                     return ( Utils.JunctionType.CollinearOverlap ,)
                 
