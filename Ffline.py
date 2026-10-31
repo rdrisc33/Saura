@@ -22,6 +22,7 @@ class Ffline:
         layers = [ self.scene().activeLayer() ]
         print()
         print('TRACEWIDTH', self.scene().traceWidth())
+        print('NET:', self.net())
         self._traceA = Trace(layers, self.scene().traceWidth(), self.net(), None, self._lineA )
         self._traceB = Trace(layers, self.scene().traceWidth(), self.net(), None, self._lineB)
         self.traces = [self._traceA , self._traceB]

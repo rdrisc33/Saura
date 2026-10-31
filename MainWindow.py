@@ -77,11 +77,10 @@ class MainWindow(QMainWindow):
         
         database.changed.connect(self.reloadPart) # When the database changes, reload all parts on all scenes
         
-### Had many issues adding part to both brdScene & schScene @same time-- I ended up creating a signal, to .emit on a sceneDropEvent, .connecting that symbol at the MainWindow level, below: ### I THINK it'd be better to have a BoardScene & symbolScene subclass...
+### How to add part to both brdScene & schScene @same time-- Use a signal, to .emit on a sceneDropEvent, .connecting that symbol at the MainWindow level, below: 
         
         self.schematic.scene().droppedPart.connect(self.placePart)
         self.board.scene().droppedPart.connect(self.placePart)
-        
         
         self.schematic.scene().deleteComponent.connect(self.deletePart)
         self.board.scene().deleteComponent.connect(self.deletePart)
@@ -441,7 +440,8 @@ class MainWindow(QMainWindow):
     def updateVeins(self, pos): 
 
         def normalizeWiring(pos): 
-            """Normalize entire wiring using queues 
+            """Normalize entire wiring using queues. Collect wires, pins, NetSymbols, Labels, into vein as we go.
+            The only known case where this dnw is when adding an overlapping wire to the wiring. NOthing huge, just won't merge. But that is a future problem
             See normalizeWiring Tutorial<LINK TUTORIAL> 
             Note usage of break break continue to stop processing a wire which needs to be split/merged.
             Note usage of while loops rather than for loops so as to be able to add split/merged wires as they're created
@@ -455,22 +455,24 @@ class MainWindow(QMainWindow):
             'junction': a node, a point in the wiring where wires meet end-to-end. Normalizing wiring may involve preserving sensible junctions/ridding unneeded junctions
 
             Algorithm overview:
-            User adds a wiring, or collection of wires, to the scene, or adds a symbol to the scene
-            This algo needs to 'normalize' the wiring, that is, tidy it up, make sure no wires on top of each other, no duplicate wires, no overlapping wires, if you place a symbol terminal on a wire, wire breaks into two on symbol terminal, etc.
+            User changes wiring: Adds wire or wires or symbol to the scene, or repositions a symbol or wire.
+            This algo needs to 'normalize' the wiring, that is, tidy it up, make sure no wires on top of each other, no duplicate wires, no overlapping wires, if you place a symbol terminal on a wire, wire breaks into two on symbol terminal, etc. 
             
             Begin at any position in the wiring.
             Find all items at pos.
-            For each position, check all items on pos. Normalize wire, if needed. Denote pos as a junction, if orthagonal wires or symbol terminals present at pos.
-            After all items processed, check if pos is wire end or connected to mergeable wire, & merge if able. Then move on to the next pos 
-            
-                Collect any NetSymbols & ComponentSymbol at pos into vein. If any, mark _junction True 
-                Split any wires which intersect pos, without terminating on pos
-                Split any wires with symbol terminals which intersect intra-segment( not at endpoints )
-                Find any duplicate wires. Merge them.
-                Find any orthagonal wires at pos. If any, mark _junction True
-                Find any orthagonal wires terminating intra-wire(not at endpoints; not adjacent). If any, split wire at intersection point. NOtE This part is never reached, but its ok bc algo tests fine 
+            For each position, check all items intersecting pos. Items may intersect pos, or terminate on pos. Note we denote pos as a junction, if orthagonal wires or symbol terminals present at pos.
+                if item is Symbol:
+                    Collect any NetSymbols & ComponentSymbol & Labels at pos into vein. If any, mark _junction True 
+                If item is Wire: normalize wire, if needed:
+                    Split any wires which intersect pos, without terminating on pos
+                    Split any wires with symbol terminals which intersect intra-segment( not at endpoints )
+                    Find any duplicate wires. Merge them.
+                    Find any orthagonal wires at pos. If any, mark _junction True
+                    Find any orthagonal wires terminating intra-wire(not at endpoints; not adjacent). If any, split wire at intersection point. NOtE This part is never reached, but its ok bc algo tests fine 
+            After all items processed, check if pos is wire end or connected to mergeable wire, in which case merge. Then move on to the next pos 
             AFTER Looking & normalizing every item at pos, if _junction is still False, there must be collinear adjacent, non backcrossing wires at pos; there must be mergeable wires at pos. Or, a wire ends at pos. If there are mergeable wires, merge them. 
             Move to the next position. 
+            
             """
 
             def merge(wire, otherWire ): 
@@ -547,13 +549,16 @@ class MainWindow(QMainWindow):
                             _junction = True 
                             # Collect pins and symbols and labels into vein
                             if isinstance(item, ComponentSymbol):
+                                print('COMPONENT SYMBOL PINS:', item.pins())
+                                
                                 for pin in item.pins(): 
+                                    print('PIN SCENETERMINAL:', pin.sceneTerminal())
                                     if pin.sceneTerminal() == pos: 
-                                        print('ADDING PIN')
+                                        print('ADDING PIN TO VEIN')
                                         vein[Utils.SchematicItemKinds.Pin.value].append(pin)
-                            # print('VEIN:', vein)
                             if isinstance(item, NetSymbol):
                                 vein[Utils.SchematicItemKinds.NetSymbol.value].append(item)
+                            # print('VEIN:', vein)
 
                     if isinstance(item, WireItem): 
                         wire = item 
@@ -674,22 +679,24 @@ class MainWindow(QMainWindow):
                             positionQueue.append(distal)
                             print('DISTAL:', distal.toPoint())
                 
-                if not _junction: # At this point, we have checked EVERY ITEM AT POS. if _junction is still False, @ pos, should be either one item(wire) or two items, both WireItems, which are collinear and adjacent and non-back-crossing. merge them, then we are DONE with pos, in fact, we just merged pos away; pos was found to NOT be a junction. 
-                    print('MERGE IS TRUE')
-                    print('SHOULD BE ZERO OR JUST ONE MERGEABLE WIRE @ POS')
-                    wires = [otherWire for otherWire in self.schematic.scene().items(pos) if isinstance(otherWire, WireItem)]
+                if not _junction: # At this point, we have checked EVERY ITEM AT POS. if _junction is still False, pos may be a wire or symbol terminal that is unconnected to anything, @ pos, should be either one item(wire), in which case pos must be a wire end,  or two items, both WireItems, which are collinear and adjacent and non-back-crossing, in which case they should be merged, then we are DONE with pos, in fact, we just merged pos away; pos was found to NOT be a junction. 
+                    print('SHOULD BE UNCONNECTED TERMINAL OR JUST ONE WIRE OR TWO MERGEABLE WIRES @ POS')
+                    wires = [wire for wire in self.schematic.scene().items(pos) if isinstance(wire, WireItem)]
                     print('WIRES:',len(wires), wires)
-                    if not wires: 
-                        print('NO WIRES?')
+                    if not wires: # This would mean pos is an symbol terminal, unconnected to anything
+                        print('NO WIRES?') 
 
                     elif len(wires) == 1: 
                         print('POS IS WIRE END')
+                        
                     elif len(wires) == 2: 
+                        print('POS IS MERGEABLE')
                         print('MERGING WIRES @ POS')
-                        merged = merge( wires[0], wires[1])
+                        merged = merge( wires[0], wires[1]) # We already checked for othagonals, and found none, and backcrossers, and found none, so, these wires must be non backcrossing collinear adjacent, aka, mergeable. 
                     # At this point, we are DONE with current pos, having found it NOT to be a junction. We merged the only two collinear adjacent wires @pos (or did nothing, if there was only one wire at pos) and now we expect items to be empty, and we will continue to add distals of wire to pQ, then go to next position.
                     print('AT THIS POINT EXPECT ITEMS TO BE EMPTY:', len(items), items)
             print('NORMALIZEWIRING DONE')
+            print('VEIN:', vein)
             return None
         
 ### BEGIN UPDATEVEINS ###
@@ -722,29 +729,11 @@ class MainWindow(QMainWindow):
         net = self.resolveVeinNets(vein) 
         vein['net'] = net
         print('RESOLVED VEIN NETS TO:', net)
-
-        # nets = vein['nets']
-        
-        # if not nets: 
-        #     print('something wrong, should have resolved vein nets into Net() at least but nets is: ', nets)
-        #     # net = None
-        #     # net = Net() 
-            
-        # if len(nets) == 1: 
-        #     net = nets[0]
-
-        # if len(nets) > 1: 
-        #     print('DRC ERROR: MORE THAN ONE ASSIGNED NET: ', nets)
-        #     net = nets # Note we still track net chimera as a list rather than a string (?)
             
         if net == None : # Then we're dealing with wires floating in space, and as such, there is no vein to update
             print()
             print('NET == NONE')
             return 
-        
-        # if net == Net():     
-        #     print('NET IS NULL')
-        #     return 
         
         if not self.nets[net]: 
             self.nets[net] = defaultdict(list) 
@@ -887,7 +876,7 @@ class MainWindow(QMainWindow):
     def onTableClicked(self, part):
         pass
 
-    def placePart(self, part, event , sourceWidget): # Drop a part onto the board's & schematic's respective scenes ( the board gets a footprint, the schematic gets a symbol ) # Source_widget: a number, representing where this signal came in from
+    def placePart(self, part, event , sourceWidget): # Place a part onto the board's & schematic's respective scenes ( the board gets a footprint, the schematic gets a symbol ) # Source_widget: a number, representing where this signal came in from, either the board, or schematic.
         print()
         print('placePart')
         # print('SOURCE_WIDGET:', sourceWidget)
@@ -906,16 +895,18 @@ class MainWindow(QMainWindow):
         
         
         if sourceWidget == MyWidgets.Schematic.value:
-            component.symbolItem().setPos(self.schematic.scene().snapToGrid(event.scenePos())) # Add symbol lined up on the grid 
-            component.footprintItem().setPos(55,55)
-            
+            component.symbolItem().setPos(self.schematic.scene().snapToGrid(event.scenePos()))  # line symbol up on the grid 
+            component.footprintItem().setPos(55,55)                                             # footprint @ arbitrary pos 
+            self.schematic.scene().addItem(component.symbolItem())
+            self.board.scene().addItem(component.footprintItem())
+            # for terminal in component.symbolItem().sceneTerminals():                            # Update veins upon symbol placement. This also needs to happen every reposition
+            #     self.updateVeins(terminal)              
+
         elif sourceWidget == MyWidgets.Board.value:
-            component.symbolItem().setPos(111,111)
-            component.footprintItem().setPos(self.board.scene().snapToGrid(event.scenePos()))
-        # print('ADDING ITEMS')
-        
-        self.schematic.scene().addItem(component.symbolItem())
-        self.board.scene().addItem(component.footprintItem())
+            component.symbolItem().setPos(111,111)                                              # Symbol @ arbitrary position
+            component.footprintItem().setPos(self.board.scene().snapToGrid(event.scenePos()))   # Line footprint up with grid
+            self.schematic.scene().addItem(component.symbolItem())
+            self.board.scene().addItem(component.footprintItem())
         
         # self.parts.add(part)
         

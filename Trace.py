@@ -8,8 +8,8 @@ class Trace(ConnectivityItem, QGraphicsLineItem):
     def __init__(self, layers, traceWidth, net=None, parent=None, *args, **kwargs ): 
 
         self._traceWidth = traceWidth
-        self._net = net
         super().__init__( layers, parent=parent, *args, **kwargs)
+        self._net = net
 
         self.setAcceptHoverEvents(True)
         self.setLayers(layers)
@@ -30,7 +30,6 @@ class Trace(ConnectivityItem, QGraphicsLineItem):
 
         self.previousSeekerSide = None # Store the side the seeker was last on. Equals 1 for cw side or 2 for ccw side. Never set equal to 0 only 1 or 2.  
         # self.adjusting = False # Track whether we are adjusting this trace's position
-        self._net = None 
 
         self._slope = None # If slope is undefined, slope is set to the string 'undefined' otherwise slope is a float
         
@@ -137,17 +136,17 @@ class Trace(ConnectivityItem, QGraphicsLineItem):
         p2Bounds = (x2,y2, x2, y2)
         return p2Bounds 
     
-    def snap(self, seeker, net): # Snap seeker to this item, if able 
-        print('TRACEITEM.SNAP')
-        if self._net == net or (self._net == None) or (net == None):
-            if self.snapToTerminal(seeker):
+    # def snap(self, seeker, net): # Snap seeker to this item, if able 
+    #     print('TRACEITEM.SNAP')
+    #     if self._net == net or (self._net == None) or (net == None):
+    #         if self.snapToTerminal(seeker):
 
-                if self._net == None: 
-                    self._net = net 
-                elif net == None: 
-                    net = self._net
+    #             if self._net == None: 
+    #                 self._net = net 
+    #             elif net == None: 
+    #                 net = self._net
                     
-            return True 
+    #         return True 
 
     def snapToTerminal(self, otherItem):
         if otherItem.contains(self.mapToScene(self.line().p1())): 

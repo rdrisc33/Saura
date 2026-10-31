@@ -17,8 +17,6 @@ from DrawScene import DrawScene
 from BoardSeeker import BoardSeeker
     
 class BoardScene( DrawScene, QGraphicsScene):
-# class BoardScene(QGraphicsScene): 
-    # normalMode, addTraceMode, addViaMode, deleteTraceMode = range(4)
 
     dpi = qApp.screens()[0].physicalDotsPerInch()
     # print('DPI', dpi)
@@ -373,6 +371,7 @@ class BoardScene( DrawScene, QGraphicsScene):
         
         if self.ffline is not None: # If there is an existing ffline, we are done with it, add it to scene
             self.ffline.finalize() # Remove traces from scene if any are of 0 length
+            self.ffline.setNet(self.activeNet())
         if self._line : 
             self.removeItem(self._line)
 
@@ -470,6 +469,7 @@ class BoardScene( DrawScene, QGraphicsScene):
                     self.ffline.setPoints(self.startPosition, terminal)
                     snappedToTerminal = True
                     break
+
             elif not self.startPosition: 
                 terminal = hitItem.nearestTerminal(self.seeker.scenePos())
                 print('TERMINAL:', terminal)
@@ -484,7 +484,7 @@ class BoardScene( DrawScene, QGraphicsScene):
         elif not hitItems:
             self.seeker.setPos(self.snapToGrid(event.scenePos())) # snap seeker to grid if we found nothing else to snap to 
             if self.startPosition is not None : # If we previously pressed mouse, we are drawing a trace. Use the mouse position to sense startAngle. Note is not None used because QPoint(0,0) evaluates False while QPoint(1,1) evaluates True; QPoint if testing shouldn't be used, so we compare against None.
-                self.ffline.setPoints(self.startPosition, self.seeker.scenePos()) # This will update the ffline from here to there, as long as no collisions are found, inwhich case the old ffline will persist
+                self.ffline.setPoints(self.startPosition, self.seeker.scenePos()) # This will update the ffline from here to there
 
         print('SCENE.ACTIVENET():', self.activeNet())
 
@@ -549,6 +549,11 @@ class BoardScene( DrawScene, QGraphicsScene):
                
     def mouseMoveEvent(self, event):
         # print('BOARDSCENE.MOUSEMOVEEVENT')
+        
+        activeNet = self.resolveNets(self.netsBeneathPoint(self.seeker.scenePos()))
+        print('ACTIVENET:', activeNet)
+        self.setActiveNet(activeNet)
+        
         super().mouseMoveEvent(event) 
 
         if self.mode() == Utils.BoardSceneMode.NormalMode:

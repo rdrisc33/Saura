@@ -25,8 +25,7 @@ class PinItem( QGraphicsItem):
         r = self.terminalRadius
         # self._terminalItem = TerminalItem(QRectF(-r,-r, 2*r, 2*r) , parent) # Could parent=line_item but a flat hierarchy is more useful. Sign. But then again, no, 
         self._terminalItem = TerminalItem(QRectF(-r,-r, 2*r, 2*r) , self) # Could parent=line_item but a flat hierarchy is more useful. Sign. But then again, no, 
-        self._terminalItem.setPos(x1,y1) # Note that (pin (at xy) ) according to kicad standard defines connection point (terminal) of the pin: https://dev-docs.kicad.org/en/file-formats/sexpr-intro/index.html#_symbol_graphic_items
-        # self._terminals[(x1,y1)] = {'priority': Utils.NetPriority.Pin, 'number':number} # Track position of all terminals 
+        self._terminalItem.setPos(x1,y1) # Note importance of p1, NOT p2, designating terminal of pin. Kicad specs that (pin (at xy) ) defines connection point (terminal) of the pin: https://dev-docs.kicad.org/en/file-formats/sexpr-intro/index.html#_symbol_graphic_items
         self._terminalItem.setPen(QPen(Qt.red, 0)) # keep the left& right topmost pins @same location
         # if self.offset is None:  # We want to offset this item, so that a MyTerminalItem appears at origin, so that this item can line up with the grid.
         #     self.offset = terminal_item.pos()
@@ -68,7 +67,7 @@ class PinItem( QGraphicsItem):
         pass 
 
     def sceneTerminal(self):
-        return self.mapToScene( self.lineItem.line().p1() )
+        return self.mapToScene( self.lineItem.line().p1() ) # 
     
     @classmethod
     def fromElem(cls, elem, parent): #     <pin name="C" number="C" PIN_ELECTRICAL_TYPE="passive" PIN_GRAPHIC_STYLE="line" x1="-7.62" y1="0.0" x2="-5.08" y2="0.0"/>

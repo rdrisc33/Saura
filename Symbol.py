@@ -35,8 +35,16 @@ class Symbol(Reference, QGraphicsItem):
             self.draw_graphics()
 
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges)
 
-
+    # def itemChange(self, change, value): This can be done in MME
+    #     if change == QGraphicsItem.GraphicsItemChange.ItemScenePositionHasChanged: #  The value argument is the new scene position (the same as scenePos()), and QGraphicsItem ignores the return value for this notification (i.e., a read-only notification).
+    #         print('ITEM SCENE POSITION HAS CHANGED')
+    #         for terminal in self.sceneTerminals():
+    #             self.scene().wiringLaid.emit(terminal) # We can use the wiringLaid signal
+            
+    #     return super().itemChange(change, value)
+            
     def boundingRect(self):
         return self.childrenBoundingRect() or QRectF(0,0,0,0) # Note .cBR will include .bR of hidden childrenItems. 
 
@@ -113,12 +121,16 @@ class Symbol(Reference, QGraphicsItem):
         #         wire.setLine( QLineF( wire.line().p1() , self.scene().snapToGrid(event.scenePos() + p2_offset) ) )
 
         self.setPos(self.scene().snapToGrid(event.scenePos() + self.offset))
+            
         
-        self.setSceneTerminals() # We need to setSceneTerminals() on every mouseMove
-        # print('SCENETERMINALS:' ,self.sceneTerminals())
-        
+
     def mouseReleaseEvent(self, event):
         print("MySymbolItem.MouseReleaseEvent")
+        
+        self.setSceneTerminals() # We need to setSceneTerminals() on every reposition. 
+        print('SCENETERMINALS:' ,self.sceneTerminals())
+        for terminal in self.sceneTerminals():
+            self.scene().wiringLaid.emit(terminal) # We can use the wiringLaid signal
         super().mouseReleaseEvent(event) # Release's base implementation handles selection and moving, which we want, so call base implementation
         
     def nameItem(self):

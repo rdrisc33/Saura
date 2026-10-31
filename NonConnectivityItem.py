@@ -15,7 +15,7 @@ class NonConnectivityItem(LayersItem):
 class NonConnectivityLineItem(NonConnectivityItem , QGraphicsLineItem): # Note understanding of Inheritance needed here. Cant inherit QGraphicsItem twice, thus it has to come from LayerLineItem, which means LayerLineItem must go LAST else when .setFlags called, QGI hasn't been init'd yet and will get error
     def __init__(self, layers, *args, **kwargs):
         super().__init__( layers, *args, **kwargs )
-        print(f'NONCONNECTIVITYLINEITEM LAYERS: {layers}')
+        # print(f'NONCONNECTIVITYLINEITEM LAYERS: {layers}')
 
 # class NonConnectivityRectItem(NonConnectivityItem, QGraphicsRectItem): 
 class NonConnectivityRectItem(NonConnectivityItem, AdjustableRect): 

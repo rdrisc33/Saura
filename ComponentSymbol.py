@@ -32,10 +32,6 @@ class ComponentSymbol(Symbol):
 
 # Note setSceneTerminals returns a sequence. Either a list of sceneTerminals, or a dict, of sceneTerminal:pin pairs
 
-        
-
-
-
         # self._sceneTerminals = {}
         # for pin in self.pins():
         #     self._sceneTerminals[ self.mapToScene(pin.lineItem.line().p1()).toTuple() ] = pin 

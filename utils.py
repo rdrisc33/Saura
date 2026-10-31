@@ -229,12 +229,12 @@ class Utils:
         p2 = wire1.p2()
         p3 = wire2.p1()
         p4 = wire2.p2()
-        print()
-        print('P1:', p1)
-        print('P2:', p2)
-        print('P3:', p3)
-        print('P4:', p4)
-        print('POS:', pos)
+        # print()
+        # print('P1:', p1)
+        # print('P2:', p2)
+        # print('P3:', p3)
+        # print('P4:', p4)
+        # print('POS:', pos)
         if (p1 == pos or p2 == pos) and (p3 == pos or p4 == pos):
             print('WIRES ADJACENT AT POS')
             return True
