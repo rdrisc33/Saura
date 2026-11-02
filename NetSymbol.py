@@ -7,11 +7,11 @@ class NetSymbol(Symbol):
         super().__init__(referenceDesignator=referenceDesignator, referenceNumber=referenceNumber, file=file)
         self._sceneTerminals = [] 
 
-    def setSceneTerminals(self):
-        self._sceneTerminals.clear()
-        for pin in self.pins(): 
-            self._sceneTerminals.append(pin.scenePos())
+    # def setSceneTerminals(self):
+    #     self._sceneTerminals.clear()
+    #     for pin in self.pins(): 
+    #         self._sceneTerminals.append(pin.scenePos()) # Think needs to be pin.sceneTerminal, which return pin.p1()
 
     def net(self): 
-        """The net of a NetSymbol is the same as its referenceDesignator"""
+        """The net of a NetSymbol is the same as its referenceDesignator Ex GND 3V3"""
         return self.referenceDesignator()

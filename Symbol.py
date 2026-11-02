@@ -35,16 +35,27 @@ class Symbol(Reference, QGraphicsItem):
             self.draw_graphics()
 
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
-        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsScenePositionChanges)
+        
+    def terminals(self): 
+        self._terminals = [] 
+        for pin in self.pins():
+            self._terminals.append(pin.pos())
+        return self._terminals
+    
+    def sceneTerminals(self):
+        # keys = list(map(QPointF, [t[0] for t in self._sceneTerminals] , [ t[1] for t in self._sceneTerminals]))# Note self_sceneTerminals is keyed on tuples, not QPointF, use map() to revert back to QPointF
+        # self._sceneTerminals: { ( 0,0 ) : <pin> , ... }
+        
+        return self._sceneTerminals # [ ( (0,0) , <pin> ) , ... ]
 
-    # def itemChange(self, change, value): This can be done in MME
-    #     if change == QGraphicsItem.GraphicsItemChange.ItemScenePositionHasChanged: #  The value argument is the new scene position (the same as scenePos()), and QGraphicsItem ignores the return value for this notification (i.e., a read-only notification).
-    #         print('ITEM SCENE POSITION HAS CHANGED')
-    #         for terminal in self.sceneTerminals():
-    #             self.scene().wiringLaid.emit(terminal) # We can use the wiringLaid signal
-            
-    #     return super().itemChange(change, value)
-            
+    def setSceneTerminals(self): # Called by self.mouseMoveEvent
+        self._sceneTerminals = []
+        for pin in self.pins(): 
+            self._sceneTerminals.append( pin.sceneTerminal() )
+        # self._sceneTerminals = {}
+        # for pin in self.pins(): 
+        #     self._sceneTerminals[pin.sceneTerminal().toTuple()] = pin
+        
     def boundingRect(self):
         return self.childrenBoundingRect() or QRectF(0,0,0,0) # Note .cBR will include .bR of hidden childrenItems. 
 
@@ -88,22 +99,14 @@ class Symbol(Reference, QGraphicsItem):
         self.offset = self.scenePos() - event.scenePos()  # Could also utilize event.mouseDownPosition(no could not
         # self.p1_offset = event.scenePos() - p1
         # self.p2_offset = p2 - event.scenePos() #offsets must be recorded at mouse press location ( Hmm but we don't have p1/p2 here )(Gotta record connected wires upon mousePressEvent)
-        # wires = [wire for wire in self.scene().items() if isinstance(wire, WireItem)]
-        # terminals = [ terminal for terminal in self.childItems() if isinstance(terminal, TerminalItem)]
-        # self.connected_wires = {}
-        # for wire in wires: 
-        #     p1 = wire.line().p1()
-        #     print()
-        #     p2 = wire.line().p2() 
-        #     for terminal in terminals: 
-        #         # print('TERMINAL.POS():', terminal.scenePos()) # Must specify scenePos, else will use itemPos, relative to items' 0,0.
-        #         if p1 == terminal.scenePos(): #  This works only if terminal has not yet moved which I believe is the case 
-        #             # print('P1 is connected to a terminal')
-        #             self.connected_wires[wire] = {'point': 'p1' , 'p1_offset': p1 - event.scenePos() }
-        #             # wire.setLine( QLineF( self.snapToGrid(event.scenePos() + self.p1_offset) , wire.line().p2() ) )
-        #         elif p2 == terminal.scenePos():
-        #             self.connected_wires[wire] = {'point': 'p2' , 'p2_offset': p2 - event.scenePos() }
-        #             # wire.setLine( QLineF( wire.line().p1() , self.snapToGrid(event.scenePos() + self.p2_offset)) )
+        items = [item for item in self.collidingItems() if isinstance(item, (WireItem, Symbol))]
+        self.connections = {}
+        for item in items: 
+            for terminal in item.sceneTerminals():
+                for t in self.sceneTerminals():
+                    if terminal == t: # Then self and item connect
+                        self.connections[item] = terminal
+
                     
         # print('SELF.OFFSET:', self.offset)
         super().mousePressEvent(event) 
@@ -111,19 +114,9 @@ class Symbol(Reference, QGraphicsItem):
     def mouseMoveEvent(self, event): 
         # print("MOUSEMOVEEVENT")
         # print('EVENT.SCENEPOS:', event.scenePos())
-        
-        # for wire in self.connected_wires: # I have to find offsets of connected_wires, in order to move connected wires when user moves item. Record connected_wire offsets in mousePress, and move the wires in mouseMove
-        #     if self.connected_wires[wire]['point'] == 'p1': 
-        #         p1_offset =  self.connected_wires[wire]['p1_offset']
-        #         wire.setLine( QLineF( self.scene().snapToGrid(event.scenePos() +p1_offset) , wire.line().p2() ) ) # TODO: set line xy componenets # TODO: implement snap_to_graph 
-        #     elif self.connected_wires[wire]['point'] == 'p2':
-        #         p2_offset = self.connected_wires[wire]['p2_offset']
-        #         wire.setLine( QLineF( wire.line().p1() , self.scene().snapToGrid(event.scenePos() + p2_offset) ) )
-
-        self.setPos(self.scene().snapToGrid(event.scenePos() + self.offset))
+        pass
             
-        
-
+            
     def mouseReleaseEvent(self, event):
         print("MySymbolItem.MouseReleaseEvent")
         
@@ -215,6 +208,7 @@ class Symbol(Reference, QGraphicsItem):
     def pins(self):
         return self._pins
 
+    
     def sceneTerminals(self):
         return self._sceneTerminals
             
