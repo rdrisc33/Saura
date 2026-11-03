@@ -66,6 +66,9 @@ class PinItem( QGraphicsItem):
     def paint(self, painter, option, widget):
         pass 
 
+    def terminal(self):
+        return self.lineItem.line().p1()
+    
     def sceneTerminal(self):
         return self.mapToScene( self.lineItem.line().p1() ) # 
     

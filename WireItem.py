@@ -12,7 +12,7 @@ class WireItem(QGraphicsLineItem):
         self.li1 = None 
         self.li2 = None 
                     
-    def mousePressEvent(self, event): # Commented out last bit so will not work
+    def mousePressEvent(self, event): 
         self._dragStart = event.scenePos()
         self.connectedWiresP1 = dict() # stores wire:anchor key-value pairs. wire:WireItem, anchor: QPointF
         self.connectedWiresP2 = dict()
@@ -39,8 +39,8 @@ class WireItem(QGraphicsLineItem):
                 anchor = wire.line().p1()
                 self.connectedWiresP2[wire] = anchor
             
-        print('CONNECTEDWIRESP1:', self.connectedWiresP1)
-        print('CONNECTEDWIRESP2:', self.connectedWiresP2)
+        # print('CONNECTEDWIRESP1:', self.connectedWiresP1)
+        # print('CONNECTEDWIRESP2:', self.connectedWiresP2)
 
 # Q: Will this interfere during adding wires to scene? Cmment it out, seems not   
         # if len(self.connectedWiresP1) == 0: # Then there are no wires connected to p1. Create one 

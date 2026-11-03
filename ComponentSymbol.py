@@ -40,12 +40,12 @@ class ComponentSymbol(Symbol):
             
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
-        print('COMPONENTSYMBOL.SCENETERMINALS():', self.sceneTerminals())    
+        # print('COMPONENTSYMBOL.SCENETERMINALS():', self.sceneTerminals())    
     # def mouseMoveEvent(self, event):
         
-    def mouseMoveEvent(self, event): 
-        self.setSceneTerminals()
-        super().mouseMoveEvent(event)
+    # def mouseMoveEvent(self, event): 
+    #     self.setSceneTerminals()
+    #     super().mouseMoveEvent(event)
         
     @classmethod
     def fromPart(cls, part, referenceNumber):

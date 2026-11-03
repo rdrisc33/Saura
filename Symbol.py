@@ -39,13 +39,10 @@ class Symbol(Reference, QGraphicsItem):
     def terminals(self): 
         self._terminals = [] 
         for pin in self.pins():
-            self._terminals.append(pin.pos())
+            self._terminals.append(pin.terminal())
         return self._terminals
     
     def sceneTerminals(self):
-        # keys = list(map(QPointF, [t[0] for t in self._sceneTerminals] , [ t[1] for t in self._sceneTerminals]))# Note self_sceneTerminals is keyed on tuples, not QPointF, use map() to revert back to QPointF
-        # self._sceneTerminals: { ( 0,0 ) : <pin> , ... }
-        
         return self._sceneTerminals # [ ( (0,0) , <pin> ) , ... ]
 
     def setSceneTerminals(self): # Called by self.mouseMoveEvent
@@ -99,31 +96,129 @@ class Symbol(Reference, QGraphicsItem):
         self.offset = self.scenePos() - event.scenePos()  # Could also utilize event.mouseDownPosition(no could not
         # self.p1_offset = event.scenePos() - p1
         # self.p2_offset = p2 - event.scenePos() #offsets must be recorded at mouse press location ( Hmm but we don't have p1/p2 here )(Gotta record connected wires upon mousePressEvent)
-        items = [item for item in self.collidingItems() if isinstance(item, (WireItem, Symbol))]
+        
         self.connections = {}
-        for item in items: 
-            for terminal in item.sceneTerminals():
-                for t in self.sceneTerminals():
-                    if terminal == t: # Then self and item connect
-                        self.connections[item] = terminal
+        items = [item for item in self.collidingItems() if isinstance(item, (WireItem, Symbol))]
+        
+        for t in self.terminals():
+            anchor              = None 
+            initialDirection    = None
+            horWire             = None
+            vertWire            = None
+            connectedWires      = 0 
+            
+            for item in items: 
+                for terminal in item.sceneTerminals():
+                    if terminal == self.mapToScene(t): # Then self and item connect
+                        if isinstance(item, Symbol):
+                            anchor = terminal
+                            initialDirection = None 
+                            horWire = WireItem(terminal, terminal)
+                            vertWire = WireItem(terminal, terminal)
+                            break
 
+                        elif isinstance(item, WireItem):
+                            connectedWires += 1 
+                            wire = item
+                            if connectedWires == 2: # 
+                                wire = None 
+                                anchor = terminal
+                                initialDirection=None 
+                                horWire = WireItem(terminal, terminal)
+                                vertWire = WireItem(terminal, terminal)
+                                break
+
+            if connectedWires == 1: 
+                if wire.isHorizontal(): 
+                    horWire = wire 
+                    vertWire = WireItem()
+                    initialDirection = 'x'
+                elif wire.isVertical():
+                    vertWire = wire 
+                    initialDirection = 'y'
+                    horWire = WireItem()
                     
-        # print('SELF.OFFSET:', self.offset)
+                distal = None 
+                if wire.p2() == self.mapToScene(t):
+                    distal = wire.p1() 
+                if wire.p1() == self.mapToScene(t) : 
+                    distal = wire.p2() 
+                anchor = distal 
+                
+                # if there is one other wire connected to wire at distal, that wire is our missing hor/vert wire, anchor is other wire's distal
+                # if there is a symbol, or 2+ wires connected to wire at distal,  our missing hor/vert wire is null, anchor is distal
+                items2 = [ item2 for item2 in self.scene().items(distal)  if isinstance(item2, (Symbol ,WireItem)) and item2 is not wire]
+
+                connectedWires2 = 0
+                for item2 in items2: 
+                    for terminal2 in item2.sceneTerminals(): 
+                        if terminal2 == distal: # Then wire is connected to item2
+                            if isinstance(item2, WireItem):
+                                connectedWires2 += 1 
+                                wire2 = item2
+                                if connectedWires2 == 2: 
+                                    wire2 = None 
+                                    anchor = distal
+                                    break 
+                            elif isinstance(item2, Symbol):
+                                anchor = distal
+                                break 
+                    if anchor: 
+                        break 
+                    
+                if connectedWires2 == 1: 
+                    if wire2.isHorizontal():
+                        horWire = wire2
+                    elif wire2.isVertical():
+                        vertWire = wire2
+                        
+                    distal2 = None 
+                    if wire2.p2() == distal:
+                        distal2 = wire2.p1() 
+                    if wire2.p1() == distal : 
+                        distal2 = wire2.p2() 
+                    anchor = distal2 
+                                    
+ 
+                    
+            self.connections[t.toTuple()] = (anchor, initialDirection, horWire, vertWire)
+
+        print('CONNECTIONS:', self.connections)
+            
         super().mousePressEvent(event) 
 
     def mouseMoveEvent(self, event): 
         # print("MOUSEMOVEEVENT")
         # print('EVENT.SCENEPOS:', event.scenePos())
-        pass
+        self.setPos(self.scene().snapToGrid(event.scenePos() + self.offset))
+        self.setSceneTerminals()
+        
+        for pos, (anchor, initialDirection, horWire, vertWire) in self.connections.items():
+            if anchor is None: 
+                continue 
+            # wireUp(self.mapToScene(pos) , anchor), taking initialDirection and any existing hor/VertWires into account
+            startPos    = self.mapToScene(QPointF(*pos))
+            endPos      = anchor
+            if initialDirection == 'x': 
+                horWire.setLine(QLineF( startPos , QPointF(endPos.x(), startPos.y()) )  )
+                vertWire.setLine(QLineF( QPointF(endPos.x() , startPos.y()) , endPos) )
+
+            elif initialDirection == 'y': 
+                vertWire.setLine(QLineF( startPos , QPointF(startPos.x() , endPos.y())) ) 
+                horWire.setLine(QLineF( QPointF(startPos.x() , endPos.y()) , endPos ) )
+        # super().mouseMoveEvent(event)
             
             
     def mouseReleaseEvent(self, event):
-        print("MySymbolItem.MouseReleaseEvent")
+        # print("SYMBOLITEM.MOUSERELEASEVENT")
         
         self.setSceneTerminals() # We need to setSceneTerminals() on every reposition. 
-        print('SCENETERMINALS:' ,self.sceneTerminals())
+        # print('SCENETERMINALS:' ,self.sceneTerminals())
         for terminal in self.sceneTerminals():
             self.scene().wiringLaid.emit(terminal) # We can use the wiringLaid signal
+
+        self.connections.clear()
+        
         super().mouseReleaseEvent(event) # Release's base implementation handles selection and moving, which we want, so call base implementation
         
     def nameItem(self):

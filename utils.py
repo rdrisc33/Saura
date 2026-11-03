@@ -154,18 +154,18 @@ class Utils:
             return False 
 
         dotProduct = (c.x() - a.x()) * (b.x() - a.x()) + (c.y() - a.y())*(b.y() - a.y())
-        print('DOTPRODUCT:', dotProduct)
+        # print('DOTPRODUCT:', dotProduct)
         # if dotProduct < 0: # Inclusive of endpoints 
         if dotProduct <= 0: # Exclusive of endpoints (to test if point WITHIN line, I want exclusive)()
             return False 
 
         squaredLengthBA = (b.x() - a.x())*(b.x() - a.x()) + (b.y() - a.y())*(b.y() - a.y())
-        print('SQUAREDLENGTHBA:', squaredLengthBA)
+        # print('SQUAREDLENGTHBA:', squaredLengthBA)
         if dotProduct >= squaredLengthBA: 
             return False 
         
         else: 
-            print('POINT IS WITHIN SEGMENT')
+            # print('POINT IS WITHIN SEGMENT')
             return True 
 
     @staticmethod

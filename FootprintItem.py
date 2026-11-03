@@ -341,9 +341,9 @@ class FootprintItem(Reference, QGraphicsItem):
                 # lineItem.setPen(QPen(Utils.layerColors[layer] , stroke_width))
     
 
-    def generateCourtyardPath(self, courtyard): 
+    def generateCourtyardPath(self, courtyard, verbose = False): 
         
-        def createGraph( courtyard): # represent courtyard geometry with a graph
+        def createGraph( courtyard, verbose=False): # represent courtyard geometry with a graph
             G = nx.Graph()
 
             for line in courtyard['lines']: 
@@ -353,15 +353,16 @@ class FootprintItem(Reference, QGraphicsItem):
             #     G.add_edge(bez[0]   , bez[3]     , geometryType= Utils.GeometryTypes.Curve         , geometry = bez)
             # for arc in courtyard['arcs']:     # Not supported
             #     G.add_edge(arc[0]   , arc[2]     , geometryType = Utils.GeometryTypes.Arc          , geometry = arc)
-
-            print('EDGES:',  type(G.edges)  , G.edges)
-            print('NODES:',  type(G.nodes)  , G.nodes(data=True))
-            print('ADJ:',    type(G.adj)    , G.adj) # The third dict is the node? attribute dictionary
+            if verbose: 
+                print('EDGES:',  type(G.edges)  , G.edges)
+                print('NODES:',  type(G.nodes)  , G.nodes(data=True))
+                print('ADJ:',    type(G.adj)    , G.adj) # The third dict is the node? attribute dictionary
             return G
 
-        def createClosedPaths(G): # Given graph G, detect any closed shapes, and represent them with a QPainterPath. open shapes are ignored. 
+        def createClosedPaths(G, verbose=False ): # Given graph G, detect any closed shapes, and represent them with a QPainterPath. open shapes are ignored. 
             components = list(nx.connected_components(G))
-            print('COMPONENTS:', len(components), components)
+            if verbose: 
+                print('COMPONENTS:', len(components), components)
             subgraphs = [G.subgraph(component).copy() for component in components]
             # eulerian_circuits = [list(nx.eulerian_circuit(subgraph)) for subgraph in subgraphs]
 
@@ -369,19 +370,22 @@ class FootprintItem(Reference, QGraphicsItem):
             path = QPainterPath()
 
             for subgraph in subgraphs: 
-                print()
-                print('SUBGRAPH:')
-                print('EDGES:',  type(G.edges)  , G.edges(data=True))
-                print('NODES:',  type(G.nodes)  , G.nodes)
-                print('ADJ:',    type(G.adj)    , G.adj) # The third dict is the edge attribute dictionary
+                if verbose: 
+                    print()
+                    print('SUBGRAPH:')
+                    print('EDGES:',  type(G.edges)  , G.edges(data=True))
+                    print('NODES:',  type(G.nodes)  , G.nodes)
+                    print('ADJ:',    type(G.adj)    , G.adj) # The third dict is the edge attribute dictionary
                 subpath = QPainterPath()
                 if not nx.is_eulerian(G):
                     continue
                 eulerian_circuit=list(nx.eulerian_circuit(subgraph))
-                print('EULERIAN_CIRCUIT:', list(eulerian_circuit))
+                if verbose: 
+                    print('EULERIAN_CIRCUIT:', list(eulerian_circuit))
 
                 start = eulerian_circuit[0][0]
-                print('START:', start)
+                if verbose: 
+                    print('START:', start)
                 subpath.moveTo(QPointF(*start))
                 
                 for edge in eulerian_circuit:
@@ -404,18 +408,20 @@ class FootprintItem(Reference, QGraphicsItem):
                 path.addPath(subpath)
             return path
 
-        G = createGraph(courtyard)
-        self.courtyardPath = createClosedPaths(G)
-        print('SELF.COURTYARDPATH:', self.courtyardPath)
+        G = createGraph(courtyard, verbose)
+        self.courtyardPath = createClosedPaths(G, verbose)
+        if verbose: 
+            print('SELF.COURTYARDPATH:', self.courtyardPath)
 
         if self.layer() == 'F.Cu' :
             layer = 'Front'
         elif self.layer() == 'B.Cu':
             layer = 'Back'
-
-        print('LAYER:', layer)
+        if verbose: 
+            print('LAYER:', layer)
         courtyardItem = CourtyardItem(layer, self, self.courtyardPath)
-        print('CI:', courtyardItem)
+        if verbose: 
+            print('CI:', courtyardItem)
         self.setCourtyardPathItem ( courtyardItem )
         self.courtyardPathItem().setPen(QPen(Qt.black, 0)) # Note the courtyard is drawn elsewhere, in magenta, as possibly open shapes. The courtyardPathItem is for courtyard collision detection, and is usually invisible, save for debugging. If visible, it appears as same shape as magenta courtyard. They are the same shape, bc couryardPathItem is used for courtyard collision detection
         # self.setCourtyardBounds()
