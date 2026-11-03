@@ -94,14 +94,37 @@ class Symbol(Reference, QGraphicsItem):
             return 
         
         self.offset = self.scenePos() - event.scenePos()  # Could also utilize event.mouseDownPosition(no could not
-        # self.p1_offset = event.scenePos() - p1
-        # self.p2_offset = p2 - event.scenePos() #offsets must be recorded at mouse press location ( Hmm but we don't have p1/p2 here )(Gotta record connected wires upon mousePressEvent)
+        self.prepareToMoveConnectedWires()
+        super().mousePressEvent(event) 
+
+    def prepareToMoveConnectedWires(self): 
+        """Search for wires and symbols connected to this symbol to generate self.connections, a data structure used in mouseMoveEvent to adjust connected wires upon user moving this symbol. 
+        A symbol may have wires or other symbols connected to it's terminals. When we move the symbol, we want wires connected to terminals to remain connected to their terminals.
+        Locate an 'anchor' point, in scene coordinates, where the terminal eventually connects to. 
+        This anchor point is two wires away, one horizontal wire, one vertical wire. 
+        If there is just one wire connected to terminal, the anchor point is that wire's distal 
+        If there is a symbol connected to terminal, the anchor is right there. 
+        If there is a junction of 2+ wires at terminal, the anchor is also right there.
+        If there is nothing connected at terminal, the anchor is None 
+        
+        
+        For each terminal in this symbol, look for connected symbols or wires. 
+            if there are no connections at terminal, anchor is None 
+            if there is a symbol connected at terminal, or 2+ wires connected at terminal, anchor will be that terminal. 
+            if there is a single wire connected to terminal, whose distal is not connected to anything, or whose distal is connected to 2+ wires, or whose distal is connected to a symbol, anchor will be that wire's distal. If wire is horizontal, denote initialDirection as 'x', and horWire is wire. If wire is vertical, denote initialDirection as 'y', and vertWire is wire. 
+            If there is just one wire connected to terminal, whose distal is connected to one other wire, anchor will be that second wire's distal. If second wire is vertical, vertWire is secondWire. If second wire is horizontal, horWire is second wire 
+        Use self.connections is keyed on local position of the terminal, and value stores 4-tuple with relevant info about any connections: (anchor, initialDirection, horWire, vertWire)
+        self.connections is used in mouseMoveEvent to know what wires to adjust as symbol moves, with initialDirection maintained.
+        """
         
         self.connections = {}
         items = [item for item in self.collidingItems() if isinstance(item, (WireItem, Symbol))]
         
         for t in self.terminals():
+            wire                = None 
+            wire2               = None 
             anchor              = None 
+            anchor2             = None
             initialDirection    = None
             horWire             = None
             vertWire            = None
@@ -113,8 +136,8 @@ class Symbol(Reference, QGraphicsItem):
                         if isinstance(item, Symbol):
                             anchor = terminal
                             initialDirection = None 
-                            horWire = WireItem(terminal, terminal)
-                            vertWire = WireItem(terminal, terminal)
+                            horWire = WireItem()
+                            vertWire = WireItem()
                             break
 
                         elif isinstance(item, WireItem):
@@ -124,11 +147,14 @@ class Symbol(Reference, QGraphicsItem):
                                 wire = None 
                                 anchor = terminal
                                 initialDirection=None 
-                                horWire = WireItem(terminal, terminal)
-                                vertWire = WireItem(terminal, terminal)
+                                horWire = WireItem()
+                                vertWire = WireItem()
                                 break
-
-            if connectedWires == 1: 
+                if anchor: 
+                    break
+                
+            # if connectedWires == 1: 
+            if wire is not None: # Wire is None unless a single wire connected to terminal
                 if wire.isHorizontal(): 
                     horWire = wire 
                     vertWire = WireItem()
@@ -137,8 +163,12 @@ class Symbol(Reference, QGraphicsItem):
                     vertWire = wire 
                     initialDirection = 'y'
                     horWire = WireItem()
-                    
+
                 distal = None 
+                print()
+                print('WIRE.P1()', wire.p1())
+                print('WIRE.P2()', wire.p2())
+                print('SELF.MAPTOSCENE(T)', self.mapToScene(t))
                 if wire.p2() == self.mapToScene(t):
                     distal = wire.p1() 
                 if wire.p1() == self.mapToScene(t) : 
@@ -158,15 +188,16 @@ class Symbol(Reference, QGraphicsItem):
                                 wire2 = item2
                                 if connectedWires2 == 2: 
                                     wire2 = None 
-                                    anchor = distal
+                                    anchor2 = distal
                                     break 
                             elif isinstance(item2, Symbol):
-                                anchor = distal
+                                anchor2 = distal
                                 break 
-                    if anchor: 
+                    if anchor2: 
                         break 
                     
-                if connectedWires2 == 1: 
+                # if connectedWires2 == 1:
+                if wire2 is not None:  
                     if wire2.isHorizontal():
                         horWire = wire2
                     elif wire2.isVertical():
@@ -177,22 +208,31 @@ class Symbol(Reference, QGraphicsItem):
                         distal2 = wire2.p1() 
                     if wire2.p1() == distal : 
                         distal2 = wire2.p2() 
-                    anchor = distal2 
-                                    
+                    anchor2 = distal2 
  
-                    
+            anchor = anchor2 if anchor2 else anchor
+            if horWire: 
+                if not horWire.scene(): 
+                    self.scene().addItem(horWire)
+            if vertWire: 
+                if not vertWire.scene():
+                    self.scene().addItem(vertWire)
+                
             self.connections[t.toTuple()] = (anchor, initialDirection, horWire, vertWire)
 
-        print('CONNECTIONS:', self.connections)
+        print('SELF.CONNECTIONS:', self.connections)
             
-        super().mousePressEvent(event) 
 
     def mouseMoveEvent(self, event): 
         # print("MOUSEMOVEEVENT")
         # print('EVENT.SCENEPOS:', event.scenePos())
         self.setPos(self.scene().snapToGrid(event.scenePos() + self.offset))
         self.setSceneTerminals()
-        
+        self.moveConnectedWires()
+        # super().mouseMoveEvent(event)
+    
+    def moveConnectedWires(self):
+        """Relies on self.connections, as created in mousePressEvent. Moves wires in self.connections to match up with this symbols new position. """
         for pos, (anchor, initialDirection, horWire, vertWire) in self.connections.items():
             if anchor is None: 
                 continue 
@@ -206,7 +246,6 @@ class Symbol(Reference, QGraphicsItem):
             elif initialDirection == 'y': 
                 vertWire.setLine(QLineF( startPos , QPointF(startPos.x() , endPos.y())) ) 
                 horWire.setLine(QLineF( QPointF(startPos.x() , endPos.y()) , endPos ) )
-        # super().mouseMoveEvent(event)
             
             
     def mouseReleaseEvent(self, event):
@@ -217,6 +256,13 @@ class Symbol(Reference, QGraphicsItem):
         for terminal in self.sceneTerminals():
             self.scene().wiringLaid.emit(terminal) # We can use the wiringLaid signal
 
+        for pos, (anchor, initialDirection, horWire, vertWire) in self.connections.items():
+            if horWire: 
+                if horWire.line().isNull(): 
+                    self.scene().removeItem(horWire)
+            if vertWire: 
+                if vertWire.line().isNull():
+                    self.scene().removeItem(vertWire)
         self.connections.clear()
         
         super().mouseReleaseEvent(event) # Release's base implementation handles selection and moving, which we want, so call base implementation
